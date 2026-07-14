@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#11152f">
+  <title>AI Game Library</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:calc(34px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left)); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; color:#f5f6ff; background:radial-gradient(circle at 50% 0,#31356d 0,#171a3b 38%,#0b0e23 100%); }
+    main { width:min(960px,100%); margin:0 auto; }
+    header { margin-bottom:30px; }
+    h1 { margin:0 0 8px; font-size:clamp(34px,7vw,62px); letter-spacing:.02em; }
+    header p { margin:0; color:#bec7ef; line-height:1.7; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; }
+    .card { display:block; color:inherit; text-decoration:none; padding:22px; border-radius:22px; background:linear-gradient(150deg,rgba(90,91,174,.55),rgba(24,26,65,.9)); border:1px solid rgba(225,229,255,.2); box-shadow:0 18px 50px rgba(0,0,0,.25); transition:transform .15s ease,border-color .15s ease; }
+    .card:hover { transform:translateY(-3px); border-color:rgba(255,236,166,.5); }
+    .icon { font-size:54px; }
+    h2 { margin:12px 0 7px; font-size:24px; color:#fff1b5; }
+    .card p { margin:0 0 16px; color:#d5dbf8; line-height:1.65; }
+    .tags { display:flex; gap:7px; flex-wrap:wrap; }
+    .tags span { padding:5px 9px; border-radius:999px; font-size:11px; background:rgba(255,255,255,.09); color:#cbd3ff; }
+    footer { margin-top:32px; color:#8f99c2; font-size:12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>AI Game Library</h1>
+      <p>AIと一緒に制作した、ブラウザですぐ遊べるゲーム置き場です。</p>
+    </header>
+    <section class="grid" aria-label="ゲーム一覧">
+      <a class="card" href="./games/survivor/">
+        <div class="icon">🌙</div>
+        <h2>月影サバイバー</h2>
+        <p>左下のスティックで移動し、押し寄せる魔物から5分間生き残る自動攻撃アクションです。</p>
+        <div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>1人用</span><span>約5分</span></div>
+      </a>
+    </section>
+    <footer>© AI Game Library</footer>
+  </main>
+</body>
+</html>
