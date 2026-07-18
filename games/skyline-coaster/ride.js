@@ -62,6 +62,7 @@ let simulatedSpeed = 0;
 const SPEEDS = [0.72, 1, 1.38];
 const SPEED_LABELS = ['×0.7', '×1.0', '×1.4'];
 const FRAME_COUNT = 1200;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const clock = new THREE.Clock();
 const tmpPoint = new THREE.Vector3();
 const tmpTangent = new THREE.Vector3();
@@ -104,6 +105,13 @@ function boot() {
     trackCurve.arcLengthDivisions = 2400;
     trackCurve.updateArcLengths();
     frames = trackCurve.computeFrenetFrames(FRAME_COUNT, true);
+    // Three.js may choose the first rail normal toward the underside of the
+    // track. Orient the entire frame set so the station starts on the upper
+    // face; the frame then follows loops and banking continuously.
+    if (frames.normals[0].dot(WORLD_UP) < 0) {
+      frames.normals.forEach((normal) => normal.negate());
+      frames.binormals.forEach((binormal) => binormal.negate());
+    }
 
     createSky();
     createLights();
