@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#ff7f91">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>まちかどコンビニ日記</title>
+  <style>
+    :root{--ink:#47362f;--cream:#fff8e9;--pink:#ff7f91;--pink2:#ffb1bc;--green:#64b783;--yellow:#ffd66b;--blue:#7fc8e8;--shadow:0 5px 0 rgba(104,67,50,.15)}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f9ddbd;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;color:var(--ink)}
+    button{font:inherit;color:inherit;touch-action:manipulation}
+    #app{height:100%;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:linear-gradient(#9ee2f2 0 24%,#bde993 24% 100%)}
+    .top{height:74px;flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,248,233,.95);border-bottom:4px solid #dfae77;box-shadow:0 4px 12px #805b3b2b;z-index:5}
+    .brand{display:flex;align-items:center;gap:8px;min-width:190px}.logo{font-size:31px}.brand h1{font-size:clamp(14px,2.2vw,22px);line-height:1.05;margin:0}.day{font-size:11px;color:#9b6a58;margin-top:4px}
+    .stats{display:flex;gap:6px;flex:1;justify-content:center}.stat{min-width:86px;padding:6px 9px;border-radius:12px;background:#fff;border:2px solid #efd9bd;font-weight:800;font-size:13px;text-align:center;white-space:nowrap}.stat small{display:block;font-size:9px;color:#a77a66;font-weight:700}.stat.money{color:#d16449}.stat.rep{color:#54895f}
+    .round-btn{border:0;border-radius:13px;background:#fff;padding:10px;box-shadow:var(--shadow);font-weight:900;min-width:44px}.round-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(104,67,50,.15)}
+    .main{min-height:0;flex:1;display:grid;grid-template-columns:minmax(470px,1.4fr) minmax(285px,.72fr);gap:10px;padding:10px}
+    .world-wrap{min-height:0;display:flex;flex-direction:column;position:relative}
+    .street{height:38px;flex:none;border-radius:14px 14px 0 0;background:#65727d;position:relative;overflow:hidden;color:#fff;font-size:12px;font-weight:800;padding:7px 12px}.street:after{content:"";position:absolute;left:0;right:0;bottom:7px;border-bottom:3px dashed #e8e2b7}
+    .store{min-height:0;flex:1;position:relative;background:#fff3d8;border:8px solid #e4a66c;border-top:0;border-radius:0 0 16px 16px;box-shadow:0 8px 18px #6c563d35;overflow:hidden}
+    .store:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 49%,#e6cfaa55 50%,transparent 51%),linear-gradient(0deg,transparent 49%,#e6cfaa55 50%,transparent 51%);background-size:16.666% 20%;pointer-events:none}
+    #grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(5,1fr);z-index:1}
+    .cell{border:1px solid transparent;display:flex;align-items:center;justify-content:center;position:relative}.build-mode .cell.empty{border:2px dashed #75ba79;background:#d9f5cc66}.build-mode .cell.empty:after{content:"＋";font-size:24px;color:#67a76c;font-weight:900}
+    .fixture{width:82%;height:76%;border:0;border-radius:10px;background:linear-gradient(145deg,#fff,#f3dec0);box-shadow:0 4px 0 #b47c52,0 7px 10px #63432833;display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;padding:2px;z-index:2}.fixture .emoji{font-size:clamp(20px,3.5vw,34px);line-height:1}.fixture .fname{font-size:clamp(8px,1.25vw,11px);font-weight:900;max-width:100%;overflow:hidden;white-space:nowrap}.stock{position:absolute;right:-5px;top:-7px;border-radius:10px;background:#4f7558;color:#fff;font-size:9px;padding:2px 5px;font-weight:900;border:2px solid #fff}.fixture.low .stock{background:#e05f52;animation:pulse .8s infinite alternate}.fixture.register{background:linear-gradient(#f6a7af,#e87f8c);box-shadow:0 4px 0 #ad5660}.fixture.door{background:#a9ddf0;box-shadow:0 4px 0 #5994aa}.fixture.selected{outline:4px solid #ffd152;transform:translateY(-2px)}
+    .customer{position:absolute;width:38px;height:45px;z-index:4;transition:left .55s ease,top .55s ease;display:flex;flex-direction:column;align-items:center;pointer-events:none}.customer .face{font-size:30px;filter:drop-shadow(0 3px 1px #6b4b3728)}.bubble{position:absolute;bottom:39px;left:23px;background:#fff;border:2px solid #dcbf98;border-radius:9px;padding:2px 5px;font-size:14px;white-space:nowrap;box-shadow:0 2px 4px #0002}.customer.wait .face{animation:bob .5s infinite alternate}.customer.angry .bubble{background:#ffd0cc}
+    .float{position:absolute;z-index:8;font-weight:900;color:#d2543e;text-shadow:0 2px #fff;animation:floatUp 1.2s forwards;pointer-events:none}
+    @keyframes floatUp{to{transform:translateY(-55px);opacity:0}}@keyframes bob{to{transform:translateY(-4px)}}@keyframes pulse{to{transform:scale(1.12)}}
+    .panel{min-height:0;border-radius:16px;background:rgba(255,248,233,.97);border:3px solid #e5b77d;box-shadow:0 7px 18px #60432e2b;display:flex;flex-direction:column;overflow:hidden}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:7px;background:#f2d2a4}.tab{border:0;border-radius:10px;padding:9px 3px;background:#fff7e7;font-weight:900;font-size:13px}.tab.active{background:var(--pink);color:#fff;box-shadow:inset 0 -3px #d75e70}
+    .pane{display:none;min-height:0;overflow:auto;padding:9px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.pane.active{display:block}.tip{font-size:11px;line-height:1.55;background:#fff1b9;border-radius:10px;padding:8px;margin-bottom:8px}
+    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.card-btn{min-height:88px;border:2px solid #ecd4b2;border-radius:12px;background:#fff;padding:7px;box-shadow:0 3px 0 #d8b58b;text-align:left;position:relative}.card-btn:active,.card-btn.selected{transform:translateY(2px);box-shadow:0 1px 0 #d8b58b}.card-btn.selected{border-color:#ef788a;background:#fff0f2}.card-btn.locked{filter:grayscale(1);opacity:.62}.card-btn .ico{font-size:25px}.card-btn b{display:block;font-size:12px}.card-btn small{display:block;font-size:9px;color:#98715e;line-height:1.3}.price{position:absolute;right:6px;top:7px;font-size:10px;font-weight:900;color:#cf694f}
+    .manage-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;background:#fff;border:2px solid #eed9bb;border-radius:12px;padding:8px;margin-bottom:7px}.manage-row b{font-size:12px}.manage-row small{display:block;color:#9a7461;font-size:9px}.buy{border:0;border-radius:9px;background:#69b982;color:#fff;padding:9px;font-weight:900;white-space:nowrap}.buy:disabled{background:#bbb}.upgrade{background:#7ca8df}
+    .log{font-size:11px;line-height:1.55;padding:7px;border-bottom:1px dashed #e5c9a7}.log strong{color:#d05d6d}
+    .bottom{height:54px;flex:none;display:flex;align-items:center;gap:8px;padding:7px 10px;background:#624a3d;color:#fff}.clock{font-weight:900;min-width:112px}.clock small{display:block;color:#ead5c8;font-size:9px}.bar{height:8px;background:#3c2b25;border-radius:5px;overflow:hidden;margin-top:3px}.bar i{display:block;height:100%;background:#ffd663;width:0}.speed{margin-left:auto;display:flex;gap:5px}.speed button{border:0;border-radius:9px;background:#8a6a58;color:#fff;font-weight:900;padding:8px 11px}.speed button.active{background:#ff9a70}.message{flex:1;text-align:center;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .modal-bg{position:fixed;inset:0;z-index:50;background:#5a3d307c;display:flex;align-items:center;justify-content:center;padding:20px}.modal-bg.hidden{display:none}.modal{width:min(520px,100%);max-height:90vh;overflow:auto;background:#fff9e9;border:5px solid #e5af72;border-radius:24px;box-shadow:0 12px 0 #825b42;text-align:center;padding:22px}.modal h2{margin:0 0 8px;color:#d85f72}.modal p{line-height:1.7;font-size:14px}.modal .hero{font-size:65px}.report{display:grid;grid-template-columns:1fr auto;gap:7px;text-align:left;background:#fff;border-radius:13px;padding:12px;margin:12px 0}.report b{text-align:right}.primary{border:0;border-radius:14px;background:var(--pink);color:#fff;padding:13px 24px;font-weight:900;box-shadow:0 5px 0 #c95365;font-size:16px}.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #c95365}.secondary{border:0;border-radius:12px;background:#e8dccb;padding:10px 16px;font-weight:800;margin:5px}
+    @media(max-width:760px){.top{height:66px;padding:6px}.brand{min-width:130px}.logo{font-size:24px}.brand h1{font-size:13px}.stats{gap:3px}.stat{min-width:64px;padding:5px 4px;font-size:11px}.main{grid-template-columns:1fr;grid-template-rows:minmax(300px,1.2fr) minmax(170px,.8fr);padding:6px;gap:6px}.street{height:28px;padding:4px 8px}.panel{border-radius:12px}.tabs{padding:4px}.tab{padding:6px 2px}.pane{padding:6px}.cards{grid-template-columns:repeat(3,1fr)}.card-btn{min-height:72px;padding:5px}.card-btn .ico{font-size:20px}.bottom{height:48px;padding:5px 7px}.message{display:none}.fixture .fname{font-size:8px}}
+    @media(max-width:520px){.stats .rep{display:none}.brand{min-width:112px}.cards{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><div class="logo">🏪</div><div><h1>まちかど<br>コンビニ日記</h1><div class="day" id="dayLabel">1日目・店舗ランク1</div></div></div>
+    <div class="stats"><div class="stat money"><small>所持金</small><span id="money">¥0</span></div><div class="stat"><small>本日の売上</small><span id="sales">¥0</span></div><div class="stat rep"><small>評判</small><span id="rep">★ 0</span></div></div>
+    <button class="round-btn" id="helpBtn" aria-label="遊び方">？</button><button class="round-btn" id="fullBtn" aria-label="全画面">⛶</button>
+  </header>
+  <main class="main">
+    <section class="world-wrap">
+      <div class="street">🚲　まちかど商店街</div>
+      <div class="store"><div id="grid"></div><div id="customers"></div><div id="floats"></div></div>
+    </section>
+    <aside class="panel">
+      <nav class="tabs"><button class="tab active" data-tab="build">棚を置く</button><button class="tab" data-tab="stock">仕入れ</button><button class="tab" data-tab="manage">経営</button></nav>
+      <div class="pane active" id="buildPane"><div class="tip">商品棚を選び、緑色の空きマスをタップ。よく売れる棚を入口近くに置くと、お客さんが買いやすくなります。</div><div class="cards" id="buildCards"></div></div>
+      <div class="pane" id="stockPane"><div class="tip">品切れでは売上が出ません。「まとめて仕入れ」なら全ての棚を一度に補充できます。</div><button class="buy" id="stockAll" style="width:100%;margin-bottom:8px">すべて満タンにする</button><div id="stockList"></div></div>
+      <div class="pane" id="managePane"><div id="manageList"></div><h3 style="font-size:13px;margin:12px 4px 4px">できごと</h3><div id="logs"></div></div>
+    </aside>
+  </main>
+  <footer class="bottom"><div class="clock"><span id="time">7:00</span><small>閉店 22:00</small><div class="bar"><i id="timeBar"></i></div></div><div class="message" id="message">今日も元気に開店です！</div><div class="speed"><button data-speed="0">Ⅱ</button><button class="active" data-speed="1">▶</button><button data-speed="2">▶▶</button></div></footer>
+</div>
+<div class="modal-bg" id="modal"><div class="modal" id="modalBody"></div></div>
+<script>
+(()=>{
+  'use strict';
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const W=6,H=5,SAVE='machikado-konbini-v1';
+  const products={
+    onigiri:{name:'おにぎり棚',emoji:'🍙',cost:450,unit:55,price:130,cap:14,demand:1.25,unlock:1,desc:'朝と昼に大人気'},
+    drink:{name:'ドリンク棚',emoji:'🥤',cost:520,unit:45,price:150,cap:16,demand:1.15,unlock:1,desc:'一日中よく売れる'},
+    sweets:{name:'お菓子棚',emoji:'🍫',cost:600,unit:70,price:190,cap:12,demand:.92,unlock:1,desc:'ついで買いを狙える'},
+    bread:{name:'パン棚',emoji:'🥐',cost:720,unit:75,price:210,cap:12,demand:1.05,unlock:2,desc:'朝に強い人気商品'},
+    daily:{name:'日用品棚',emoji:'🧻',cost:900,unit:120,price:330,cap:9,demand:.72,unlock:2,desc:'単価が高く安定'},
+    hot:{name:'ホットスナック',emoji:'🍗',cost:1200,unit:110,price:320,cap:8,demand:1.18,unlock:3,desc:'夕方に売れやすい'},
+    dessert:{name:'スイーツ冷蔵庫',emoji:'🍰',cost:1600,unit:160,price:450,cap:7,demand:.95,unlock:4,desc:'評判が上がりやすい'}
+  };
+  const faces=['🧑🏻','👩🏻','👨🏻','👩🏼','🧒🏻','👵🏻','👨🏽','👩🏽'];
+  const defaults=()=>({day:1,money:5000,sales:0,costs:0,rep:0,rank:1,clock:0,speed:1,spawn:0,nextId:1,selected:'onigiri',registerLv:1,adLv:0,cleanLv:0,totalCustomers:0,served:0,fixtures:[
+    {x:1,y:1,type:'onigiri',stock:10},{x:3,y:1,type:'drink',stock:12},{x:2,y:3,type:'sweets',stock:8}
+  ],customers:[],logs:['小さなコンビニがオープンしました！'],daily:{visitors:0,served:0,lost:0,profit:0}});
+  let g=defaults(),last=performance.now(),timer=null;
+  const positions={door:{x:5,y:4},register:{x:4,y:3}};
+  function yen(n){return '¥'+Math.max(0,Math.floor(n)).toLocaleString('ja-JP')}
+  function save(){const copy={...g,customers:[]};localStorage.setItem(SAVE,JSON.stringify(copy))}
+  function load(){try{const v=JSON.parse(localStorage.getItem(SAVE));if(v)g={...defaults(),...v,customers:[],speed:1,clock:Math.min(v.clock||0,89.5),daily:{...defaults().daily,...(v.daily||{})}}}catch(e){}}
+  function fixtureAt(x,y){return g.fixtures.find(f=>f.x===x&&f.y===y)}
+  function isBlocked(x,y){return fixtureAt(x,y)|| (x===positions.door.x&&y===positions.door.y)||(x===positions.register.x&&y===positions.register.y)}
+  function setMessage(t){$('#message').textContent=t}
+  function log(t){g.logs.unshift(t);g.logs=g.logs.slice(0,16);renderLogs()}
+  function renderGrid(){
+    const grid=$('#grid');grid.innerHTML='';grid.classList.toggle('build-mode',!!g.selected);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const c=document.createElement('div');c.className='cell';c.dataset.x=x;c.dataset.y=y;
+      const f=fixtureAt(x,y);
+      if(x===positions.door.x&&y===positions.door.y)c.innerHTML='<div class="fixture door"><span class="emoji">🚪</span><span class="fname">入口</span></div>';
+      else if(x===positions.register.x&&y===positions.register.y)c.innerHTML=`<div class="fixture register"><span class="emoji">🧾</span><span class="fname">レジ Lv.${g.registerLv}</span></div>`;
+      else if(f){const p=products[f.type];c.innerHTML=`<button class="fixture ${f.stock<=2?'low':''}" data-fixture="${x},${y}"><span class="stock">${f.stock}/${p.cap}</span><span class="emoji">${p.emoji}</span><span class="fname">${p.name}</span></button>`}
+      else {c.classList.add('empty');c.addEventListener('click',()=>place(x,y))}
+      grid.appendChild(c);
+    }
+    $$('[data-fixture]').forEach(b=>b.onclick=()=>{const [x,y]=b.dataset.fixture.split(',').map(Number);showFixtureMenu(x,y)});
+  }
+  function renderBuild(){
+    $('#buildCards').innerHTML=Object.entries(products).map(([k,p])=>{const locked=g.rank<p.unlock;return `<button class="card-btn ${g.selected===k?'selected':''} ${locked?'locked':''}" data-build="${k}" ${locked?'disabled':''}><span class="price">${locked?'ランク'+p.unlock:yen(p.cost)}</span><span class="ico">${locked?'🔒':p.emoji}</span><b>${p.name}</b><small>${p.desc}</small></button>`}).join('');
+    $$('[data-build]').forEach(b=>b.onclick=()=>{g.selected=g.selected===b.dataset.build?null:b.dataset.build;renderBuild();renderGrid();setMessage(g.selected?`${products[g.selected].name}を置く場所を選んでください`:'棚の設置をやめました')});
+  }
+  function place(x,y){if(!g.selected)return;const p=products[g.selected];if(g.money<p.cost){setMessage('お金が足りません');return}g.money-=p.cost;g.costs+=p.cost;g.fixtures.push({x,y,type:g.selected,stock:Math.ceil(p.cap/2)});floatText(x,y,'設置！');log(`${p.name}を設置しました。`);g.selected=null;renderAll();save()}
+  function showFixtureMenu(x,y){const f=fixtureAt(x,y),p=products[f.type],fill=(p.cap-f.stock)*p.unit;showModal(`<div class="hero">${p.emoji}</div><h2>${p.name}</h2><p>在庫 ${f.stock}/${p.cap}<br>販売価格 ${yen(p.price)}・仕入れ ${yen(p.unit)}</p><button class="primary" id="oneStock">満タンに仕入れる ${yen(fill)}</button><br><button class="secondary" id="moveFixture">移動する</button><button class="secondary" id="removeFixture">撤去する</button><br><button class="secondary" id="closeModal">閉じる</button>`);$('#oneStock').onclick=()=>{stockOne(f);closeModal()};$('#moveFixture').onclick=()=>{g.selected=f.type;g.fixtures=g.fixtures.filter(q=>q!==f);closeModal();renderAll();setMessage('移動先のマスをタップしてください')};$('#removeFixture').onclick=()=>{g.fixtures=g.fixtures.filter(q=>q!==f);g.money+=Math.floor(p.cost*.35);closeModal();renderAll();save()};$('#closeModal').onclick=closeModal}
+  function stockOne(f){const p=products[f.type],n=p.cap-f.stock,c=n*p.unit;if(!n)return;if(g.money<c){setMessage('仕入れ資金が足りません');return}g.money-=c;g.costs+=c;f.stock=p.cap;log(`${p.name}を${n}個仕入れました。`);renderAll();save()}
+  function stockAll(){let filled=0,total=0;for(const f of g.fixtures){const p=products[f.type],need=p.cap-f.stock,c=need*p.unit;if(need&&g.money>=c){g.money-=c;g.costs+=c;f.stock=p.cap;filled+=need;total+=c}}if(filled)log(`全棚に${filled}個、${yen(total)}分を仕入れました。`);else setMessage('仕入れできる商品がありません');renderAll();save()}
+  function renderStock(){
+    let total=0;for(const f of g.fixtures){const p=products[f.type];total+=(p.cap-f.stock)*p.unit}$('#stockAll').textContent=`すべて満タンにする（最大 ${yen(total)}）`;
+    $('#stockList').innerHTML=g.fixtures.map((f,i)=>{const p=products[f.type],c=(p.cap-f.stock)*p.unit;return `<div class="manage-row"><div><b>${p.emoji} ${p.name}</b><small>在庫 ${f.stock}/${p.cap}・満タン ${yen(c)}</small></div><button class="buy" data-stock="${i}" ${!c?'disabled':''}>仕入れ</button></div>`}).join('')||'<div class="tip">商品棚がまだありません。</div>';
+    $$('[data-stock]').forEach(b=>b.onclick=()=>stockOne(g.fixtures[+b.dataset.stock]));
+  }
+  function upgrade(kind){const lv=g[kind],base={registerLv:1400,adLv:1100,cleanLv:900}[kind],cost=base*(lv+1);if(g.money<cost){setMessage('お金が足りません');return}g.money-=cost;g.costs+=cost;g[kind]++;log({registerLv:'レジを高速化しました！',adLv:'広告を出して来客数が増えました！',cleanLv:'店内がきれいになり評判が上がりました！'}[kind]);renderAll();save()}
+  function renderManage(){
+    const rows=[['registerLv','⚡ レジ速度',`Lv.${g.registerLv}　会計待ちを短縮`,1400*(g.registerLv+1)],['adLv','📣 まちの広告',`Lv.${g.adLv}　来店間隔を短縮`,1100*(g.adLv+1)],['cleanLv','✨ おそうじ',`Lv.${g.cleanLv}　満足度を向上`,900*(g.cleanLv+1)]];
+    $('#manageList').innerHTML=rows.map(r=>`<div class="manage-row"><div><b>${r[1]}</b><small>${r[2]}</small></div><button class="buy upgrade" data-up="${r[0]}">${yen(r[3])}</button></div>`).join('');$$('[data-up]').forEach(b=>b.onclick=()=>upgrade(b.dataset.up));renderLogs()
+  }
+  function renderLogs(){$('#logs').innerHTML=g.logs.map((l,i)=>`<div class="log">${i===0?'<strong>NEW </strong>':''}${l}</div>`).join('')}
+  function renderStats(){
+    $('#money').textContent=yen(g.money);$('#sales').textContent=yen(g.sales);$('#rep').textContent='★ '+Math.floor(g.rep);$('#dayLabel').textContent=`${g.day}日目・店舗ランク${g.rank}`;
+    const min=7*60+g.clock*10,h=Math.floor(min/60),m=Math.floor(min%60);$('#time').textContent=`${h}:${String(m).padStart(2,'0')}`;$('#timeBar').style.width=(g.clock/90*100)+'%';
+  }
+  function renderAll(){renderStats();renderGrid();renderBuild();renderStock();renderManage();renderCustomers()}
+  function targetPos(c){const pad=8,cw=($('.store').clientWidth-16)/W,ch=($('.store').clientHeight-8)/H;return {left:pad+(c.x+.5)*cw-19,top:(c.y+.5)*ch-22}}
+  function renderCustomers(){
+    const wrap=$('#customers'),alive=new Set(g.customers.map(c=>String(c.id)));
+    [...wrap.children].forEach(el=>{if(!alive.has(el.dataset.id))el.remove()});
+    for(const c of g.customers){let el=wrap.querySelector(`[data-id="${c.id}"]`);if(!el){el=document.createElement('div');el.className='customer';el.dataset.id=c.id;el.innerHTML=`<span class="bubble"></span><span class="face">${c.face}</span>`;wrap.appendChild(el)}el.className='customer '+(c.state==='checkout'?'wait ':'')+(c.mood<0?'angry':'');const pos=targetPos(c);el.style.left=pos.left+'px';el.style.top=pos.top+'px';el.querySelector('.bubble').textContent=c.want?products[c.want].emoji:(c.state==='checkout'?'💰':c.state==='leave'?(c.mood<0?'💢':'♪'):'…')}
+  }
+  function spawnCustomer(){
+    if(g.customers.length>=12)return;const available=g.fixtures.filter(f=>f.stock>0);if(!available.length)return;
+    const weighted=[];for(const f of available){const p=products[f.type];for(let i=0;i<Math.max(1,Math.round(p.demand*5));i++)weighted.push(f)}const f=weighted[Math.floor(Math.random()*weighted.length)];
+    g.customers.push({id:g.nextId++,face:faces[Math.floor(Math.random()*faces.length)],x:5,y:4,state:'enter',timer:.7,targetX:f.x,targetY:f.y,want:f.type,basket:[],mood:1});g.daily.visitors++;g.totalCustomers++;
+  }
+  function stepCustomer(c,dt){
+    c.timer-=dt;if(c.timer>0)return;
+    if(c.state==='enter'){c.x=c.targetX;c.y=c.targetY;c.state='shop';c.timer=1.2+Math.random()*.8}
+    else if(c.state==='shop'){
+      const f=fixtureAt(c.targetX,c.targetY);if(f&&f.stock>0){f.stock--;const p=products[f.type];c.basket.push(f.type);c.mood+=.2+g.cleanLv*.05;c.want=null;if(Math.random()<.28&&c.basket.length<2){const others=g.fixtures.filter(q=>q.stock>0&&q!==f);if(others.length){const n=others[Math.floor(Math.random()*others.length)];c.targetX=n.x;c.targetY=n.y;c.want=n.type;c.x=n.x;c.y=n.y;c.timer=1.1;c.state='shop';return}}}else c.mood--;
+      c.x=positions.register.x;c.y=positions.register.y;c.state='checkout';c.timer=Math.max(.65,2.2-g.registerLv*.28)+g.customers.filter(q=>q.state==='checkout').length*.25;
+    }else if(c.state==='checkout'){
+      if(c.basket.length){let sale=0;for(const k of c.basket)sale+=products[k].price;g.money+=sale;g.sales+=sale;g.daily.profit+=sale;g.served++;g.daily.served++;g.rep+=Math.max(.15,.65+g.cleanLv*.08);floatText(c.x,c.y,'+'+yen(sale))}else{g.daily.lost++;c.mood=-1;g.rep=Math.max(0,g.rep-.25)}c.x=5;c.y=4;c.state='leave';c.timer=.8;
+    }else if(c.state==='leave'){c.dead=true}
+  }
+  function floatText(x,y,text){const el=document.createElement('div');el.className='float';el.textContent=text;const p=targetPos({x,y});el.style.left=p.left+'px';el.style.top=p.top+'px';$('#floats').appendChild(el);setTimeout(()=>el.remove(),1300)}
+  function maybeRankUp(){const need=[0,0,20,55,110,190];while(g.rank<5&&g.rep>=need[g.rank+1]){g.rank++;const prize=1000*g.rank;g.money+=prize;log(`店舗ランク${g.rank}にアップ！ 開店祝い ${yen(prize)}を獲得。`);showModal(`<div class="hero">🎊</div><h2>店舗ランク ${g.rank}！</h2><p>新しい商品が仕入れられるようになりました。<br>お祝い金 ${yen(prize)}を獲得！</p><button class="primary" id="rankOk">やった！</button>`);$('#rankOk').onclick=closeModal}}
+  function update(dt){
+    if(!g.speed||!$('#modal').classList.contains('hidden'))return;const scale=g.speed===2?2.1:1;dt*=scale;g.clock+=dt;g.spawn-=dt;
+    const interval=Math.max(2.3,5.4-g.adLv*.45-g.rank*.15);if(g.spawn<=0){spawnCustomer();g.spawn=interval*(.7+Math.random()*.65)}
+    g.customers.forEach(c=>stepCustomer(c,dt));g.customers=g.customers.filter(c=>!c.dead);maybeRankUp();
+    if(g.clock>=90){endDay();return}renderStats();renderCustomers();if(Math.random()<.04)renderGrid()
+  }
+  function endDay(){g.speed=0;const net=g.sales-g.costs,bonus=Math.max(0,Math.floor(g.daily.served*12+g.rank*100));g.money+=bonus;g.daily.profit=net;showModal(`<div class="hero">🌙</div><h2>${g.day}日目の営業終了</h2><div class="report"><span>来店したお客さん</span><b>${g.daily.visitors}人</b><span>お会計した人数</span><b>${g.daily.served}人</b><span>本日の売上</span><b>${yen(g.sales)}</b><span>支出</span><b>−${yen(g.costs)}</b><span>営業ボーナス</span><b>＋${yen(bonus)}</b><span>収支</span><b>${net>=0?'+':'−'}${yen(Math.abs(net))}</b></div><button class="primary" id="nextDay">翌日をはじめる</button>`);$('#nextDay').onclick=nextDay;save()}
+  function nextDay(){g.day++;g.clock=0;g.sales=0;g.costs=0;g.daily={visitors:0,served:0,lost:0,profit:0};g.customers=[];g.speed=1;g.spawn=.5;if(g.day%3===0){g.money+=500;log('商店街から応援金 ¥500をいただきました！')}closeModal();renderAll();save()}
+  function showModal(html){$('#modalBody').innerHTML=html;$('#modal').classList.remove('hidden')}
+  function closeModal(){$('#modal').classList.add('hidden')}
+  function showHelp(first=false){showModal(`<div class="hero">🏪</div><h2>${first?'ようこそ！':'遊び方'}</h2><p><b>棚を置く → 仕入れる → 売上で店を育てる</b><br><br>お客さんは自動で買い物をします。品切れに気をつけながら、商品棚やレジを増強しましょう。評判が上がると店舗ランクが上がり、新商品が解禁されます。</p><button class="primary" id="helpOk">${first?'お店を開く！':'ゲームに戻る'}</button><br>${first?'':`<button class="secondary" id="resetBtn">最初からやり直す</button>`}`);$('#helpOk').onclick=()=>{closeModal();g.speed=1};const r=$('#resetBtn');if(r)r.onclick=()=>{if(confirm('セーブデータを消して最初から遊びますか？')){localStorage.removeItem(SAVE);g=defaults();closeModal();renderAll();save()}}}
+  function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;update(dt);requestAnimationFrame(loop)}
+  function init(){
+    const had=!!localStorage.getItem(SAVE);load();renderAll();
+    $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$$('.pane').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab+'Pane'))});
+    $('#stockAll').onclick=stockAll;$('#helpBtn').onclick=()=>showHelp(false);$('#fullBtn').onclick=()=>{const el=document.documentElement;(el.requestFullscreen||el.webkitRequestFullscreen)?.call(el)};
+    $$('.speed button').forEach(b=>b.onclick=()=>{g.speed=+b.dataset.speed;$$('.speed button').forEach(x=>x.classList.toggle('active',x===b));setMessage(g.speed?'営業中です':'一時停止しました')});
+    addEventListener('resize',renderCustomers);['contextmenu','selectstart','dragstart'].forEach(e=>document.addEventListener(e,v=>v.preventDefault()));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});addEventListener('pagehide',save);setInterval(save,15000);
+    $('#modal').classList.add('hidden');if(!had)showHelp(true);requestAnimationFrame(loop)
+  }
+  init();
+})();
+</script>
+</body>
+</html>
