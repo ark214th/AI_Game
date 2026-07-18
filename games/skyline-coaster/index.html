@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#151a3d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SKYLINE VELOCITY｜天空ジェットコースター</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cyan:#70f6ff;
+      --pink:#ff72d7;
+      --gold:#ffd56a;
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:#111737; touch-action:none; overscroll-behavior:none; user-select:none; -webkit-user-select:none; }
+    button { font:inherit; }
+    #scene,canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+    #vignette { position:fixed; inset:0; pointer-events:none; background:radial-gradient(circle at 50% 44%,transparent 35%,rgba(5,8,28,.12) 72%,rgba(4,6,22,.48) 120%); }
+
+    .overlay { position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left)); background:linear-gradient(145deg,rgba(9,13,43,.34),rgba(26,9,47,.3)); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); transition:opacity .55s ease,visibility .55s ease; }
+    .overlay.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+    .hero { width:min(620px,100%); text-align:center; padding:clamp(24px,5vw,46px); border-radius:34px; border:1px solid rgba(255,255,255,.28); background:linear-gradient(155deg,rgba(25,34,81,.7),rgba(54,19,80,.62)); box-shadow:0 28px 90px rgba(7,5,36,.45),inset 0 1px 0 rgba(255,255,255,.25); }
+    .eyebrow { margin:0 0 8px; color:var(--cyan); font-size:12px; font-weight:800; letter-spacing:.28em; }
+    h1 { margin:0; font-size:clamp(42px,10vw,78px); line-height:.88; font-style:italic; letter-spacing:-.055em; text-shadow:0 0 26px rgba(112,246,255,.34),5px 5px 0 rgba(255,74,196,.18); }
+    h1 span { display:block; margin-top:13px; font-size:.28em; font-style:normal; letter-spacing:.18em; color:#ffe79b; }
+    .lead { max-width:440px; margin:25px auto 20px; color:#eef2ff; font-size:clamp(14px,2.5vw,17px); line-height:1.8; text-shadow:0 2px 12px rgba(0,0,0,.4); }
+    .features { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin:0 0 24px; }
+    .features span { padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px; background:rgba(4,9,35,.28); color:#dfe8ff; font-size:11px; }
+    .ride-button { min-width:min(310px,100%); min-height:64px; padding:16px 28px; border:0; border-radius:999px; color:#17152e; font-weight:900; font-size:18px; letter-spacing:.08em; background:linear-gradient(100deg,var(--cyan),#fff2a6 45%,var(--pink)); box-shadow:0 13px 42px rgba(66,234,255,.28),inset 0 2px 1px rgba(255,255,255,.7); cursor:pointer; transition:transform .15s ease,filter .15s ease; }
+    .ride-button:active { transform:scale(.97); }
+    .ride-button:disabled { filter:grayscale(.6); opacity:.65; }
+    .note { margin:14px 0 0; color:#bfc7e8; font-size:11px; }
+
+    #hud { position:fixed; inset:0; z-index:10; pointer-events:none; opacity:0; transition:opacity .4s ease; }
+    #hud.visible { opacity:1; }
+    .topbar { position:absolute; top:calc(12px + env(safe-area-inset-top)); left:calc(14px + env(safe-area-inset-left)); right:calc(14px + env(safe-area-inset-right)); display:grid; grid-template-columns:minmax(140px,1fr) auto; gap:12px; align-items:start; }
+    .route { max-width:520px; padding:11px 14px 12px; border:1px solid rgba(255,255,255,.22); border-radius:17px; background:rgba(11,16,49,.42); box-shadow:0 10px 30px rgba(2,5,22,.18); backdrop-filter:blur(9px); -webkit-backdrop-filter:blur(9px); }
+    .route-row { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+    #location { color:white; font-size:12px; font-weight:900; letter-spacing:.12em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #speedReadout { color:var(--gold); font-size:11px; font-weight:800; white-space:nowrap; }
+    .progress { height:3px; margin-top:9px; overflow:hidden; border-radius:9px; background:rgba(255,255,255,.15); }
+    #progressFill { width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--cyan),var(--gold),var(--pink)); box-shadow:0 0 12px var(--cyan); }
+    .controls { display:flex; gap:7px; pointer-events:auto; }
+    .icon-button { min-width:48px; height:48px; padding:0 11px; border:1px solid rgba(255,255,255,.24); border-radius:16px; color:#fff; background:rgba(9,14,46,.48); box-shadow:0 8px 28px rgba(0,0,0,.2); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); font-weight:800; font-size:13px; cursor:pointer; }
+    .icon-button:active { transform:scale(.95); }
+    #speedButton { color:var(--cyan); }
+
+    #moment { position:absolute; left:50%; top:28%; min-width:min(360px,80vw); padding:14px 22px; border:1px solid rgba(255,255,255,.24); border-radius:18px; text-align:center; background:linear-gradient(110deg,rgba(22,29,78,.45),rgba(79,22,94,.42)); box-shadow:0 16px 45px rgba(8,6,34,.25); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); opacity:0; transform:translate(-50%,14px) scale(.96); transition:opacity .35s ease,transform .35s ease; }
+    #moment.show { opacity:1; transform:translate(-50%,0) scale(1); }
+    #moment small { display:block; margin-bottom:3px; color:var(--cyan); font-weight:800; font-size:9px; letter-spacing:.28em; }
+    #moment strong { color:white; font-size:clamp(18px,4vw,26px); letter-spacing:.1em; text-shadow:0 0 15px rgba(255,255,255,.35); }
+
+    #pauseCurtain { position:fixed; inset:0; z-index:9; display:grid; place-items:center; color:white; font-weight:900; font-size:clamp(26px,7vw,54px); letter-spacing:.18em; text-shadow:0 5px 30px #000; background:rgba(8,11,38,.22); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .2s ease; }
+    #pauseCurtain.show { opacity:1; visibility:visible; }
+    #error { position:fixed; inset:auto 20px calc(20px + env(safe-area-inset-bottom)); z-index:40; display:none; padding:16px; border-radius:16px; background:#5a1733; color:white; text-align:center; }
+    #orientation { display:none; }
+    @media (orientation:portrait) and (max-width:700px) {
+      #orientation { position:fixed; z-index:35; inset:auto 16px calc(16px + env(safe-area-inset-bottom)); display:block; padding:9px 14px; border-radius:999px; color:#fff; background:rgba(9,14,46,.7); font-size:11px; text-align:center; pointer-events:none; }
+      .hero { padding:24px 20px; }
+      .topbar { grid-template-columns:1fr; }
+      .controls { justify-self:end; }
+    }
+  </style>
+</head>
+<body>
+  <div id="scene" aria-hidden="true"></div>
+  <div id="vignette" aria-hidden="true"></div>
+
+  <section id="startOverlay" class="overlay">
+    <div class="hero">
+      <p class="eyebrow">PANORAMIC 3D RIDE</p>
+      <h1>SKYLINE<br>VELOCITY<span>天空ジェットコースター</span></h1>
+      <p class="lead">夕焼けの山頂から、湖すれすれの谷へ。<br>ネオンの街を駆け抜ける空の旅へ出発しよう。</p>
+      <div class="features"><span>一人称視点</span><span>約90秒</span><span>操作不要</span><span>サウンド付き</span></div>
+      <button id="startButton" class="ride-button" type="button" disabled>景色を準備しています…</button>
+      <p class="note">横向き・イヤホンで、より迫力のある体験になります</p>
+    </div>
+  </section>
+
+  <div id="hud" aria-label="ライド操作">
+    <div class="topbar">
+      <div class="route">
+        <div class="route-row"><span id="location">SUNSET STATION</span><span id="speedReadout">0 km/h</span></div>
+        <div class="progress"><div id="progressFill"></div></div>
+      </div>
+      <div class="controls">
+        <button id="soundButton" class="icon-button" type="button" aria-label="音を切り替える">♪ ON</button>
+        <button id="speedButton" class="icon-button" type="button" aria-label="速度を切り替える">×1.0</button>
+        <button id="pauseButton" class="icon-button" type="button" aria-label="一時停止">Ⅱ</button>
+      </div>
+    </div>
+    <div id="moment"><small>NEXT ZONE</small><strong>SKY LIFT</strong></div>
+  </div>
+
+  <div id="pauseCurtain">PAUSED</div>
+  <div id="orientation">↻ iPadを横向きにすると、景色がもっと広がります</div>
+  <div id="error">3D表示を開始できませんでした。Safariを再読み込みして、もう一度お試しください。</div>
+
+  <section id="endOverlay" class="overlay hidden">
+    <div class="hero">
+      <p class="eyebrow">WELCOME BACK</p>
+      <h1>WHAT<br>A RIDE!<span>おかえりなさい</span></h1>
+      <p class="lead">山と街をめぐる、天空の一周はいかがでしたか？</p>
+      <button id="restartButton" class="ride-button" type="button">もう一度乗る</button>
+    </div>
+  </section>
+
+  <script type="module" src="./ride.js"></script>
+</body>
+</html>
