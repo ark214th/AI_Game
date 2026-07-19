@@ -24,11 +24,22 @@
     canvas { width:100%; height:100%; display:block; touch-action:none; }
     button { font:inherit; border:0; cursor:pointer; touch-action:none; }
     #touchControls { position:absolute; inset:0; pointer-events:none; z-index:5; }
-    .move, #jumpBtn {
+    #movePad {
       position:absolute;
+      left:max(22px,env(safe-area-inset-left));
       bottom:max(20px,env(safe-area-inset-bottom));
+      display:flex;
+      align-items:center;
+      gap:clamp(14px,2vw,24px);
+      pointer-events:none;
+    }
+    .move, #jumpBtn {
       width:clamp(76px,11vw,118px);
       height:clamp(76px,11vw,118px);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
       border-radius:50%;
       color:#7b426e;
       background:rgba(255,255,255,.78);
@@ -36,19 +47,30 @@
       box-shadow:0 8px 0 rgba(172,91,142,.35),0 12px 25px rgba(98,60,98,.2);
       font-size:clamp(34px,6vw,58px);
       font-weight:900;
+      line-height:1;
       pointer-events:auto;
     }
+    .move { position:relative; }
     .move:active, .move.pressed, #jumpBtn:active, #jumpBtn.pressed { transform:translateY(5px) scale(.96); box-shadow:0 3px 0 rgba(172,91,142,.35); background:#fff; }
-    #leftBtn { left:max(22px,env(safe-area-inset-left)); }
-    #rightBtn { left:calc(max(22px,env(safe-area-inset-left)) + clamp(88px,13vw,138px)); }
     #jumpBtn {
+      position:absolute;
+      bottom:max(20px,env(safe-area-inset-bottom));
       right:max(26px,env(safe-area-inset-right));
+      flex-direction:column;
       background:rgba(255,244,173,.88);
       border-color:rgba(255,167,89,.85);
       color:#a45642;
       line-height:1;
     }
-    #jumpBtn small { display:block; font-size:clamp(11px,1.6vw,17px); margin-top:1px; }
+    #jumpBtn .jumpArrow { display:block; height:.8em; line-height:.8; }
+    #jumpBtn small {
+      display:block;
+      margin-top:5px;
+      font-size:clamp(11px,1.6vw,17px);
+      line-height:1;
+      white-space:nowrap;
+      writing-mode:horizontal-tb;
+    }
     #soundBtn {
       position:absolute;
       z-index:8;
@@ -126,9 +148,11 @@
     <canvas id="canvas" width="1280" height="720"></canvas>
 
     <div id="touchControls" aria-label="ゲーム操作">
-      <button id="leftBtn" class="move" aria-label="ひだりへ進む">◀</button>
-      <button id="rightBtn" class="move" aria-label="みぎへ進む">▶</button>
-      <button id="jumpBtn" aria-label="ジャンプする">↑<small>ジャンプ</small></button>
+      <div id="movePad">
+        <button id="leftBtn" class="move" aria-label="ひだりへ進む">◀</button>
+        <button id="rightBtn" class="move" aria-label="みぎへ進む">▶</button>
+      </div>
+      <button id="jumpBtn" aria-label="ジャンプする"><span class="jumpArrow">↑</span><small>ジャンプ</small></button>
     </div>
     <button id="soundBtn" aria-label="音を消す">♪</button>
 
@@ -164,8 +188,8 @@
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const W = canvas.width;
-    const H = canvas.height;
+    let W = 1280;
+    const H = 720;
     const WORLD_END = 8420;
 
     const titleScreen = document.getElementById('titleScreen');
@@ -230,6 +254,18 @@
     let shards = [];
     let enemies = [];
     let player;
+
+    function resizeCanvas() {
+      const rect = typeof canvas.getBoundingClientRect === 'function' ? canvas.getBoundingClientRect() : null;
+      const cssWidth = (rect && rect.width) || window.innerWidth || 1280;
+      const cssHeight = (rect && rect.height) || window.innerHeight || 720;
+      const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+      W = H * cssWidth / cssHeight;
+      canvas.width = Math.round(W * pixelRatio);
+      canvas.height = Math.round(H * pixelRatio);
+      ctx.setTransform(pixelRatio,0,0,pixelRatio,0,0);
+      ctx.imageSmoothingEnabled = true;
+    }
 
     function resetGame() {
       player = {
@@ -545,8 +581,10 @@
       for (const p of platforms) {
         const x=p.x-cx;if(x+p.w<-20||x>W+20)continue;
         ctx.fillStyle='#ba845d';rr(x,p.y,p.w,p.h,12);ctx.fill();
-        ctx.fillStyle='#8c5e46';
-        for(let tx=x+25;tx<x+p.w;tx+=62){ctx.beginPath();ctx.arc(tx,p.y+65+(tx%3)*9,7,0,Math.PI*2);ctx.fill();}
+        if (p.h > 60) {
+          ctx.fillStyle='#8c5e46';
+          for(let tx=x+25;tx<x+p.w;tx+=62){ctx.beginPath();ctx.arc(tx,p.y+65+(tx%3)*9,7,0,Math.PI*2);ctx.fill();}
+        }
         ctx.fillStyle='#68cf81';rr(x-3,p.y-10,p.w+6,24,12);ctx.fill();
         ctx.fillStyle='#a9ed91';rr(x,p.y-10,p.w,10,8);ctx.fill();
         ctx.fillStyle='#fff1a3';
@@ -666,6 +704,8 @@
       while(acc>=1/120){update(1/120);acc-=1/120;}
       draw();requestAnimationFrame(frame);
     }
+    addEventListener('resize',resizeCanvas);
+    resizeCanvas();
     resetGame();requestAnimationFrame(frame);
   })();
   </script>
