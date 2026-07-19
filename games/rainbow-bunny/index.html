@@ -111,6 +111,20 @@
     .lead { margin:0 0 18px; color:#78526e; font-size:clamp(15px,2.5vw,22px); font-weight:700; line-height:1.6; }
     .howto { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin:14px 0 22px; }
     .howto span { padding:9px 14px; border-radius:18px; color:#784d6f; background:#fff0f7; font-weight:800; font-size:clamp(13px,2vw,18px); }
+    .stage-select { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0 18px; }
+    .stage-choice {
+      min-width:0;
+      padding:10px 4px;
+      border:3px solid transparent;
+      border-radius:18px;
+      background:#f7edf5;
+      color:#835675;
+      font-weight:900;
+      line-height:1.2;
+    }
+    .stage-choice.selected { border-color:#ff72b3; background:#fff3b9; transform:translateY(-2px); }
+    .stage-choice b { display:block; font-size:clamp(23px,4vw,35px); }
+    .stage-choice span { display:block; margin-top:3px; font-size:clamp(10px,1.5vw,14px); white-space:nowrap; }
     .primary {
       min-width:min(330px,80vw);
       padding:17px 28px;
@@ -122,6 +136,7 @@
       font-size:clamp(20px,3.5vw,29px);
     }
     .primary:active { transform:translateY(6px); box-shadow:0 2px 0 #b83b79; }
+    .secondary { margin-top:16px; padding:10px 20px; color:#9b4f7d; background:transparent; font-weight:900; font-size:16px; }
     #resultTitle { font-size:clamp(34px,6vw,58px); }
     #resultText { font-size:clamp(17px,2.5vw,22px); line-height:1.7; color:#77536e; font-weight:800; margin:8px 0 20px; }
     #portraitTip {
@@ -160,13 +175,20 @@
       <div class="panel">
         <div class="hero-face">🐰🎀</div>
         <h1>ミミの<br>にじいろ大冒険</h1>
-        <p class="lead">にじのカケラを あつめて<br>おはなのゲートまで いこう！</p>
+        <p class="lead">にじのカケラを あつめて<br>5つのせかいを ぼうけんしよう！</p>
         <div class="howto">
           <span>◀ ▶ で あるく</span>
           <span>↑ で ジャンプ</span>
           <span>もう1かい ↑ で ふわふわ</span>
         </div>
-        <button id="startBtn" class="primary">ぼうけん スタート！</button>
+        <div id="stageSelect" class="stage-select" aria-label="ステージをえらぶ">
+          <button class="stage-choice selected" data-stage="0"><b>🌷</b><span>1 そうげん</span></button>
+          <button class="stage-choice" data-stage="1"><b>🍭</b><span>2 おかし</span></button>
+          <button class="stage-choice" data-stage="2"><b>🫧</b><span>3 みずうみ</span></button>
+          <button class="stage-choice" data-stage="3"><b>🧸</b><span>4 おもちゃ</span></button>
+          <button class="stage-choice" data-stage="4"><b>🌙</b><span>5 おしろ</span></button>
+        </div>
+        <button id="startBtn" class="primary">このステージで スタート！</button>
       </div>
     </section>
 
@@ -175,7 +197,8 @@
         <div class="hero-face" id="resultFace">🐰🌈</div>
         <h1 id="resultTitle">ステージ クリア！</h1>
         <p id="resultText"></p>
-        <button id="againBtn" class="primary">もういちど あそぶ</button>
+        <button id="againBtn" class="primary">つぎのステージへ</button>
+        <button id="retryBtn" class="secondary">このステージを もういちど</button>
       </div>
     </section>
 
@@ -190,7 +213,7 @@
     const ctx = canvas.getContext('2d');
     let W = 1280;
     const H = 720;
-    const WORLD_END = 8420;
+    let worldEnd = 8420;
 
     const titleScreen = document.getElementById('titleScreen');
     const resultScreen = document.getElementById('resultScreen');
@@ -200,6 +223,10 @@
     const leftBtn = document.getElementById('leftBtn');
     const rightBtn = document.getElementById('rightBtn');
     const jumpBtn = document.getElementById('jumpBtn');
+    const resultTitle = document.getElementById('resultTitle');
+    const againBtn = document.getElementById('againBtn');
+    const retryBtn = document.getElementById('retryBtn');
+    const stageButtons = [...document.querySelectorAll('.stage-choice')];
 
     const input = { left:false, right:false, jumpHeld:false };
     let state = 'title';
@@ -212,47 +239,60 @@
     let particles = [];
     let audioCtx = null;
     let muted = false;
+    let selectedStage = 0;
+    let currentStage = 0;
+    try { selectedStage = Math.max(0,Math.min(4,Number(localStorage.getItem('mimiLastStage'))||0)); } catch (_) {}
 
-    const platforms = [
-      {x:-100,y:590,w:1630,h:150},
-      {x:1640,y:590,w:1260,h:150},
-      {x:3030,y:590,w:1430,h:150},
-      {x:4590,y:590,w:1620,h:150},
-      {x:6340,y:590,w:1120,h:150},
-      {x:7580,y:590,w:980,h:150},
-      {x:370,y:485,w:250,h:28},{x:820,y:420,w:230,h:28},{x:1240,y:500,w:180,h:28},
-      {x:1735,y:455,w:275,h:28},{x:2170,y:385,w:240,h:28},{x:2560,y:485,w:190,h:28},
-      {x:3160,y:470,w:220,h:28},{x:3500,y:405,w:230,h:28},{x:3980,y:485,w:290,h:28},
-      {x:4690,y:475,w:240,h:28},{x:5110,y:410,w:230,h:28},{x:5530,y:480,w:250,h:28},
-      {x:5940,y:380,w:185,h:28},{x:6440,y:475,w:260,h:28},{x:6790,y:405,w:250,h:28},
-      {x:7140,y:485,w:200,h:28},{x:7670,y:455,w:230,h:28},{x:8020,y:385,w:210,h:28}
+    const G=(x,w)=>({x,y:590,w,h:150});
+    const P=(x,y,w,extra={})=>({x,y,w,h:28,...extra});
+    const E=(x,min,max,type='puff',y=546)=>({x,y,min,max,type});
+    const palettes = {
+      meadow:{sky1:'#8fe4ff',sky2:'#ffe3f1',hill1:'#a8e6d1',hill2:'#77d8bd',soil:'#ba845d',dot:'#8c5e46',grass:'#68cf81',top:'#a9ed91',water:'#75d5ed',accent:'#ff84bd'},
+      candy:{sky1:'#ffc8ed',sky2:'#fff2c8',hill1:'#e9b8e8',hill2:'#c89be0',soil:'#d89975',dot:'#b8766f',grass:'#ff9fcf',top:'#fff0a1',water:'#d2a7f0',accent:'#ff5eaa'},
+      lake:{sky1:'#78dcff',sky2:'#d8fff5',hill1:'#86ddd3',hill2:'#55c0bd',soil:'#9a7d65',dot:'#705c54',grass:'#62d19d',top:'#baf2a6',water:'#48bfe1',accent:'#6a9cff'},
+      toy:{sky1:'#ffd895',sky2:'#fff0df',hill1:'#a8d7ef',hill2:'#7eb6dd',soil:'#e39867',dot:'#b56758',grass:'#6dcfe3',top:'#ffe26d',water:'#8cc9e8',accent:'#f1668e'},
+      moon:{sky1:'#302d75',sky2:'#9a78ba',hill1:'#665b9c',hill2:'#49467d',soil:'#625070',dot:'#40364f',grass:'#9b83cf',top:'#e3c5ff',water:'#484881',accent:'#ffe36d'}
+    };
+
+    const STAGES = [
+      {
+        name:'おひさま草原',icon:'🌷',theme:'meadow',end:8420,goal:8170,enemySpeed:1,
+        platforms:[G(-100,1630),G(1640,1260),G(3030,1430),G(4590,1620),G(6340,1120),G(7580,980),P(370,485,250),P(820,420,230),P(1240,500,180),P(1735,455,275),P(2170,385,240),P(2560,485,190),P(3160,470,220),P(3500,405,230),P(3980,485,290),P(4690,475,240),P(5110,410,230),P(5530,480,250),P(5940,380,185),P(6440,475,260),P(6790,405,250),P(7140,485,200),P(7670,455,230),P(8020,385,210)],
+        carrots:[[280,530],[470,430],[590,430],[750,530],[890,365],[1000,365],[1325,445],[1700,530],[1810,400],[1930,400],[2205,330],[2325,330],[2680,430],[3100,530],[3230,415],[3610,350],[3710,350],[4070,430],[4200,430],[4670,530],[4780,420],[5190,355],[5610,425],[5750,425],[6000,325],[6400,530],[6520,420],[6860,350],[6980,350],[7200,430],[7390,530],[7650,530],[7760,400],[8090,330]],
+        shards:[[1880,385],[4125,415],[6900,335]],enemies:[E(1090,1030,1220),E(1990,1880,2130,'slime'),E(2740,2650,2840),E(3370,3300,3490,'slime'),E(4280,4160,4420,'hedge'),E(4950,4820,5090),E(5790,5680,6010,'slime'),E(7030,6920,7220),E(7860,7740,8000,'slime')],decor:[1450,2940,4495,6248,7495],checkpoints:[[1600,1665],[2990,3060],[4550,4620],[6310,6370],[7540,7610]],hazards:[]
+      },
+      {
+        name:'おかしの森',icon:'🍭',theme:'candy',end:7700,goal:7440,enemySpeed:1.08,
+        platforms:[G(-100,1020),G(1050,760),G(1940,760),G(2860,640),G(3670,750),G(4580,610),G(5380,610),G(6180,650),G(7000,850),P(380,455,190),P(730,380,170,{kind:'jelly'}),P(1180,470,190),P(1450,390,170),P(2050,455,170,{kind:'jelly'}),P(2360,365,180),P(2640,470,150),P(3020,420,170),P(3340,340,175,{moveX:85,moveSpeed:1.15}),P(3810,450,160),P(4080,365,170,{kind:'jelly'}),P(4700,430,165),P(5000,335,170),P(5510,445,155,{moveY:65,moveSpeed:1.25}),P(5850,350,165),P(6280,440,155),P(6590,345,175,{moveX:105,moveSpeed:1.3}),P(7110,430,180)],
+        carrots:[[250,530],[430,400],[760,325],[1120,530],[1260,415],[1510,335],[2010,530],[2130,400],[2420,310],[2660,415],[2920,530],[3080,365],[3400,280],[3750,530],[3880,395],[4150,310],[4640,530],[4760,375],[5060,280],[5440,530],[5580,390],[5910,295],[6250,530],[6340,385],[6650,290],[7050,530],[7170,375],[7380,530]],
+        shards:[[1510,325],[4150,300],[6650,280]],enemies:[E(830,760,930,'slime'),E(1580,1500,1750),E(2180,2110,2310,'slime'),E(2700,2630,2800,'hedge'),E(3900,3800,4150),E(4800,4700,5120,'slime'),E(5660,5510,5880),E(6400,6320,6680,'hedge'),E(7210,7110,7360,'slime')],decor:[970,1830,2760,3550,4480,5280,6090,6910],checkpoints:[[1010,1080],[1900,1980],[2820,2900],[3620,3710],[4530,4620],[5330,5420],[6130,6220],[6950,7040]],hazards:[]
+      },
+      {
+        name:'きらきら湖',icon:'🫧',theme:'lake',end:7900,goal:7640,enemySpeed:1.16,
+        platforms:[G(-100,820),G(1020,620),G(1880,520),G(2680,610),G(3540,560),G(4350,520),G(5150,570),G(6030,520),G(6840,520),G(7550,500),P(760,475,150,{moveX:120,moveSpeed:1}),P(1190,405,150,{moveY:85,moveSpeed:1.15}),P(1510,330,145,{moveX:130,moveSpeed:1.2}),P(2030,430,145),P(2350,340,145,{moveY:90,moveSpeed:1.25}),P(2830,435,140,{moveX:130,moveSpeed:1.3}),P(3180,330,140),P(3660,430,145,{moveY:100,moveSpeed:1.35}),P(4000,325,140,{moveX:145,moveSpeed:1.25}),P(4460,425,140),P(4800,315,140,{moveY:105,moveSpeed:1.4}),P(5260,430,140,{moveX:150,moveSpeed:1.35}),P(5630,320,135),P(6140,430,140,{moveY:105,moveSpeed:1.45}),P(6500,315,135,{moveX:155,moveSpeed:1.4}),P(6950,430,135),P(7290,315,135,{moveY:95,moveSpeed:1.5})],
+        carrots:[[260,530],[520,530],[790,420],[1090,530],[1250,350],[1540,275],[1930,530],[2070,375],[2380,285],[2740,530],[2870,380],[3230,275],[3600,530],[3700,375],[4040,270],[4400,530],[4510,370],[4840,260],[5200,530],[5300,375],[5660,265],[6080,530],[6180,375],[6540,260],[6890,530],[6990,375],[7330,260],[7600,530]],
+        shards:[[1540,265],[4840,250],[7330,250]],enemies:[E(560,450,700,'slime'),E(1300,1210,1510),E(2140,2050,2320,'hedge'),E(3070,2980,3250,'slime'),E(3790,3700,3980),E(4590,4490,4800,'slime'),E(5390,5290,5600,'hedge'),E(6230,6140,6400,'slime'),E(7000,6920,7160)],decor:[920,1770,2570,3430,4240,5040,5920,6730,7440],checkpoints:[[970,1060],[1830,1920],[2630,2720],[3490,3580],[4300,4390],[5100,5190],[5980,6070],[6790,6880],[7500,7580]],hazards:[]
+      },
+      {
+        name:'おもちゃの街',icon:'🧸',theme:'toy',end:8100,goal:7840,enemySpeed:1.24,
+        platforms:[G(-100,950),G(1150,700),G(2070,690),G(2990,640),G(3860,680),G(4760,630),G(5610,650),G(6500,610),G(7340,900),P(430,445,170,{conveyor:75}),P(760,350,155),P(1240,450,160,{conveyor:-85}),P(1550,345,150,{moveY:85,moveSpeed:1.35}),P(2180,440,150,{conveyor:90}),P(2480,330,145,{moveX:130,moveSpeed:1.4}),P(3080,430,145,{conveyor:-95}),P(3410,320,140,{moveY:100,moveSpeed:1.45}),P(3970,425,145,{conveyor:100}),P(4310,315,140,{moveX:145,moveSpeed:1.45}),P(4850,420,140,{conveyor:-105}),P(5190,305,135,{moveY:105,moveSpeed:1.5}),P(5700,420,140,{conveyor:110}),P(6050,300,135,{moveX:150,moveSpeed:1.5}),P(6580,415,135,{conveyor:-115}),P(6930,295,130,{moveY:110,moveSpeed:1.55}),P(7460,410,145,{conveyor:120})],
+        carrots:[[250,530],[470,390],[790,295],[1200,530],[1280,395],[1580,290],[2120,530],[2220,385],[2520,275],[3040,530],[3120,375],[3440,265],[3910,530],[4010,370],[4340,260],[4810,530],[4890,365],[5220,250],[5660,530],[5740,365],[6080,245],[6550,530],[6620,360],[6960,240],[7390,530],[7500,355],[7720,530]],
+        shards:[[1580,280],[4340,250],[6960,230]],enemies:[E(650,540,850),E(1350,1280,1530,'slime'),E(1770,1680,1840,'hedge'),E(2260,2180,2450),E(3260,3170,3450,'slime'),E(4080,3980,4300,'hedge'),E(4970,4870,5180),E(5790,5700,6000,'slime'),E(6700,6600,6900,'hedge'),E(7560,7470,7740,'slime')],decor:[1040,1960,2880,3750,4650,5500,6390,7230],checkpoints:[[1100,1190],[2020,2110],[2940,3030],[3810,3900],[4710,4800],[5560,5650],[6450,6540],[7290,7380]],hazards:[[920,565,90,25],[1900,565,80,25],[2790,565,95,25],[3690,565,90,25],[4560,565,90,25],[5420,565,95,25],[6310,565,90,25],[7150,565,90,25]]
+      },
+      {
+        name:'おつきさま城',icon:'🌙',theme:'moon',end:8300,goal:8040,enemySpeed:1.34,
+        platforms:[G(-100,800),G(1040,560),G(1830,570),G(2650,540),G(3420,540),G(4200,520),G(4970,520),G(5740,500),G(6500,500),G(7250,480),G(7960,500),P(720,450,135,{moveX:150,moveSpeed:1.35}),P(1190,410,130,{moveY:105,moveSpeed:1.45}),P(1510,300,125,{moveX:155,moveSpeed:1.5}),P(1960,425,125,{conveyor:-110}),P(2290,305,120,{moveY:115,moveSpeed:1.55}),P(2770,420,125,{moveX:160,moveSpeed:1.55}),P(3100,295,120,{conveyor:120}),P(3540,415,120,{moveY:120,moveSpeed:1.6}),P(3880,285,120,{moveX:165,moveSpeed:1.6}),P(4310,410,120,{conveyor:-125}),P(4650,280,115,{moveY:120,moveSpeed:1.65}),P(5080,405,120,{moveX:170,moveSpeed:1.65}),P(5420,275,115,{conveyor:130}),P(5850,400,115,{moveY:125,moveSpeed:1.7}),P(6190,270,110,{moveX:175,moveSpeed:1.7}),P(6610,395,115,{conveyor:-135}),P(6950,265,110,{moveY:125,moveSpeed:1.75}),P(7360,390,110,{moveX:180,moveSpeed:1.75}),P(7690,260,110,{conveyor:140})],
+        carrots:[[240,530],[500,530],[750,395],[1100,530],[1230,355],[1540,245],[1880,530],[2010,370],[2320,250],[2700,530],[2810,365],[3130,240],[3470,530],[3580,360],[3910,230],[4250,530],[4350,355],[4680,225],[5010,530],[5120,350],[5450,220],[5780,530],[5890,345],[6220,215],[6550,530],[6650,340],[6980,210],[7290,530],[7400,335],[7720,205],[8010,530]],
+        shards:[[1540,235],[4680,215],[7720,195]],enemies:[E(540,450,700,'hedge'),E(1250,1150,1450),E(2080,1980,2260,'slime'),E(2860,2770,3030,'hedge'),E(3630,3540,3800),E(4410,4320,4600,'slime'),E(5180,5100,5380,'hedge'),E(5940,5860,6120),E(6690,6600,6870,'slime'),E(7440,7360,7590,'hedge'),E(8080,8000,8200,'slime')],decor:[920,1710,2530,3310,4090,4860,5630,6390,7140,7860],checkpoints:[[990,1080],[1780,1870],[2600,2690],[3370,3460],[4150,4240],[4920,5010],[5690,5780],[6450,6540],[7200,7290],[7910,7990]],hazards:[[820,565,105,25],[1630,565,100,25],[2410,565,110,25],[3190,565,105,25],[3970,565,110,25],[4740,565,105,25],[5510,565,110,25],[6270,565,105,25],[7020,565,105,25],[7730,565,105,25]]
+      }
     ];
 
-    const carrotsTemplate = [
-      [280,530],[470,430],[590,430],[750,530],[890,365],[1000,365],[1325,445],
-      [1700,530],[1810,400],[1930,400],[2205,330],[2325,330],[2680,430],
-      [3100,530],[3230,415],[3610,350],[3710,350],[4070,430],[4200,430],
-      [4670,530],[4780,420],[5190,355],[5610,425],[5750,425],[6000,325],
-      [6400,530],[6520,420],[6860,350],[6980,350],[7200,430],[7390,530],
-      [7650,530],[7760,400],[8090,330],[8200,330]
-    ];
-    const shardsTemplate = [[1880,385],[4125,415],[6900,335]];
-    const enemiesTemplate = [
-      {x:1090,y:546,min:1030,max:1220,type:'puff'},
-      {x:1990,y:546,min:1880,max:2130,type:'slime'},
-      {x:2740,y:546,min:2650,max:2840,type:'puff'},
-      {x:3370,y:546,min:3300,max:3490,type:'slime'},
-      {x:4280,y:546,min:4160,max:4420,type:'hedge'},
-      {x:4950,y:546,min:4820,max:5090,type:'puff'},
-      {x:5790,y:546,min:5680,max:6010,type:'slime'},
-      {x:7030,y:546,min:6920,max:7220,type:'puff'},
-      {x:7860,y:546,min:7740,max:8000,type:'slime'}
-    ];
-    const flowers = [1450,2940,4495,6248,7495];
-
+    let platforms = [];
     let carrots = [];
     let shards = [];
     let enemies = [];
+    let flowers = [];
+    let hazards = [];
     let player;
 
     function resizeCanvas() {
@@ -268,20 +308,26 @@
     }
 
     function resetGame() {
+      const stage = STAGES[currentStage];
+      worldEnd = stage.end;
       player = {
         x:170,y:500,w:50,h:76,vx:0,vy:0,face:1,onGround:false,coyote:0,
         jumpBuffer:0,floatUsed:false,floatTime:0,hearts:3,invuln:0,
-        carrots:0,shards:0,checkpoint:170,runTime:0,blink:0
+        carrots:0,shards:0,checkpoint:170,runTime:0,blink:0,riding:null
       };
-      carrots = carrotsTemplate.map((p,i) => ({x:p[0],y:p[1],got:false,bob:i*.7}));
-      shards = shardsTemplate.map((p,i) => ({x:p[0],y:p[1],got:false,bob:i*2}));
-      enemies = enemiesTemplate.map((e,i) => ({...e,w:50,h:44,dir:i%2?1:-1,alive:true,t:0}));
+      platforms = stage.platforms.map((p,i) => ({...p,baseX:p.x,baseY:p.y,phase:i*.67,dx:0,dy:0}));
+      carrots = stage.carrots.map((p,i) => ({x:p[0],y:p[1],got:false,bob:i*.7}));
+      shards = stage.shards.map((p,i) => ({x:p[0],y:p[1],got:false,bob:i*2}));
+      enemies = stage.enemies.map((e,i) => ({...e,w:50,h:44,dir:i%2?1:-1,alive:true,t:0}));
+      flowers = [...stage.decor];
+      hazards = stage.hazards.map(h => ({x:h[0],y:h[1],w:h[2],h:h[3]}));
       particles = [];
       cameraX = 0;
       elapsed = 0;
       celebration = 0;
-      hintTimer = 8;
-      rescueTimer = 0;
+      hintTimer = currentStage===0 ? 8 : 0;
+      rescueText = `ステージ ${currentStage+1}　${stage.name}`;
+      rescueTimer = 3;
       input.left = input.right = input.jumpHeld = false;
     }
 
@@ -313,8 +359,11 @@
     function playOuch() { tone(190,.18,'triangle',.05); tone(145,.22,'triangle',.04,.07); }
     function playClear() { [523,659,784,1047].forEach((n,i)=>tone(n,.35,'sine',.07,i*.15)); }
 
-    function startGame() {
+    function startGame(stageIndex=selectedStage) {
       ensureAudio();
+      currentStage = Math.max(0,Math.min(STAGES.length-1,stageIndex));
+      selectedStage = currentStage;
+      try { localStorage.setItem('mimiLastStage',String(selectedStage)); } catch (_) {}
       resetGame();
       state = 'playing';
       titleScreen.classList.add('hidden');
@@ -350,8 +399,14 @@
     jumpBtn.addEventListener('pointerdown', e => { e.preventDefault(); jumpBtn.classList.add('pressed'); jumpBtn.setPointerCapture?.(e.pointerId); pressJump(); });
     ['pointerup','pointercancel','lostpointercapture'].forEach(name => jumpBtn.addEventListener(name, e => { e.preventDefault(); jumpBtn.classList.remove('pressed'); releaseJump(); }));
 
-    document.getElementById('startBtn').addEventListener('click', startGame);
-    document.getElementById('againBtn').addEventListener('click', startGame);
+    function updateStageSelection() {
+      stageButtons.forEach((button,i)=>button.classList.toggle('selected',i===selectedStage));
+    }
+    stageButtons.forEach((button,i)=>button.addEventListener('click',()=>{selectedStage=i;updateStageSelection();}));
+    updateStageSelection();
+    document.getElementById('startBtn').addEventListener('click', () => startGame(selectedStage));
+    againBtn.addEventListener('click', () => startGame(currentStage<STAGES.length-1 ? currentStage+1 : 0));
+    retryBtn.addEventListener('click', () => startGame(currentStage));
     soundBtn.addEventListener('click', () => {
       ensureAudio(); muted = !muted; soundBtn.textContent = muted ? '×' : '♪';
       soundBtn.setAttribute('aria-label', muted ? '音を出す' : '音を消す');
@@ -363,7 +418,7 @@
       if (e.code==='ArrowLeft'||e.code==='KeyA') input.left=true;
       if (e.code==='ArrowRight'||e.code==='KeyD') input.right=true;
       if ((e.code==='ArrowUp'||e.code==='Space'||e.code==='KeyW')&&!e.repeat) pressJump();
-      if (e.code==='Enter' && state!=='playing') startGame();
+      if (e.code==='Enter' && state!=='playing') startGame(selectedStage);
     });
     addEventListener('keyup', e => {
       if (e.code==='ArrowLeft'||e.code==='KeyA') input.left=false;
@@ -428,7 +483,11 @@
       touchControls.style.display='none';
       playClear();
       const all = player.shards===3;
+      const finalStage = currentStage===STAGES.length-1;
+      resultTitle.textContent = finalStage ? 'ぜんステージ クリア！' : `ステージ ${currentStage+1} クリア！`;
       resultText.innerHTML = `にじのカケラは <b>${player.shards}こ</b>、<br>にんじんは <b>${player.carrots}ほん</b> みつけたよ！<br>${all?'ぜんぶ見つけたね。すごい！':'まだ ひみつが かくれているかも？'}`;
+      againBtn.textContent = finalStage ? 'ステージ1から あそぶ' : `つぎは ${STAGES[currentStage+1].icon} ${STAGES[currentStage+1].name}`;
+      try { localStorage.setItem('mimiLastStage',String(finalStage?0:currentStage+1)); } catch (_) {}
       setTimeout(()=>resultScreen.classList.remove('hidden'),1300);
     }
 
@@ -450,6 +509,14 @@
       if (state!=='playing') return;
 
       const p = player;
+      const stage = STAGES[currentStage];
+      for (const plat of platforms) {
+        const nextX = plat.baseX + (plat.moveX ? Math.sin(elapsed*plat.moveSpeed+plat.phase)*plat.moveX : 0);
+        const nextY = plat.baseY + (plat.moveY ? Math.sin(elapsed*plat.moveSpeed+plat.phase)*plat.moveY : 0);
+        plat.dx = nextX-plat.x; plat.dy = nextY-plat.y;
+        plat.x=nextX; plat.y=nextY;
+        if (p.riding===plat && p.onGround) { p.x+=plat.dx; p.y+=plat.dy; }
+      }
       p.invuln = Math.max(0,p.invuln-dt);
       p.jumpBuffer = Math.max(0,p.jumpBuffer-dt);
       p.coyote = p.onGround ? .13 : Math.max(0,p.coyote-dt);
@@ -474,10 +541,11 @@
       if (p.floatTime>0) p.floatTime-=dt;
       const gravity = p.floatTime>0 && input.jumpHeld && p.vy>0 ? 420 : 1850;
       p.vy = Math.min(980,p.vy+gravity*dt);
-      p.x = Math.max(0,Math.min(WORLD_END-p.w,p.x+p.vx*dt));
+      p.x = Math.max(0,Math.min(worldEnd-p.w,p.x+p.vx*dt));
       const oldBottom = p.y+p.h;
       p.y += p.vy*dt;
       p.onGround=false;
+      p.riding=null;
       if (p.vy>=0) {
         let landing=null;
         for (const plat of platforms) {
@@ -486,15 +554,17 @@
           }
         }
         if (landing) {
-          p.y=landing.y-p.h; p.vy=0; p.onGround=true; p.floatUsed=false; p.floatTime=0;
+          p.y=landing.y-p.h; p.vy=0; p.onGround=true; p.riding=landing; p.floatUsed=false; p.floatTime=0;
+          if (landing.conveyor) p.x+=landing.conveyor*dt;
+          if (landing.kind==='jelly') {
+            p.vy=-835; p.onGround=false; p.riding=null;
+            burst(p.x+p.w/2,landing.y,['#fff','#ff9fd0','#ffe76e'],8,110);
+            tone(360,.08,'sine',.04);tone(640,.13,'sine',.04,.05);
+          }
         }
       }
 
-      if (p.x>1600) p.checkpoint=Math.max(p.checkpoint,1665);
-      if (p.x>2990) p.checkpoint=Math.max(p.checkpoint,3060);
-      if (p.x>4550) p.checkpoint=Math.max(p.checkpoint,4620);
-      if (p.x>6310) p.checkpoint=Math.max(p.checkpoint,6370);
-      if (p.x>7540) p.checkpoint=Math.max(p.checkpoint,7610);
+      for (const cp of stage.checkpoints) if (p.x>cp[0]) p.checkpoint=Math.max(p.checkpoint,cp[1]);
       if (p.y>760) { respawn(); return; }
 
       for (const c of carrots) {
@@ -512,7 +582,7 @@
 
       for (const e of enemies) {
         if (!e.alive) continue;
-        e.t+=dt; e.x+=e.dir*(e.type==='hedge'?48:62)*dt;
+        e.t+=dt; e.x+=e.dir*(e.type==='hedge'?48:62)*stage.enemySpeed*dt;
         if (e.x<e.min) {e.x=e.min;e.dir=1;} if (e.x>e.max){e.x=e.max;e.dir=-1;}
         if (overlap(p.x+5,p.y+4,p.w-10,p.h-4,e.x,e.y,e.w,e.h)) {
           if (p.vy>90 && oldBottom<=e.y+20 && e.type!=='hedge') {
@@ -523,8 +593,15 @@
         }
       }
 
-      if (p.x>8170) finish();
-      const camTarget=Math.max(0,Math.min(WORLD_END-W,p.x-350));
+      for (const h of hazards) {
+        if (overlap(p.x+7,p.y+8,p.w-14,p.h-4,h.x,h.y,h.w,h.h)) {
+          hurt({x:h.x+h.w/2});
+          if (p.vy>0) p.vy=-500;
+        }
+      }
+
+      if (p.x>stage.goal) finish();
+      const camTarget=Math.max(0,Math.min(worldEnd-W,p.x-350));
       cameraX += (camTarget-cameraX)*Math.min(1,dt*4.8);
     }
 
@@ -543,67 +620,89 @@
     }
 
     function drawBackground() {
+      const theme=STAGES[currentStage].theme;
+      const pal=palettes[theme];
       const sky=ctx.createLinearGradient(0,0,0,H);
-      sky.addColorStop(0,'#8fe4ff');sky.addColorStop(.6,'#dbf7ff');sky.addColorStop(1,'#ffe3f1');
+      sky.addColorStop(0,pal.sky1);sky.addColorStop(.65,pal.sky2);sky.addColorStop(1,theme==='moon'?'#c99bc5':'#ffe3f1');
       ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
 
-      ctx.fillStyle='rgba(255,255,255,.78)';
-      for(let i=0;i<10;i++){
-        const x=((i*286-cameraX*.12+160)%(W+380))-190;
-        const y=75+(i%3)*70;
-        ctx.beginPath();ctx.arc(x,y,37,0,Math.PI*2);ctx.arc(x+43,y-16,49,0,Math.PI*2);ctx.arc(x+91,y+2,34,0,Math.PI*2);ctx.fill();
+      if(theme==='moon'){
+        ctx.fillStyle='rgba(255,244,170,.9)';
+        for(let i=0;i<32;i++){const x=((i*173-cameraX*.08+60)%(W+100))-50,y=45+(i*71)%300;starPath(x,y,3+(i%3),1.5+(i%2),5);ctx.fill();}
+        ctx.fillStyle='#fff4bd';ctx.beginPath();ctx.arc(W-130,115,70,0,Math.PI*2);ctx.fill();ctx.fillStyle=pal.sky1;ctx.beginPath();ctx.arc(W-100,90,66,0,Math.PI*2);ctx.fill();
+      }else{
+        ctx.fillStyle='rgba(255,255,255,.78)';
+        for(let i=0;i<10;i++){
+          const x=((i*286-cameraX*.12+160)%(W+380))-190;
+          const y=75+(i%3)*70;
+          ctx.beginPath();ctx.arc(x,y,37,0,Math.PI*2);ctx.arc(x+43,y-16,49,0,Math.PI*2);ctx.arc(x+91,y+2,34,0,Math.PI*2);ctx.fill();
+        }
       }
-      ctx.fillStyle='#a8e6d1';
+      ctx.fillStyle=pal.hill1;
       ctx.beginPath();ctx.moveTo(0,430);
       for(let x=-100;x<=W+120;x+=120){const wx=x+cameraX*.2;ctx.quadraticCurveTo(x+60,315+Math.sin(wx*.002)*50,x+120,430);}ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
-      ctx.fillStyle='#77d8bd';
+      ctx.fillStyle=pal.hill2;
       ctx.beginPath();ctx.moveTo(0,495);
       for(let x=-100;x<=W+120;x+=100){const wx=x+cameraX*.34;ctx.quadraticCurveTo(x+50,380+Math.sin(wx*.003)*42,x+100,495);}ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
 
-      for(let i=0;i<30;i++){
+      for(let i=0;i<28;i++){
         const x=i*330-cameraX*.55+100;
         if(x<-100||x>W+100)continue;
-        ctx.fillStyle='#a87a63';rr(x-8,420,16,100,8);ctx.fill();
-        ctx.fillStyle=i%2?'#f7a7ca':'#96dfa9';
-        ctx.beginPath();ctx.arc(x,402,55,0,Math.PI*2);ctx.arc(x-38,425,40,0,Math.PI*2);ctx.arc(x+41,425,42,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle='rgba(255,255,255,.7)';
-        for(let j=0;j<5;j++){ctx.beginPath();ctx.arc(x-34+j*17,397+(j%2)*18,5,0,Math.PI*2);ctx.fill();}
+        if(theme==='candy'){
+          ctx.fillStyle='#fff1cd';rr(x-7,405,14,112,7);ctx.fill();ctx.strokeStyle='#ff83b7';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(x-7,430);ctx.lineTo(x+7,445);ctx.moveTo(x-7,465);ctx.lineTo(x+7,480);ctx.stroke();
+          ctx.fillStyle=i%2?'#ff79b4':'#a77de8';ctx.beginPath();ctx.arc(x,390,47,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff3a6';ctx.lineWidth=7;ctx.beginPath();ctx.arc(x,390,29,0,Math.PI*1.6);ctx.stroke();
+        }else if(theme==='toy'){
+          const colors=['#f47f9e','#68c9e5','#f4cc55'];ctx.fillStyle=colors[i%3];rr(x-48,405,96,112,10);ctx.fill();ctx.fillStyle='rgba(255,255,255,.75)';rr(x-30,425,24,30,5);ctx.fill();rr(x+10,425,24,30,5);ctx.fill();ctx.fillStyle='#8e6291';rr(x-10,472,22,45,5);ctx.fill();
+        }else if(theme==='lake'){
+          ctx.strokeStyle='#4bad8f';ctx.lineWidth=8;for(let j=-2;j<=2;j++){ctx.beginPath();ctx.moveTo(x+j*12,520);ctx.quadraticCurveTo(x+j*14-8,470,x+j*11,430-(j%2)*18);ctx.stroke();}ctx.fillStyle='rgba(190,249,247,.65)';ctx.beginPath();ctx.arc(x+32,410,17,0,Math.PI*2);ctx.arc(x-28,455,10,0,Math.PI*2);ctx.fill();
+        }else if(theme==='moon'){
+          ctx.fillStyle='#3e3b69';rr(x-38,400,76,120,8);ctx.fill();ctx.beginPath();ctx.moveTo(x-48,405);ctx.lineTo(x,350);ctx.lineTo(x+48,405);ctx.fill();ctx.fillStyle='#ffe57b';rr(x-20,430,15,25,6);ctx.fill();rr(x+8,430,15,25,6);ctx.fill();
+        }else{
+          ctx.fillStyle='#a87a63';rr(x-8,420,16,100,8);ctx.fill();ctx.fillStyle=i%2?'#f7a7ca':'#96dfa9';ctx.beginPath();ctx.arc(x,402,55,0,Math.PI*2);ctx.arc(x-38,425,40,0,Math.PI*2);ctx.arc(x+41,425,42,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(255,255,255,.7)';for(let j=0;j<5;j++){ctx.beginPath();ctx.arc(x-34+j*17,397+(j%2)*18,5,0,Math.PI*2);ctx.fill();}
+        }
       }
     }
 
     function drawWorld() {
       const cx=cameraX;
-      ctx.fillStyle='#75d5ed';ctx.fillRect(0,615,W,H-615);
+      const stage=STAGES[currentStage],theme=stage.theme,pal=palettes[theme];
+      ctx.fillStyle=pal.water;ctx.fillRect(0,615,W,H-615);
       ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=4;
       ctx.beginPath();
       for(let x=-40;x<W+40;x+=34){const y=625+Math.sin((x+elapsed*90)*.045)*5;ctx.moveTo(x,y);ctx.quadraticCurveTo(x+17,y-8,x+34,y);}ctx.stroke();
 
       for (const p of platforms) {
         const x=p.x-cx;if(x+p.w<-20||x>W+20)continue;
-        ctx.fillStyle='#ba845d';rr(x,p.y,p.w,p.h,12);ctx.fill();
+        ctx.fillStyle=p.kind==='jelly'?'#f884bd':pal.soil;rr(x,p.y,p.w,p.h,12);ctx.fill();
         if (p.h > 60) {
-          ctx.fillStyle='#8c5e46';
+          ctx.fillStyle=pal.dot;
           for(let tx=x+25;tx<x+p.w;tx+=62){ctx.beginPath();ctx.arc(tx,p.y+65+(tx%3)*9,7,0,Math.PI*2);ctx.fill();}
         }
-        ctx.fillStyle='#68cf81';rr(x-3,p.y-10,p.w+6,24,12);ctx.fill();
-        ctx.fillStyle='#a9ed91';rr(x,p.y-10,p.w,10,8);ctx.fill();
-        ctx.fillStyle='#fff1a3';
+        ctx.fillStyle=p.kind==='jelly'?'#ffb8dd':pal.grass;rr(x-3,p.y-10,p.w+6,24,12);ctx.fill();
+        ctx.fillStyle=p.kind==='jelly'?'#fff1a0':pal.top;rr(x,p.y-10,p.w,10,8);ctx.fill();
+        ctx.fillStyle=theme==='moon'?'#ffe57a':'#fff1a3';
         for(let fx=x+36;fx<x+p.w-20;fx+=95){ctx.beginPath();ctx.arc(fx,p.y-13,4,0,Math.PI*2);ctx.arc(fx+6,p.y-17,4,0,Math.PI*2);ctx.arc(fx+12,p.y-13,4,0,Math.PI*2);ctx.fill();}
+        if(p.conveyor){ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='900 18px sans-serif';ctx.textAlign='center';for(let ax=x+30;ax<x+p.w-15;ax+=42)ctx.fillText(p.conveyor>0?'›':'‹',ax,p.y+9);}
       }
 
       for(const wx of flowers){
         const x=wx-cx;if(x<-80||x>W+80)continue;
         ctx.strokeStyle='#5cae6d';ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(x,590);ctx.quadraticCurveTo(x-8,555,x,525);ctx.stroke();
-        ctx.fillStyle='#ff84bd';
+        ctx.fillStyle=pal.accent;
         for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx.beginPath();ctx.ellipse(x+Math.cos(a)*20,520+Math.sin(a)*15,18,11,a,0,Math.PI*2);ctx.fill();}
         ctx.fillStyle='#ffe56d';ctx.beginPath();ctx.arc(x,520,13,0,Math.PI*2);ctx.fill();
+      }
+
+      for(const h of hazards){
+        const x=h.x-cx;if(x+h.w<0||x>W)continue;ctx.fillStyle=theme==='moon'?'#ffe16d':'#ff739d';
+        const count=Math.max(2,Math.floor(h.w/24));for(let i=0;i<count;i++){const sx=x+i*h.w/count;ctx.beginPath();ctx.moveTo(sx,h.y+h.h);ctx.lineTo(sx+h.w/count/2,h.y);ctx.lineTo(sx+h.w/count,h.y+h.h);ctx.fill();}
       }
 
       for(const c of carrots){if(c.got)continue;const x=c.x-cx;if(x<-40||x>W+40)continue;drawCarrot(x,c.y+Math.sin(elapsed*3+c.bob)*6);}
       for(const s of shards){if(s.got)continue;const x=s.x-cx;if(x<-50||x>W+50)continue;drawShard(x,s.y+Math.sin(elapsed*2.2+s.bob)*8);}
       for(const e of enemies){if(!e.alive)continue;const x=e.x-cx;if(x<-80||x>W+80)continue;drawEnemy(e,x,e.y);}
 
-      drawGoal(8260-cx,590);
+      drawGoal(stage.goal+90-cx,590);
       drawBunny(player.x-cx,player.y,player);
 
       for(const p of particles){
@@ -682,16 +781,18 @@
       for(let i=0;i<3;i++){
         ctx.fillStyle=i<player.shards?'#ff71b4':'#e2d9df';starPath(W/2-65+i*65,55,21,10,6);ctx.fill();
       }
-      const progress=Math.min(1,player.x/8170);
+      const progress=Math.min(1,player.x/STAGES[currentStage].goal);
       ctx.fillStyle='rgba(255,255,255,.65)';rr(320,101,W-640,14,7);ctx.fill();ctx.fillStyle='#ff72b3';rr(320,101,(W-640)*progress,14,7);ctx.fill();
       ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(320+(W-640)*progress,108,13,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff84bc';ctx.beginPath();ctx.arc(320+(W-640)*progress,108,7,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=STAGES[currentStage].theme==='moon'?'#fff':'#76536f';ctx.textAlign='center';ctx.font='900 17px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText(`${STAGES[currentStage].icon} ${currentStage+1}　${STAGES[currentStage].name}`,W/2,142);
       if(hintTimer>0&&state==='playing'){
-        const alpha=Math.min(1,hintTimer)*.92;ctx.globalAlpha=alpha;ctx.fillStyle='rgba(102,71,101,.82)';rr(W/2-238,132,476,50,22);ctx.fill();
-        ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='900 20px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText('ジャンプ中に もう1かい押すと ふわふわ！',W/2,165);
+        const alpha=Math.min(1,hintTimer)*.92;ctx.globalAlpha=alpha;ctx.fillStyle='rgba(102,71,101,.82)';rr(W/2-238,155,476,50,22);ctx.fill();
+        ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='900 20px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText('ジャンプ中に もう1かい押すと ふわふわ！',W/2,188);
       }
       if(rescueTimer>0){
-        ctx.globalAlpha=Math.min(1,rescueTimer*2);ctx.fillStyle='rgba(255,255,255,.94)';rr(W/2-260,195,520,58,25);ctx.fill();
-        ctx.fillStyle='#bd4d88';ctx.textAlign='center';ctx.font='900 22px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText(rescueText,W/2,232);
+        const messageY=hintTimer>0?220:170;
+        ctx.globalAlpha=Math.min(1,rescueTimer*2);ctx.fillStyle='rgba(255,255,255,.94)';rr(W/2-260,messageY,520,58,25);ctx.fill();
+        ctx.fillStyle='#bd4d88';ctx.textAlign='center';ctx.font='900 22px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText(rescueText,W/2,messageY+37);
       }
       ctx.restore();
     }
