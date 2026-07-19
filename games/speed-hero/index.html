@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#22aee8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>爆走！スピードヒーロー</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink:#12233b;
+      --blue:#27b9ee;
+      --yellow:#ffd447;
+      --panel:rgba(12,29,55,.88);
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; overscroll-behavior:none; }
+    body {
+      position:fixed; inset:0; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+      background:#82dbff; color:#fff; user-select:none; -webkit-user-select:none; touch-action:none;
+    }
+    button { font:inherit; color:inherit; border:0; touch-action:none; }
+    #game { position:absolute; inset:0; width:100%; height:100%; display:block; }
+    #ui { position:absolute; inset:0; pointer-events:none; }
+    .hud {
+      position:absolute; top:max(10px,env(safe-area-inset-top)); left:max(10px,env(safe-area-inset-left));
+      right:max(10px,env(safe-area-inset-right)); display:flex; justify-content:space-between; align-items:flex-start;
+      gap:10px; pointer-events:none;
+    }
+    .brand {
+      padding:8px 12px; border:2px solid rgba(255,255,255,.72); border-radius:16px;
+      background:linear-gradient(145deg,rgba(11,45,84,.94),rgba(26,112,160,.9));
+      box-shadow:0 6px 0 rgba(6,28,54,.28),0 10px 28px rgba(4,30,62,.24);
+      font-weight:1000; letter-spacing:.02em; text-shadow:0 2px 0 rgba(0,0,0,.25);
+    }
+    .brand small { display:block; font-size:9px; color:#9cecff; letter-spacing:.12em; }
+    .stats { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+    .stat {
+      min-width:88px; padding:7px 10px; border:2px solid rgba(255,255,255,.66); border-radius:15px;
+      background:var(--panel); box-shadow:0 5px 0 rgba(3,16,35,.26); text-align:center;
+      font-weight:1000; font-size:16px; line-height:1.05;
+    }
+    .stat small { display:block; margin-bottom:4px; font-size:9px; color:#b9d8f4; letter-spacing:.08em; }
+    .stat.coins { color:#ffe36a; min-width:72px; }
+    #zoneBadge {
+      position:absolute; top:max(72px,calc(env(safe-area-inset-top) + 68px)); left:50%; transform:translateX(-50%);
+      padding:7px 18px; border-radius:999px; background:rgba(8,28,49,.78); border:2px solid rgba(255,255,255,.7);
+      font-weight:900; font-size:13px; text-shadow:0 2px rgba(0,0,0,.2); white-space:nowrap;
+    }
+    .roundBtn {
+      pointer-events:auto; width:46px; height:46px; border-radius:50%; background:rgba(10,29,55,.86);
+      border:2px solid rgba(255,255,255,.75); box-shadow:0 5px 0 rgba(4,13,29,.35); font-size:21px;
+      display:grid; place-items:center;
+    }
+    .topButtons { display:flex; gap:8px; pointer-events:auto; }
+    #prompt {
+      position:absolute; left:50%; bottom:max(108px,calc(env(safe-area-inset-bottom) + 98px)); transform:translateX(-50%);
+      min-width:min(360px,68vw); max-width:min(600px,74vw); padding:10px 16px; border-radius:18px;
+      background:rgba(6,25,47,.91); border:2px solid rgba(255,255,255,.77); box-shadow:0 7px 0 rgba(5,16,34,.32);
+      text-align:center; font-weight:900; opacity:0; transition:opacity .15s,transform .15s;
+    }
+    #prompt.show { opacity:1; transform:translate(-50%,-5px); }
+    #prompt b { color:#ffe15c; }
+    #joystick {
+      position:absolute; left:max(22px,calc(env(safe-area-inset-left) + 18px)); bottom:max(22px,calc(env(safe-area-inset-bottom) + 16px));
+      width:116px; height:116px; border-radius:50%; pointer-events:auto; touch-action:none;
+      background:rgba(7,27,50,.28); border:3px solid rgba(255,255,255,.45); box-shadow:inset 0 0 22px rgba(0,0,0,.2);
+    }
+    #stick {
+      position:absolute; left:29px; top:29px; width:54px; height:54px; border-radius:50%;
+      background:linear-gradient(#fff,#a8e5ff); border:3px solid rgba(13,72,111,.62); box-shadow:0 5px 12px rgba(0,0,0,.28);
+      transform:translate(0,0);
+    }
+    #actionBtn {
+      position:absolute; right:max(24px,calc(env(safe-area-inset-right) + 18px)); bottom:max(25px,calc(env(safe-area-inset-bottom) + 18px));
+      width:104px; height:104px; border-radius:50%; pointer-events:auto; touch-action:none;
+      background:linear-gradient(145deg,#ffd94c,#ff8d18); border:5px solid #fff4ac; box-shadow:0 8px 0 #b94c0d,0 14px 25px rgba(25,36,45,.32);
+      color:#602105; font-weight:1000; font-size:17px; text-shadow:0 1px rgba(255,255,255,.45);
+    }
+    #actionBtn:active,.roundBtn:active,.primary:active,.secondary:active { transform:translateY(3px); box-shadow:none; }
+    #actionBtn.boost { background:linear-gradient(145deg,#56f7ff,#168cff); color:#04285e; border-color:#d5ffff; box-shadow:0 8px 0 #064da9,0 14px 25px rgba(25,36,45,.32); }
+    #actionBtn.hidden,#joystick.hidden,#prompt.hidden,.hud.hidden,#zoneBadge.hidden { display:none; }
+    #toast {
+      position:absolute; left:50%; top:25%; transform:translate(-50%,-10px); padding:12px 20px; border-radius:18px;
+      background:rgba(6,28,53,.92); border:2px solid #fff; font-size:18px; font-weight:1000; text-align:center;
+      opacity:0; transition:.2s; box-shadow:0 9px 24px rgba(0,0,0,.25);
+    }
+    #toast.show { opacity:1; transform:translate(-50%,0); }
+    .overlay {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+      background:linear-gradient(rgba(8,30,55,.35),rgba(3,15,34,.78)); pointer-events:auto; overflow:auto;
+    }
+    .overlay.hidden { display:none; }
+    .panel {
+      width:min(620px,94vw); max-height:92vh; overflow:auto; padding:24px; border-radius:27px;
+      background:linear-gradient(155deg,#174b77,#09213e); border:3px solid rgba(255,255,255,.86);
+      box-shadow:0 12px 0 rgba(3,12,28,.35),0 24px 70px rgba(0,0,0,.35); text-align:center;
+    }
+    .panel h1,.panel h2 { margin:0 0 8px; font-weight:1000; line-height:1.12; }
+    .panel h1 { font-size:clamp(31px,6vw,52px); color:#ffe15a; text-shadow:0 4px 0 #b34817,0 7px 18px rgba(0,0,0,.3); }
+    .panel h2 { font-size:clamp(25px,5vw,38px); color:#ffe15a; }
+    .panel p { color:#dceeff; line-height:1.65; margin:8px 0 18px; }
+    .heroLogo { font-size:76px; filter:drop-shadow(0 7px 0 rgba(0,0,0,.25)); }
+    .buttons { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+    .primary,.secondary,.shopItem {
+      min-height:54px; padding:12px 23px; border-radius:17px; font-weight:1000; font-size:17px; pointer-events:auto;
+      border:2px solid rgba(255,255,255,.8); box-shadow:0 6px 0 rgba(3,15,34,.42);
+    }
+    .primary { background:linear-gradient(#ffe45f,#ff9e27); color:#5a2603; }
+    .secondary { background:linear-gradient(#57d8ff,#1786d9); color:#042849; }
+    .danger { background:linear-gradient(#ff7185,#da315a); color:#fff; }
+    .compare { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:9px; margin:17px 0; }
+    .compareCard { padding:13px 9px; border-radius:17px; background:rgba(255,255,255,.1); border:2px solid rgba(255,255,255,.24); }
+    .compareCard strong { display:block; color:#ffe566; font-size:24px; }
+    .hint { font-size:12px; color:#a7cae7; }
+    .shopGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:15px 0 20px; }
+    .shopItem { padding:12px 8px; background:rgba(255,255,255,.09); color:#fff; min-height:102px; }
+    .shopItem.owned { border-color:#64ffd1; }
+    .shopItem.equipped { background:linear-gradient(145deg,rgba(46,218,171,.5),rgba(19,112,121,.6)); border-color:#b7ffe8; }
+    .shopItem.locked { opacity:.52; filter:saturate(.45); }
+    .shoeIcon { display:block; font-size:33px; margin-bottom:4px; }
+    #orientation {
+      display:none; position:absolute; inset:0; z-index:50; background:#09213e; align-items:center; justify-content:center; padding:30px; text-align:center; pointer-events:auto;
+    }
+    #orientation div { font-size:22px; font-weight:900; line-height:1.8; }
+    #orientation b { display:block; font-size:60px; }
+    @media (orientation:portrait) and (max-width:700px) { #orientation { display:flex; } }
+    @media (max-height:560px) {
+      .brand { display:none; }
+      .stat { padding:5px 8px; min-width:78px; font-size:14px; }
+      #zoneBadge { top:max(12px,env(safe-area-inset-top)); }
+      #joystick { width:100px;height:100px; }
+      #stick { left:25px;top:25px;width:46px;height:46px; }
+      #actionBtn { width:88px;height:88px;font-size:14px; }
+      .panel { padding:18px; }
+      .heroLogo { font-size:54px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="スピードヒーローのゲーム画面"></canvas>
+  <div id="ui">
+    <div class="hud hidden" id="hud">
+      <div class="brand"><small>ROAD TO No.1</small>爆走！スピードヒーロー</div>
+      <div class="stats">
+        <div class="stat"><small>⚡ きゃくりょく</small><span id="legValue">10</span></div>
+        <div class="stat"><small>❤️ スタミナ</small><span id="staminaValue">10</span></div>
+        <div class="stat coins"><small>コイン</small>● <span id="coinValue">0</span></div>
+        <div class="topButtons">
+          <button class="roundBtn" id="soundBtn" aria-label="音のオンオフ">🔊</button>
+          <button class="roundBtn" id="helpBtn" aria-label="遊び方">？</button>
+        </div>
+      </div>
+    </div>
+    <div id="zoneBadge" class="hidden">はじまりのグラウンド</div>
+    <div id="prompt"><b>ACTION</b> で調べる</div>
+    <div id="toast"></div>
+    <div id="joystick" class="hidden"><div id="stick"></div></div>
+    <button id="actionBtn" class="hidden">ACTION</button>
+
+    <div class="overlay" id="startOverlay">
+      <div class="panel">
+        <div class="heroLogo">🏃‍♂️💨</div>
+        <h1>爆走！<br>スピードヒーロー</h1>
+        <p>トレーニングでどんどん速くなって、<br>5人のライバルを追いぬこう！</p>
+        <div class="buttons"><button class="primary" id="startBtn">ゲームスタート！</button></div>
+        <p class="hint">セーブは自動です。横向きで遊んでね。</p>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="modalOverlay">
+      <div class="panel" id="modalPanel"></div>
+    </div>
+  </div>
+  <div id="orientation"><div><b>↻</b>iPadを横向きにして<br>遊んでください</div></div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const $ = (s) => document.querySelector(s);
+    const canvas = $('#game');
+    const ctx = canvas.getContext('2d', { alpha:false });
+    const hud = $('#hud');
+    const zoneBadge = $('#zoneBadge');
+    const prompt = $('#prompt');
+    const toastEl = $('#toast');
+    const joy = $('#joystick');
+    const stick = $('#stick');
+    const actionBtn = $('#actionBtn');
+    const modal = $('#modalOverlay');
+    const modalPanel = $('#modalPanel');
+
+    const WORLD = { w:1600, h:1000 };
+    const SAVE_KEY = 'speedHeroSave_v1';
+    const zones = [
+      { name:'はじまりのグラウンド', short:'学校', sky:'#82dcff', ground:'#58bf70', path:'#f3d596', accent:'#ffb327', rate:1, reqLeg:90, reqSta:55, rival:'ハヤト', title:'クラス最速', reward:260, icon:'🏫' },
+      { name:'サンライズ・シティ', short:'町大会', sky:'#6bd1ff', ground:'#54ba92', path:'#b9c8d3', accent:'#ff694a', rate:3, reqLeg:310, reqSta:180, rival:'タイガ', title:'町のダッシュ王', reward:720, icon:'🏙️' },
+      { name:'ゴウゴウ山岳コース', short:'山大会', sky:'#71c9ed', ground:'#49a867', path:'#a78b6b', accent:'#7ae65a', rate:8, reqLeg:920, reqSta:560, rival:'シュン', title:'山を走る風', reward:1700, icon:'⛰️' },
+      { name:'ニッポン・スタジアム', short:'日本大会', sky:'#72baff', ground:'#39a985', path:'#df6c63', accent:'#ff4e5f', rate:20, reqLeg:2550, reqSta:1500, rival:'ヤマト', title:'日本最速ランナー', reward:4200, icon:'🗼' },
+      { name:'ワールド・アリーナ', short:'世界大会', sky:'#705ee8', ground:'#2b7a72', path:'#856aab', accent:'#ffd730', rate:50, reqLeg:6800, reqSta:3900, rival:'レオン', title:'世界王者', reward:10000, icon:'🌍' }
+    ];
+    const shoes = [
+      { name:'いつものスニーカー', icon:'👟', price:0, mult:1, unlock:0 },
+      { name:'スカイシューズ', icon:'🪽', price:350, mult:1.15, unlock:0 },
+      { name:'タイガーシューズ', icon:'🐯', price:1100, mult:1.35, unlock:1 },
+      { name:'ニンジャの足袋', icon:'🥷', price:2800, mult:1.65, unlock:2 },
+      { name:'ロケットシューズ', icon:'🚀', price:7000, mult:2.05, unlock:3 },
+      { name:'レインボーシューズ', icon:'🌈', price:15000, mult:2.6, unlock:4 }
+    ];
+    const machineTypes = [
+      { id:'treadmill', name:'スピードランナー', icon:'⚡', desc:'きゃくりょくが大きくアップ！', leg:1, sta:.22, color:'#31d5ff' },
+      { id:'hill', name:'坂道トレーナー', icon:'❤️', desc:'スタミナが大きくアップ！', leg:.25, sta:1, color:'#ff6f78' },
+      { id:'power', name:'パワーステップ', icon:'🔥', desc:'両方をバランスよくアップ！', leg:.68, sta:.68, color:'#ffb726' }
+    ];
+
+    const defaultSave = () => ({ version:1, leg:10, stamina:10, coins:0, zone:0, unlockedZone:0, defeated:[false,false,false,false,false], ownedShoes:[0], shoe:0, title:'かけだしランナー', tutorial:false, sound:true });
+    let save = loadSave();
+    let state = 'start';
+    let currentZone = Math.min(save.zone, save.unlockedZone);
+    let last = performance.now();
+    let DPR = 1, cw = innerWidth, ch = innerHeight;
+    let camera = { x:WORLD.w/2, y:WORLD.h/2 };
+    let player = { x:800, y:720, vx:0, vy:0, dir:1, step:0 };
+    let particles = [];
+    let joyInput = { x:0, y:0, pointer:null };
+    let keys = Object.create(null);
+    let nearest = null;
+    let toastTimer = 0;
+    let audioCtx = null;
+    let training = null;
+    let race = null;
+    let confetti = [];
+
+    const objects = [
+      { type:'machine', machine:0, x:390, y:385, radius:105 },
+      { type:'machine', machine:1, x:790, y:310, radius:105 },
+      { type:'machine', machine:2, x:1110, y:450, radius:105 },
+      { type:'shop', x:300, y:760, radius:105 },
+      { type:'rival', x:1290, y:735, radius:120 },
+      { type:'prev', x:125, y:190, radius:85 },
+      { type:'next', x:1460, y:180, radius:95 }
+    ];
+
+    function loadSave() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
+        if (!raw || raw.version !== 1) return defaultSave();
+        return Object.assign(defaultSave(), raw);
+      } catch (_) { return defaultSave(); }
+    }
+    function persist() {
+      save.zone = currentZone;
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
+      updateHud();
+    }
+    function fmt(v) { return Math.floor(v).toLocaleString('ja-JP'); }
+    function clamp(v,a,b) { return Math.max(a,Math.min(b,v)); }
+    function lerp(a,b,t) { return a+(b-a)*t; }
+    function rand(a,b) { return a+Math.random()*(b-a); }
+    function dist(a,b) { return Math.hypot(a.x-b.x,a.y-b.y); }
+    function shoeMult() { return shoes[save.shoe]?.mult || 1; }
+    function rankTitle() {
+      const wins = save.defeated.filter(Boolean).length;
+      return ['かけだしランナー','校庭のスピードスター','町の新チャンピオン','山をこえる疾風','日本一のランナー','世界最速ヒーロー'][wins];
+    }
+
+    function resize() {
+      cw = innerWidth; ch = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(cw*DPR); canvas.height = Math.round(ch*DPR);
+      canvas.style.width = cw+'px'; canvas.style.height = ch+'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+    }
+
+    function updateHud() {
+      $('#legValue').textContent = fmt(save.leg);
+      $('#staminaValue').textContent = fmt(save.stamina);
+      $('#coinValue').textContent = fmt(save.coins);
+      zoneBadge.textContent = zones[currentZone].icon+' '+zones[currentZone].name+'　｜　'+rankTitle();
+      $('#soundBtn').textContent = save.sound ? '🔊' : '🔇';
+    }
+
+    function showToast(text, color='#ffe15c') {
+      toastEl.innerHTML = text;
+      toastEl.style.color = color;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 1700);
+    }
+
+    function openModal(html, onReady) {
+      modalPanel.innerHTML = html;
+      modal.classList.remove('hidden');
+      if (onReady) onReady(modalPanel);
+    }
+    function closeModal() { modal.classList.add('hidden'); modalPanel.innerHTML=''; }
+
+    function beep(freq=440, duration=.08, type='sine', volume=.055) {
+      if (!save.sound) return;
+      try {
+        audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type=type; o.frequency.value=freq; g.gain.value=volume;
+        g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+duration);
+        o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+duration);
+      } catch (_) {}
+    }
+    function fanfare() {
+      [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.22,'triangle',.07),i*120));
+    }
+
+    function showHelp(first=false) {
+      openModal(`
+        <h2>${first?'ようこそ、未来の世界王者！':'あそびかた'}</h2>
+        <p>左下のスティックで主人公を動かし、<br><b style="color:#ffe15c">光っている器具や人の近く</b>で<br>右下のACTIONを押します。</p>
+        <div class="compare">
+          <div class="compareCard"><strong>⚡</strong>器具で<br>トレーニング</div>
+          <b>→</b>
+          <div class="compareCard"><strong>🏁</strong>ライバルと<br>レース！</div>
+        </div>
+        <p class="hint">トレーニングとレースでは、左右に動いて<br>エネルギーを集めたり障害物をよけたりできます。連打は必要ありません。</p>
+        <div class="buttons"><button class="primary" id="helpOk">わかった！</button></div>
+      `, p => p.querySelector('#helpOk').onclick=()=>{ closeModal(); save.tutorial=true; persist(); });
+    }
+
+    function resetPosition() {
+      player.x=800; player.y=730; player.vx=player.vy=0; camera.x=player.x; camera.y=player.y;
+    }
+
+    function enterWorld() {
+      state='world'; training=null; race=null; closeModal();
+      hud.classList.remove('hidden'); zoneBadge.classList.remove('hidden'); joy.classList.remove('hidden'); actionBtn.classList.remove('hidden');
+      actionBtn.classList.remove('boost'); actionBtn.textContent='ACTION';
+      resetPosition(); updateHud();
+    }
+
+    function interact() {
+      if (state==='race') { useBoost(); return; }
+      if (state!=='world' || !nearest) return;
+      beep(520,.07,'square',.035);
+      const o=nearest;
+      if (o.type==='machine') showMachine(o.machine);
+      else if (o.type==='shop') showShop();
+      else if (o.type==='rival') showRival();
+      else if (o.type==='prev') changeZone(currentZone-1);
+      else if (o.type==='next') {
+        if (currentZone < save.unlockedZone && currentZone<zones.length-1) changeZone(currentZone+1);
+        else if (!save.defeated[currentZone]) showToast('まずは '+zones[currentZone].rival+' に勝とう！');
+        else showToast('ここが世界の頂点だ！');
+      }
+    }
+
+    function changeZone(n) {
+      if (n<0 || n>save.unlockedZone || n>=zones.length) return;
+      currentZone=n; save.zone=n; persist(); resetPosition();
+      burst(player.x,player.y,'#8ff8ff',28); beep(740,.14,'triangle',.07);
+      showToast(zones[n].icon+' '+zones[n].name+'へ！');
+    }
+
+    function showMachine(index) {
+      const m=machineTypes[index], z=zones[currentZone];
+      const legGain=Math.round(32*z.rate*m.leg*shoeMult());
+      const staGain=Math.round(24*z.rate*m.sta*shoeMult());
+      openModal(`
+        <div class="heroLogo">${m.icon}</div>
+        <h2>${m.name}</h2>
+        <p>${m.desc}<br><span class="hint">15秒で　⚡約${fmt(legGain)} ／ ❤️約${fmt(staGain)} アップ</span></p>
+        <div class="buttons">
+          <button class="primary" id="trainGo">トレーニング！</button>
+          <button class="secondary" id="cancel">やめる</button>
+        </div>
+      `, p => {
+        p.querySelector('#trainGo').onclick=()=>startTraining(index);
+        p.querySelector('#cancel').onclick=closeModal;
+      });
+    }
+
+    function startTraining(index) {
+      closeModal(); state='training'; nearest=null; prompt.classList.remove('show');
+      hud.classList.add('hidden'); zoneBadge.classList.add('hidden'); actionBtn.classList.add('hidden');
+      training={ machine:index, time:0, duration:15, lane:1, laneX:1, items:[], spawn:0, leg:0, sta:0, combo:0, bestCombo:0, finished:false };
+      beep(330,.1,'square',.045); setTimeout(()=>beep(520,.12,'square',.05),100);
+    }
+
+    function finishTraining() {
+      if (!training || training.finished) return;
+      training.finished=true;
+      const m=machineTypes[training.machine];
+      save.leg += Math.max(1,Math.round(training.leg));
+      save.stamina += Math.max(1,Math.round(training.sta));
+      const earned=Math.max(8,Math.round((training.leg+training.sta)*.12));
+      save.coins += earned; persist(); fanfare();
+      openModal(`
+        <div class="heroLogo">💪✨</div>
+        <h2>トレーニング完了！</h2>
+        <div class="compare">
+          <div class="compareCard">きゃくりょく<strong>+${fmt(training.leg)}</strong></div>
+          <div style="font-size:30px">🔥</div>
+          <div class="compareCard">スタミナ<strong>+${fmt(training.sta)}</strong></div>
+        </div>
+        <p>ベストコンボ ${training.bestCombo}！　● ${fmt(earned)}コイン</p>
+        <div class="buttons"><button class="primary" id="again">もう1回</button><button class="secondary" id="back">ワールドへ</button></div>
+      `, p=>{
+        p.querySelector('#again').onclick=()=>startTraining(training.machine);
+        p.querySelector('#back').onclick=enterWorld;
+      });
+    }
+
+    function showRival() {
+      const z=zones[currentZone];
+      if (save.defeated[currentZone]) {
+        openModal(`<div class="heroLogo">🤝</div><h2>${z.rival}</h2><p>「さすがチャンピオン！<br>もう一度、全力で勝負しよう！」</p><div class="buttons"><button class="primary" id="raceGo">再戦する！</button><button class="secondary" id="cancel">またね</button></div>`, p=>{
+          p.querySelector('#raceGo').onclick=startRace; p.querySelector('#cancel').onclick=closeModal;
+        }); return;
+      }
+      const legPct=Math.min(100,Math.round(save.leg/z.reqLeg*100));
+      const staPct=Math.min(100,Math.round(save.stamina/z.reqSta*100));
+      const ready=legPct>=88 && staPct>=80;
+      openModal(`
+        <div class="heroLogo">🏁😤</div><h2>${z.rival}</h2><p>「${z.title}のぼくに、勝てるかな？」</p>
+        <div class="compare">
+          <div class="compareCard">きみ<strong>⚡${fmt(save.leg)}</strong><span class="hint">❤️${fmt(save.stamina)}</span></div>
+          <b>VS</b>
+          <div class="compareCard">${z.rival}<strong>⚡${fmt(z.reqLeg)}</strong><span class="hint">❤️${fmt(z.reqSta)}</span></div>
+        </div>
+        <p style="color:${ready?'#7dffd4':'#ffe15c'}">${ready?'いい勝負ができそう！':'もう少し鍛えると勝ちやすいよ'}</p>
+        <div class="buttons"><button class="primary" id="raceGo">レースに挑戦！</button><button class="secondary" id="cancel">あとで</button></div>
+      `, p=>{ p.querySelector('#raceGo').onclick=startRace; p.querySelector('#cancel').onclick=closeModal; });
+    }
+
+    function startRace() {
+      closeModal(); state='race'; nearest=null; hud.classList.add('hidden'); zoneBadge.classList.add('hidden');
+      joy.classList.remove('hidden'); actionBtn.classList.remove('hidden'); actionBtn.classList.add('boost'); actionBtn.textContent='全力\nDASH!';
+      race={ time:0, countdown:3.4, lane:1, laneX:1, player:0, rival:0, items:[], spawn:0, boost:0, boostUsed:false, hit:0, stars:0, finished:false };
+      beep(360,.09,'square',.05);
+    }
+
+    function useBoost() {
+      if (!race || race.countdown>0 || race.boostUsed || race.finished) return;
+      race.boost=2.5; race.boostUsed=true; actionBtn.textContent='DASH中!';
+      beep(260,.35,'sawtooth',.05); burst(cw*.5,ch*.78,'#5ef5ff',35,true);
+    }
+
+    function finishRace(won) {
+      if (!race || race.finished) return; race.finished=true;
+      actionBtn.classList.add('hidden'); joy.classList.add('hidden');
+      const z=zones[currentZone];
+      if (won) {
+        const first=!save.defeated[currentZone];
+        save.defeated[currentZone]=true;
+        const reward=first?z.reward:Math.round(z.reward*.18);
+        save.coins+=reward;
+        if (first && currentZone<zones.length-1) save.unlockedZone=Math.max(save.unlockedZone,currentZone+1);
+        persist(); fanfare(); spawnConfetti();
+        setTimeout(()=>openModal(`
+          <div class="heroLogo">🏆✨</div><h2>${first?'勝利！':'また勝った！'}</h2>
+          <p>${z.rival}を追いぬいた！<br><b style="color:#ffe15c">称号「${rankTitle()}」</b>を手に入れた！</p>
+          <div class="compare"><div class="compareCard">スター<strong>★ ${race.stars}</strong></div><b>＋</b><div class="compareCard">ごほうび<strong>● ${fmt(reward)}</strong></div></div>
+          <div class="buttons"><button class="primary" id="winBack">${first&&currentZone<4?'新しい場所へ！':'ワールドへ'}</button></div>
+        `, p=>p.querySelector('#winBack').onclick=()=>{
+          if(first&&currentZone<4) currentZone++;
+          enterWorld(); persist();
+          if(save.defeated.every(Boolean)) setTimeout(showEnding,450);
+        }), 650);
+      } else {
+        const consolation=Math.max(20,Math.round(z.reward*.05)); save.coins+=consolation; persist();
+        setTimeout(()=>openModal(`
+          <div class="heroLogo">😤🔥</div><h2>おしい！</h2>
+          <p>${z.rival}は、まだ少しだけ速かった。<br>トレーニングすれば、きっと追いぬける！</p>
+          <p>ちょうせんボーナス　● ${fmt(consolation)}</p>
+          <div class="buttons"><button class="primary" id="retry">もう一度！</button><button class="secondary" id="back">鍛えなおす</button></div>
+        `,p=>{p.querySelector('#retry').onclick=startRace;p.querySelector('#back').onclick=enterWorld;}),500);
+      }
+    }
+
+    function showEnding() {
+      openModal(`<div class="heroLogo">🌍🏆🌈</div><h1>世界一<br>おめでとう！</h1><p>5人のライバルをこえ、ついに世界最速のスピードヒーローになった！<br><br>でも、成長に終わりはない。<br>もっと鍛えて、自分の記録に挑戦しよう！</p><div class="buttons"><button class="primary" id="endingOk">まだまだ走る！</button></div>`,p=>p.querySelector('#endingOk').onclick=()=>{closeModal();showToast('めざせ！きゃくりょく10,000！');});
+    }
+
+    function showShop() {
+      const items=shoes.map((s,i)=>{
+        const owned=save.ownedShoes.includes(i), equipped=save.shoe===i, locked=save.unlockedZone<s.unlock;
+        return `<button class="shopItem ${owned?'owned':''} ${equipped?'equipped':''} ${locked?'locked':''}" data-shoe="${i}" ${locked?'disabled':''}>
+          <span class="shoeIcon">${s.icon}</span>${s.name}<br><span class="hint">成長 ×${s.mult.toFixed(2)}　${equipped?'そうび中':owned?'もっている':'● '+fmt(s.price)}</span>
+        </button>`;
+      }).join('');
+      openModal(`<h2>👟 スピードショップ</h2><p>靴を変えると、トレーニングの成長量がアップ！<br>もっているコイン：<b style="color:#ffe15c">● ${fmt(save.coins)}</b></p><div class="shopGrid">${items}</div><div class="buttons"><button class="secondary" id="shopClose">ワールドへ</button></div>`,p=>{
+        p.querySelectorAll('[data-shoe]').forEach(btn=>btn.onclick=()=>buyShoe(+btn.dataset.shoe));
+        p.querySelector('#shopClose').onclick=closeModal;
+      });
+    }
+
+    function buyShoe(i) {
+      const s=shoes[i]; if(save.unlockedZone<s.unlock)return;
+      if(save.ownedShoes.includes(i)) { save.shoe=i; persist(); beep(740,.12,'triangle',.06); showShop(); return; }
+      if(save.coins<s.price){ beep(150,.2,'square',.04); showToast('コインが足りないよ','#ff9aa8'); return; }
+      save.coins-=s.price; save.ownedShoes.push(i); save.shoe=i; persist(); fanfare(); showShop();
+    }
+
+    function worldToScreen(x,y) { return { x:x-camera.x+cw/2, y:y-camera.y+ch/2 }; }
+    function roundedRect(x,y,w,h,r) {
+      ctx.beginPath(); ctx.roundRect(x,y,w,h,r);
+    }
+    function shadow(x,y,rx,ry,a=.2) { ctx.fillStyle=`rgba(5,30,42,${a})`;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill(); }
+
+    function drawWorld(t) {
+      const z=zones[currentZone];
+      const grad=ctx.createLinearGradient(0,0,0,ch);grad.addColorStop(0,z.sky);grad.addColorStop(1,'#d9f7ff');ctx.fillStyle=grad;ctx.fillRect(0,0,cw,ch);
+      ctx.save(); const origin=worldToScreen(0,0);ctx.translate(origin.x,origin.y);
+      ctx.fillStyle=z.ground;ctx.fillRect(0,0,WORLD.w,WORLD.h);
+      // Large clean paths (no noisy texture).
+      ctx.fillStyle=z.path;roundedRect(110,115,1380,170,70);ctx.fill();
+      roundedRect(190,610,1230,230,100);ctx.fill();
+      roundedRect(700,210,210,560,100);ctx.fill();
+      // Track markings.
+      ctx.strokeStyle='rgba(255,255,255,.66)';ctx.lineWidth=5;ctx.setLineDash([34,22]);
+      ctx.beginPath();ctx.moveTo(230,695);ctx.lineTo(1370,695);ctx.stroke();ctx.setLineDash([]);
+      drawBoundary(z);
+      const sorted=[...objects,{type:'player',x:player.x,y:player.y}].sort((a,b)=>a.y-b.y);
+      for(const o of sorted){
+        if(o.type==='player') drawAvatar(player.x,player.y,'#16a8ef','#ff4f3d',1,player.dir,player.step,false);
+        else drawObject(o,t,z);
+      }
+      drawParticlesWorld();
+      ctx.restore();
+    }
+
+    function drawBoundary(z) {
+      for(let x=40;x<WORLD.w;x+=115){
+        drawTree(x,50+(x%230?0:18),z.accent); drawTree(x,WORLD.h-45-(x%230?15:0),z.accent);
+      }
+      for(let y=150;y<WORLD.h-80;y+=150){drawTree(45,y,z.accent);drawTree(WORLD.w-45,y+35,z.accent);}
+      // Background skyline/mountains.
+      ctx.fillStyle='rgba(18,71,93,.18)';
+      for(let x=60;x<WORLD.w;x+=150){const h=60+(x*17%90);ctx.fillRect(x,75-h,105,h);}
+    }
+    function drawTree(x,y,accent) {
+      shadow(x,y+24,28,10,.18);ctx.fillStyle='#8a5939';roundedRect(x-7,y-6,14,34,5);ctx.fill();
+      ctx.fillStyle=accent;ctx.beginPath();ctx.arc(x,y-15,27,0,Math.PI*2);ctx.arc(x-17,y-1,22,0,Math.PI*2);ctx.arc(x+17,y-1,22,0,Math.PI*2);ctx.fill();
+    }
+
+    function drawObject(o,t,z) {
+      const active=nearest===o; const bob=Math.sin(t*.003+o.x)*3;
+      if(active){ctx.strokeStyle='#fff36a';ctx.lineWidth=7;ctx.globalAlpha=.7+.2*Math.sin(t*.008);ctx.beginPath();ctx.ellipse(o.x,o.y+25,o.radius*.65,o.radius*.25,0,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
+      if(o.type==='machine') drawMachine(o.x,o.y,o.machine,bob);
+      else if(o.type==='shop') drawShopBooth(o.x,o.y,bob);
+      else if(o.type==='rival') drawRival(o.x,o.y,bob,z);
+      else if(o.type==='prev') drawPortal(o.x,o.y,'←',currentZone>0,z.accent,'まえのエリア');
+      else if(o.type==='next') drawPortal(o.x,o.y,'→',currentZone<save.unlockedZone,z.accent,currentZone<4?'つぎのエリア':'世界の頂点');
+    }
+
+    function label(text,x,y,color='#0b2b4d') {
+      ctx.font='900 17px -apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif';
+      const w=ctx.measureText(text).width+28;ctx.fillStyle='rgba(255,255,255,.95)';roundedRect(x-w/2,y-17,w,34,15);ctx.fill();
+      ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,x,y);ctx.textAlign='left';
+    }
+    function drawMachine(x,y,i,bob) {
+      const m=machineTypes[i];shadow(x,y+44,65,20,.22);ctx.save();ctx.translate(x,y+bob);
+      ctx.fillStyle='#29485e';roundedRect(-58,-15,116,60,12);ctx.fill();ctx.fillStyle=m.color;roundedRect(-48,-9,96,43,8);ctx.fill();
+      ctx.fillStyle='#153047';ctx.fillRect(-45,3,90,12);
+      if(i===0){ctx.strokeStyle='#29485e';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(34,-12);ctx.lineTo(53,-75);ctx.lineTo(72,-75);ctx.stroke();ctx.fillStyle='#c9f4ff';roundedRect(45,-92,49,29,7);ctx.fill();}
+      if(i===1){ctx.strokeStyle='#f2f7ff';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-35,-15);ctx.lineTo(12,-66);ctx.lineTo(56,-15);ctx.stroke();ctx.fillStyle='#ff6571';ctx.beginPath();ctx.arc(10,-25,31,0,Math.PI*2);ctx.fill();}
+      if(i===2){ctx.fillStyle='#ffc34d';roundedRect(-38,-56,76,35,8);ctx.fill();ctx.fillStyle='#ff673f';roundedRect(-28,-86,56,30,8);ctx.fill();}
+      ctx.restore();label(m.icon+' '+m.name,x,y-120);
+    }
+    function drawShopBooth(x,y,bob) {
+      shadow(x,y+47,75,22,.23);ctx.save();ctx.translate(x,y+bob);ctx.fillStyle='#f7f5ff';roundedRect(-68,-66,136,110,14);ctx.fill();ctx.fillStyle='#ff4f77';roundedRect(-76,-84,152,32,11);ctx.fill();
+      for(let i=-55;i<65;i+=30){ctx.fillStyle=(i/30)%2?'#fff':'#ffd13f';ctx.fillRect(i,-83,16,31);}ctx.font='42px sans-serif';ctx.textAlign='center';ctx.fillText('👟',0,6);ctx.restore();label('スピードショップ',x,y-125);
+    }
+    function drawRival(x,y,bob,z) {
+      drawAvatar(x,y+bob,'#ef394e',currentZone===4?'#ffd53d':'#263b68',1,-1,Math.sin(performance.now()*.006),true);
+      label((save.defeated[currentZone]?'🏅 ':'🏁 ')+z.rival,x,y-103,save.defeated[currentZone]?'#117857':'#b42736');
+    }
+    function drawPortal(x,y,arrow,unlocked,accent,text) {
+      shadow(x,y+42,48,16,.2);ctx.save();ctx.translate(x,y);ctx.strokeStyle=unlocked?accent:'#71808c';ctx.lineWidth=13;ctx.beginPath();ctx.arc(0,-15,44,Math.PI,0);ctx.lineTo(44,44);ctx.moveTo(-44,-15);ctx.lineTo(-44,44);ctx.stroke();
+      ctx.fillStyle=unlocked?'#fff369':'#9ca9af';ctx.font='900 47px sans-serif';ctx.textAlign='center';ctx.fillText(unlocked?arrow:'🔒',0,25);ctx.restore();label(text,x,y-102);
+    }
+
+    function drawAvatar(x,y,shirt,hair,scale=1,dir=1,step=0,rival=false) {
+      ctx.save();ctx.translate(x,y);ctx.scale(scale*dir,scale);shadow(0,29,25,10,.25);
+      const swing=Math.sin(step*5)*9;
+      ctx.strokeStyle=rival?'#24304d':'#11375d';ctx.lineWidth=12;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(-9,7);ctx.lineTo(-14+swing*.55,29);ctx.moveTo(9,7);ctx.lineTo(15-swing*.55,29);ctx.stroke();
+      ctx.strokeStyle='#f0b07f';ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(-14,-18);ctx.lineTo(-24-swing*.45,2);ctx.moveTo(14,-18);ctx.lineTo(25+swing*.45,0);ctx.stroke();
+      ctx.fillStyle=shirt;roundedRect(-19,-36,38,45,13);ctx.fill();
+      ctx.fillStyle='#f5bd8c';ctx.beginPath();ctx.arc(0,-53,22,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=hair;ctx.beginPath();ctx.arc(0,-60,21,Math.PI,Math.PI*2);ctx.lineTo(20,-51);ctx.lineTo(7,-58);ctx.lineTo(-2,-49);ctx.lineTo(-21,-52);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#17273d';ctx.beginPath();ctx.arc(dir>0?7:-7,-53,2.2,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+
+    function updateWorld(dt,t) {
+      const ix=clamp(joyInput.x+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),-1,1);
+      const iy=clamp(joyInput.y+(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0),-1,1);
+      const mag=Math.hypot(ix,iy); const speed=235;
+      if(mag>.08){player.vx=ix/mag*speed;player.vy=iy/mag*speed;player.dir=player.vx>=0?1:-1;player.step+=dt*2.8;}
+      else {player.vx*=Math.pow(.001,dt);player.vy*=Math.pow(.001,dt);}
+      player.x=clamp(player.x+player.vx*dt,80,WORLD.w-80);player.y=clamp(player.y+player.vy*dt,110,WORLD.h-80);
+      camera.x=lerp(camera.x,player.x,1-Math.pow(.0005,dt));camera.y=lerp(camera.y,player.y,1-Math.pow(.0005,dt));
+      camera.x=clamp(camera.x,cw/2,WORLD.w-cw/2);camera.y=clamp(camera.y,ch/2,WORLD.h-ch/2);
+      if(cw>WORLD.w)camera.x=WORLD.w/2;if(ch>WORLD.h)camera.y=WORLD.h/2;
+      nearest=null;let best=Infinity;
+      for(const o of objects){
+        if(o.type==='prev'&&currentZone===0)continue;
+        const d=dist(player,o);if(d<o.radius&&d<best){nearest=o;best=d;}
+      }
+      if(nearest){
+        let text='ACTION で調べる';
+        if(nearest.type==='machine')text='<b>ACTION</b>　'+machineTypes[nearest.machine].name;
+        if(nearest.type==='rival')text='<b>ACTION</b>　'+zones[currentZone].rival+'に挑戦';
+        if(nearest.type==='shop')text='<b>ACTION</b>　シューズを見る';
+        if(nearest.type==='prev'||nearest.type==='next')text='<b>ACTION</b>　'+(nearest.type==='prev'?'前のエリアへ':'次のエリアへ');
+        prompt.innerHTML=text;prompt.classList.add('show');
+      }else prompt.classList.remove('show');
+      updateParticles(dt,false);
+    }
+
+    function trainingInput() {
+      const x=joyInput.x+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0);
+      return clamp(x,-1,1);
+    }
+
+    function updateTraining(dt) {
+      if(!training||training.finished)return;
+      training.time+=dt; training.laneX=clamp(training.laneX+trainingInput()*dt*2.5,0,2);training.lane=Math.round(training.laneX);
+      const z=zones[currentZone], m=machineTypes[training.machine];
+      const base=shoeMult()*z.rate*dt;
+      training.leg+=base*2.15*m.leg; training.sta+=base*1.6*m.sta;
+      training.spawn-=dt;
+      if(training.spawn<=0){
+        training.spawn=rand(.62,.92); const bad=Math.random()<.2;
+        training.items.push({lane:Math.floor(Math.random()*3),y:-.1,bad,spin:Math.random()*6.2});
+      }
+      const speed=.67;
+      for(const it of training.items){
+        it.y+=dt*speed;it.spin+=dt*5;
+        if(!it.done&&it.y>.73){
+          it.done=true;
+          if(Math.abs(it.lane-training.laneX)<.46){
+            if(it.bad){training.combo=0;beep(120,.16,'square',.035);}
+            else {training.combo++;training.bestCombo=Math.max(training.bestCombo,training.combo);const bonus=1+Math.min(training.combo,10)*.1;training.leg+=z.rate*3*m.leg*shoeMult()*bonus;training.sta+=z.rate*2.3*m.sta*shoeMult()*bonus;beep(520+training.combo*18,.06,'triangle',.035);burst(cw*(.3+it.lane*.2),ch*.75,m.color,9,true);}
+          } else if(!it.bad) training.combo=0;
+        }
+      }
+      training.items=training.items.filter(i=>i.y<1.15);
+      updateParticles(dt,true);
+      if(training.time>=training.duration)finishTraining();
+    }
+
+    function drawTraining(t) {
+      const m=machineTypes[training.machine], z=zones[currentZone];
+      const bg=ctx.createLinearGradient(0,0,0,ch);bg.addColorStop(0,'#11365d');bg.addColorStop(1,'#07192f');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
+      ctx.fillStyle='rgba(255,255,255,.06)';for(let y=(t*.25)%70-70;y<ch;y+=70)ctx.fillRect(0,y,cw,3);
+      const left=cw*.2,right=cw*.8,top=ch*.19,bottom=ch*.9,laneW=(right-left)/3;
+      ctx.fillStyle='#1e405d';roundedRect(left,top,right-left,bottom-top,24);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=3;ctx.setLineDash([20,17]);for(let i=1;i<3;i++){ctx.beginPath();ctx.moveTo(left+laneW*i,top);ctx.lineTo(left+laneW*i,bottom);ctx.stroke();}ctx.setLineDash([]);
+      for(const it of training.items){const x=left+laneW*(it.lane+.5),y=top+(bottom-top)*it.y;ctx.save();ctx.translate(x,y);ctx.rotate(it.spin);ctx.font=`${Math.max(27,ch*.07)}px sans-serif`;ctx.textAlign='center';ctx.fillText(it.bad?'💧':'⚡',0,0);ctx.restore();}
+      const px=left+laneW*(training.laneX+.5),py=bottom-62;drawRunnerFront(px,py,m.color,t,true);
+      drawGameHeader(m.icon+' '+m.name,`のこり ${Math.max(0,Math.ceil(training.duration-training.time))}秒`);
+      ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='1000 18px sans-serif';ctx.fillText('左右に動いて ⚡ を集めよう！',cw/2,ch*.15);
+      if(training.combo>1){ctx.fillStyle='#ffe45f';ctx.font='1000 28px sans-serif';ctx.fillText(training.combo+' COMBO!',cw/2,ch*.26);}
+      ctx.textAlign='left';drawParticlesScreen();
+    }
+
+    function drawGameHeader(title,right) {
+      ctx.fillStyle='rgba(5,20,40,.88)';roundedRect(cw*.08,14,cw*.84,58,18);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#fff';ctx.font='1000 20px sans-serif';ctx.textBaseline='middle';ctx.fillText(title,cw*.1,43);ctx.textAlign='right';ctx.fillStyle='#ffe15c';ctx.fillText(right,cw*.9,43);ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    }
+
+    function drawRunnerFront(x,y,color,t,fast=false) {
+      ctx.save();ctx.translate(x,y);const bounce=Math.abs(Math.sin(t*.014))*(fast?7:3);ctx.translate(0,-bounce);shadow(0,26,30,11,.28);
+      const s=Math.sin(t*.018)*12;ctx.strokeStyle='#142e4e';ctx.lineWidth=13;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-8,3);ctx.lineTo(-13+s*.3,27);ctx.moveTo(8,3);ctx.lineTo(13-s*.3,27);ctx.stroke();
+      ctx.strokeStyle='#f1b481';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(-15,-19);ctx.lineTo(-27-s*.3,-1);ctx.moveTo(15,-19);ctx.lineTo(27+s*.3,-1);ctx.stroke();
+      ctx.fillStyle=color;roundedRect(-23,-40,46,48,14);ctx.fill();ctx.fillStyle='#f5bd8c';ctx.beginPath();ctx.arc(0,-59,25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff4f3d';ctx.beginPath();ctx.arc(0,-67,24,Math.PI,Math.PI*2);ctx.fill();ctx.fillStyle='#17304b';ctx.beginPath();ctx.arc(-8,-58,2.5,0,6.3);ctx.arc(8,-58,2.5,0,6.3);ctx.fill();ctx.restore();
+    }
+
+    function updateRace(dt) {
+      if(!race||race.finished)return;
+      race.time+=dt;race.laneX=clamp(race.laneX+trainingInput()*dt*2.75,0,2);race.lane=Math.round(race.laneX);
+      if(race.countdown>0){
+        const before=Math.ceil(race.countdown);race.countdown-=dt;const after=Math.ceil(race.countdown);if(after!==before)beep(after>0?360:680,.08,'square',.05);
+        return;
+      }
+      const z=zones[currentZone];
+      race.boost=Math.max(0,race.boost-dt);race.hit=Math.max(0,race.hit-dt);
+      const legRatio=Math.sqrt(clamp(save.leg/z.reqLeg,.18,2.4));const staRatio=Math.sqrt(clamp(save.stamina/z.reqSta,.18,2.4));
+      let pace=.63+.22*legRatio+.11*staRatio;
+      if(race.boost>0)pace*=1.36;if(race.hit>0)pace*=.63;
+      race.player+=dt/17*pace;race.rival+=dt/17*(1+.025*currentZone);
+      race.spawn-=dt;
+      if(race.spawn<=0){race.spawn=rand(.65,1.05);const bad=Math.random()<.55;race.items.push({lane:Math.floor(Math.random()*3),y:-.12,bad,spin:0});}
+      for(const it of race.items){
+        it.y+=dt*(.72+race.player*.12);it.spin+=dt*5;
+        if(!it.done&&it.y>.74){it.done=true;if(Math.abs(it.lane-race.laneX)<.46){if(it.bad){race.hit=.8;beep(105,.17,'square',.045);}else{race.stars++;race.player+=.012;beep(680+race.stars*12,.06,'triangle',.04);burst(cw*(.3+it.lane*.2),ch*.75,'#ffe15c',10,true);}}}
+      }
+      race.items=race.items.filter(i=>i.y<1.16);updateParticles(dt,true);
+      if(race.player>=1||race.rival>=1)finishRace(race.player>=race.rival);
+    }
+
+    function drawRace(t) {
+      const z=zones[currentZone];
+      const sky=ctx.createLinearGradient(0,0,0,ch*.52);sky.addColorStop(0,z.sky);sky.addColorStop(1,'#e8f9ff');ctx.fillStyle=sky;ctx.fillRect(0,0,cw,ch);
+      // Stadium and crowd.
+      ctx.fillStyle='#214c6a';ctx.fillRect(0,ch*.25,cw,ch*.18);ctx.fillStyle='#fff';for(let x=8;x<cw;x+=18){ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(x,ch*.31+(x%4)*8,4,0,6.3);ctx.fill();}ctx.globalAlpha=1;
+      const left=cw*.2,right=cw*.8,top=ch*.22,bottom=ch*1.03,laneW=(right-left)/3;
+      ctx.fillStyle=z.path;ctx.beginPath();ctx.moveTo(cw*.41,top);ctx.lineTo(cw*.59,top);ctx.lineTo(right,bottom);ctx.lineTo(left,bottom);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=4;for(let i=1;i<3;i++){const tx=lerp(cw*.41,cw*.59,i/3);const bx=left+laneW*i;ctx.beginPath();ctx.moveTo(tx,top);ctx.lineTo(bx,bottom);ctx.stroke();}
+      for(const it of race.items){const widen=lerp(.3,1,clamp(it.y,0,1));const topX=cw*.41+cw*.18*(it.lane+.5)/3;const bottomX=left+laneW*(it.lane+.5);const x=lerp(topX,bottomX,it.y);const y=top+(bottom-top)*it.y;ctx.save();ctx.translate(x,y);ctx.rotate(it.spin);ctx.font=`${25+42*widen}px sans-serif`;ctx.textAlign='center';ctx.fillText(it.bad?'🚧':'⭐',0,0);ctx.restore();}
+      const px=left+laneW*(race.laneX+.5),py=bottom-96;drawRunnerFront(px,py,race.boost>0?'#59f5ff':'#16a8ef',t,true);
+      const rivalX=cw*.58, rivalY=ch*.43+clamp((race.player-race.rival)*260,-70,95);drawRunnerFront(rivalX,rivalY,'#ef394e',t+400,true);
+      drawGameHeader(`🏁 VS ${z.rival}`,`⭐ ${race.stars}`);
+      // Progress bars.
+      const bx=cw*.12,by=86,bw=cw*.76,bh=14;ctx.fillStyle='rgba(5,20,38,.58)';roundedRect(bx,by,bw,bh,7);ctx.fill();ctx.fillStyle='#25d5ff';roundedRect(bx,by,bw*clamp(race.player,0,1),bh,7);ctx.fill();ctx.fillStyle='#ff4d62';roundedRect(bx,by+20,bw*clamp(race.rival,0,1),bh,7);ctx.fill();
+      ctx.font='900 11px sans-serif';ctx.fillStyle='#fff';ctx.fillText('きみ',bx-34,by+11);ctx.fillText(z.rival,bx-47,by+31);
+      if(race.countdown>0){ctx.fillStyle='rgba(3,18,36,.32)';ctx.fillRect(0,0,cw,ch);ctx.textAlign='center';ctx.font='1000 90px sans-serif';ctx.fillStyle='#fff45d';ctx.strokeStyle='#73310c';ctx.lineWidth=8;const txt=race.countdown>.55?Math.ceil(race.countdown):'GO!';ctx.strokeText(txt,cw/2,ch/2);ctx.fillText(txt,cw/2,ch/2);ctx.textAlign='left';}
+      if(!race.boostUsed&&race.countdown<=0){ctx.fillStyle='rgba(4,23,44,.7)';ctx.font='900 15px sans-serif';ctx.textAlign='center';ctx.fillText('好きなタイミングで 全力DASH！',cw*.82,ch*.68);ctx.textAlign='left';}
+      drawParticlesScreen();
+    }
+
+    function burst(x,y,color,count,screen=false) {
+      for(let i=0;i<count;i++)particles.push({x,y,vx:rand(-100,100),vy:rand(-150,40),life:rand(.35,.8),max:1,color,screen,size:rand(3,8)});
+    }
+    function updateParticles(dt,screen) {
+      for(const p of particles){if(p.screen!==screen)continue;p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=170*dt;}
+      particles=particles.filter(p=>p.life>0);
+    }
+    function drawParticlesWorld(){for(const p of particles){if(p.screen)continue;ctx.globalAlpha=clamp(p.life*2,0,1);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,6.3);ctx.fill();}ctx.globalAlpha=1;}
+    function drawParticlesScreen(){for(const p of particles){if(!p.screen)continue;ctx.globalAlpha=clamp(p.life*2,0,1);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,6.3);ctx.fill();}ctx.globalAlpha=1;}
+    function spawnConfetti(){confetti=[];for(let i=0;i<120;i++)confetti.push({x:rand(0,cw),y:rand(-ch*.8,0),vy:rand(70,180),vx:rand(-45,45),r:rand(0,6.3),vr:rand(-5,5),c:['#ffe34f','#ff4d75','#48e8ff','#69f399','#fff'][i%5]});}
+    function updateConfetti(dt){for(const p of confetti){p.y+=p.vy*dt;p.x+=p.vx*dt;p.r+=p.vr*dt;if(p.y>ch+20)p.y=-20;}if(modal.classList.contains('hidden'))confetti=[];}
+    function drawConfetti(){for(const p of confetti){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;ctx.fillRect(-5,-10,10,20);ctx.restore();}}
+
+    function loop(t) {
+      const dt=Math.min(.033,(t-last)/1000||0);last=t;
+      if(state==='world'){updateWorld(dt,t);drawWorld(t);}
+      else if(state==='training'){updateTraining(dt);drawTraining(t);}
+      else if(state==='race'){updateRace(dt);drawRace(t);}
+      else {ctx.fillStyle='#59cfff';ctx.fillRect(0,0,cw,ch);}
+      updateConfetti(dt);drawConfetti();requestAnimationFrame(loop);
+    }
+
+    function joyStart(e) { if(modal && !modal.classList.contains('hidden'))return; joyInput.pointer=e.pointerId;joy.setPointerCapture(e.pointerId);joyMove(e); }
+    function joyMove(e) {
+      if(joyInput.pointer!==e.pointerId)return;const r=joy.getBoundingClientRect();let x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);const m=Math.hypot(x,y),max=r.width*.32;if(m>max){x=x/m*max;y=y/m*max;}joyInput.x=x/max;joyInput.y=y/max;stick.style.transform=`translate(${x}px,${y}px)`;
+    }
+    function joyEnd(e) { if(joyInput.pointer!==e.pointerId)return;joyInput.pointer=null;joyInput.x=joyInput.y=0;stick.style.transform='translate(0,0)'; }
+    joy.addEventListener('pointerdown',joyStart);joy.addEventListener('pointermove',joyMove);joy.addEventListener('pointerup',joyEnd);joy.addEventListener('pointercancel',joyEnd);
+    actionBtn.addEventListener('pointerdown',e=>{e.preventDefault();interact();});
+    addEventListener('keydown',e=>{keys[e.key]=true;if((e.key===' '||e.key==='Enter')&&!e.repeat)interact();});
+    addEventListener('keyup',e=>keys[e.key]=false);
+    addEventListener('resize',resize);
+    document.addEventListener('contextmenu',e=>e.preventDefault());
+    document.addEventListener('gesturestart',e=>e.preventDefault());
+    $('#startBtn').onclick=()=>{
+      $('#startOverlay').classList.add('hidden');enterWorld();beep(440,.1,'triangle',.06);setTimeout(()=>beep(660,.16,'triangle',.06),100);if(!save.tutorial)setTimeout(()=>showHelp(true),350);
+    };
+    $('#helpBtn').onclick=()=>showHelp(false);
+    $('#soundBtn').onclick=()=>{save.sound=!save.sound;persist();if(save.sound)beep(620,.1,'triangle',.06);};
+
+    resize();updateHud();requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>
