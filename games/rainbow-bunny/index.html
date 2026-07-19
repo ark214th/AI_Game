@@ -179,7 +179,7 @@
         <div class="howto">
           <span>◀ ▶ で あるく</span>
           <span>↑ で ジャンプ</span>
-          <span>もう1かい ↑ で ふわふわ</span>
+          <span>↑を おしつづけても 2だんジャンプ</span>
         </div>
         <div id="stageSelect" class="stage-select" aria-label="ステージをえらぶ">
           <button class="stage-choice selected" data-stage="0"><b>🌷</b><span>1 そうげん</span></button>
@@ -311,8 +311,8 @@
       const stage = STAGES[currentStage];
       worldEnd = stage.end;
       player = {
-        x:170,y:500,w:50,h:76,vx:0,vy:0,face:1,onGround:false,coyote:0,
-        jumpBuffer:0,floatUsed:false,floatTime:0,hearts:3,invuln:0,
+        x:170,y:514,w:50,h:76,vx:0,vy:0,face:1,onGround:true,coyote:.13,
+        jumpBuffer:0,jumpCutLock:0,floatUsed:false,floatTime:0,hearts:3,invuln:0,
         carrots:0,shards:0,checkpoint:170,runTime:0,blink:0,riding:null
       };
       platforms = stage.platforms.map((p,i) => ({...p,baseX:p.x,baseY:p.y,phase:i*.67,dx:0,dy:0}));
@@ -354,6 +354,15 @@
       tone(float?560:430,.11,'sine',.045);
       tone(float?740:590,.12,'sine',.035,.055);
     }
+    function performSecondJump(p) {
+      p.vy=-650;
+      p.floatUsed=true;
+      p.floatTime=.95;
+      p.jumpBuffer=0;
+      p.jumpCutLock=.18;
+      playJump(true);
+      burst(p.x+p.w/2,p.y+12,['#fff','#ffdcf0','#b7efff','#ffe56d'],14,145);
+    }
     function playCarrot() { tone(700 + (player.carrots%6)*45,.09,'sine',.045); }
     function playShard() { [520,660,820,1040].forEach((n,i)=>tone(n,.22,'sine',.06,i*.08)); }
     function playOuch() { tone(190,.18,'triangle',.05); tone(145,.22,'triangle',.04,.07); }
@@ -376,11 +385,11 @@
       if (state !== 'playing') return;
       ensureAudio();
       input.jumpHeld = true;
-      player.jumpBuffer = .14;
+      player.jumpBuffer = .2;
     }
     function releaseJump() {
       input.jumpHeld = false;
-      if (player && player.vy < -270) player.vy *= .57;
+      if (player && player.vy < -270 && player.jumpCutLock<=0) player.vy *= .57;
     }
 
     function bindHold(button, key) {
@@ -519,6 +528,7 @@
       }
       p.invuln = Math.max(0,p.invuln-dt);
       p.jumpBuffer = Math.max(0,p.jumpBuffer-dt);
+      p.jumpCutLock = Math.max(0,p.jumpCutLock-dt);
       p.coyote = p.onGround ? .13 : Math.max(0,p.coyote-dt);
       p.runTime += Math.abs(p.vx)*dt*.018;
 
@@ -530,12 +540,15 @@
 
       if (p.jumpBuffer>0) {
         if (p.coyote>0) {
-          p.vy=-715; p.onGround=false; p.coyote=0; p.jumpBuffer=0; p.floatUsed=false; playJump(false);
+          p.vy=-715; p.onGround=false; p.coyote=0; p.jumpBuffer=0; p.jumpCutLock=.12; p.floatUsed=false; playJump(false);
           burst(p.x+p.w/2,p.y+p.h,['#fff','#ffd2e9'],6,80);
         } else if (!p.floatUsed) {
-          p.vy=Math.min(p.vy,-395); p.floatUsed=true; p.floatTime=.75; p.jumpBuffer=0; playJump(true);
-          burst(p.x+p.w/2,p.y+10,['#fff','#ffdcf0','#b7efff'],10,110);
+          performSecondJump(p);
         }
+      }
+
+      if (!p.onGround && input.jumpHeld && !p.floatUsed && p.coyote<=0 && p.vy>-70) {
+        performSecondJump(p);
       }
 
       if (p.floatTime>0) p.floatTime-=dt;
@@ -787,7 +800,7 @@
       ctx.fillStyle=STAGES[currentStage].theme==='moon'?'#fff':'#76536f';ctx.textAlign='center';ctx.font='900 17px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText(`${STAGES[currentStage].icon} ${currentStage+1}　${STAGES[currentStage].name}`,W/2,142);
       if(hintTimer>0&&state==='playing'){
         const alpha=Math.min(1,hintTimer)*.92;ctx.globalAlpha=alpha;ctx.fillStyle='rgba(102,71,101,.82)';rr(W/2-238,155,476,50,22);ctx.fill();
-        ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='900 20px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText('ジャンプ中に もう1かい押すと ふわふわ！',W/2,188);
+        ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='900 20px "Hiragino Maru Gothic ProN",sans-serif';ctx.fillText('ジャンプは おしっぱなしでも 2だんジャンプ！',W/2,188);
       }
       if(rescueTimer>0){
         const messageY=hintTimer>0?220:170;
