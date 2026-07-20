@@ -17,6 +17,7 @@
       typeof target.speed === 'number' && typeof target.magnet === 'number'
     ) {
       player = target;
+      trackedEnemies.clear();
     }
     return result;
   };
@@ -66,11 +67,18 @@
         continue;
       }
 
+      const worldDx = enemy.x - player.x;
+      const worldDy = enemy.y - player.y;
+      if (worldDx * worldDx + worldDy * worldDy > 2300 * 2300) {
+        trackedEnemies.delete(enemy);
+        continue;
+      }
+
       // ライフゲージはダメージを受けた雑魚だけに表示する。
       if (!(enemy.hp < enemy.maxHp)) continue;
 
-      const sx = enemy.x - player.x + width / 2;
-      const sy = enemy.y - player.y + height / 2;
+      const sx = worldDx + width / 2;
+      const sy = worldDy + height / 2;
       if (sx < -100 || sx > width + 100 || sy < -100 || sy > height + 100) continue;
 
       const barWidth = Math.max(26, Math.min(72, enemy.r * 2.2));
