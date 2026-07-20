@@ -2,13 +2,25 @@
   'use strict';
 
   const nativeValues = Object.values;
+  const nativePush = Array.prototype.push;
   let weapons = null;
+  let projectileGuardInstalled = false;
+
+  function installProjectileGuard() {
+    if (projectileGuardInstalled) return;
+    projectileGuardInstalled = true;
+    Array.prototype.push = function guardedPush(...items) {
+      const accepted = items.filter(item => !(item && item.kind === 'moon' && weapons && weapons.moon.level === 0));
+      return nativePush.apply(this, accepted);
+    };
+  }
 
   Object.values = function patchedValues(object) {
     const keys = object && typeof object === 'object' ? Object.keys(object) : [];
     if (!weapons && ['moon','orbit','nova','aura','light','blade'].every(key => keys.includes(key))) {
       weapons = object;
       Object.values = nativeValues;
+      installProjectileGuard();
     }
     return nativeValues(object);
   };
