@@ -1,4 +1,99 @@
-<!doctype html><html lang='ja'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='theme-color' content='#080b1e'><title>月影サバイバー</title><link rel='stylesheet' href='style.css'></head><body><canvas id='game'></canvas><div id='hud' class='hidden'><div class='row'><div class='panel stats'><div class='labels'><span>❤️ HP</span><b id='hpt'>100 / 100</b></div><div class='bar'><i id='hp'></i></div><div class='xp'><div class='labels'><span>✨ LV.<b id='lv'>1</b></span><span id='xpt'>0 / 8</span></div><div class='bar'><i id='xp'></i></div></div></div><div class='panel time'><span>TIME</span><b id='tm'>05:00</b><span>K.O.</span><b id='ko'>0</b></div><button id='pause'>Ⅱ</button></div><div id='weapons'></div><div id='boss'>宵闇の王<div class='bar'><i id='bossbar'></i></div></div><div id='notice'></div></div><div id='joy' class='hidden'><div id='stick'></div></div>
-<div id='start' class='overlay'><div class='modal'><div style='font-size:65px'>🌙</div><h1>月影サバイバー</h1><p class='sub'>5分間を生き残り、夜明け後は好きなだけ無双しよう</p><div class='guide'><div><b>🕹️</b>左下をドラッグして移動</div><div><b>✨</b>攻撃はすべて自動</div><div><b>⬆️</b>武器は4種類まで</div></div><button id='startBtn' class='main'>ゲーム開始</button><div class='links'><button id='sound'>🔊 効果音 ON</button><a href='../../'>ゲーム一覧へ戻る</a></div></div></div>
-<div id='level' class='overlay hidden'><div class='modal'><h2>LEVEL UP!</h2><p class='sub'>強化をひとつ選んでください</p><div id='cards'></div></div></div><div id='paused' class='overlay hidden'><div class='modal'><h2>一時停止</h2><p class='sub'>夜明け後は、好きなところで結果を表示できます。</p><button id='resume' class='main'>再開する</button><div class='links'><button id='finishBtn'>結果を見る</button><a href='../../'>ゲーム一覧へ戻る</a></div></div></div><div id='end' class='overlay hidden'><div class='modal'><div id='endico' style='font-size:65px'>🌅</div><h2 id='endtitle'>夜明けを制しました！</h2><p id='endtext' class='sub'></p><div class='results'><div><b id='restime'>05:00</b><span>生存時間</span></div><div><b id='resko'>0</b><span>撃破数</span></div><div><b id='reslv'>1</b><span>到達レベル</span></div></div><button id='retry' class='main'>もう一度遊ぶ</button><div class='links'><a href='../../'>ゲーム一覧へ戻る</a></div></div></div>
-<script src='starter-choice.js?v=20260720-2'></script><script src='visual-fix.js?v=20260720-3'></script><script src='game.js?v=20260720-3'></script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#080b1e">
+  <title>月影サバイバー</title>
+  <link rel="stylesheet" href="style.css?v=20260720-4">
+  <style>
+    #starterChoice{z-index:30}
+    .starter-modal{width:min(900px,100%)}
+    #starterChoiceGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+    .starter-weapon{min-height:150px;padding:15px;border-radius:18px;border:1px solid rgba(230,234,255,.25);background:linear-gradient(150deg,rgba(68,77,155,.9),rgba(25,25,68,.96));color:#fff;text-align:left;box-shadow:0 10px 24px rgba(0,0,0,.25)}
+    .starter-weapon:active{transform:scale(.98)}
+    .starter-icon{display:block;font-size:38px}
+    .starter-weapon h3{margin:7px 0 5px;color:#fff5bd;font-size:17px}
+    .starter-weapon p{margin:0;color:#dfe5ff;font-size:12px;line-height:1.5}
+    @media(max-width:560px){#starterChoiceGrid{grid-template-columns:repeat(2,1fr);gap:8px}.starter-weapon{min-height:125px;padding:11px}.starter-icon{font-size:30px}.starter-weapon h3{font-size:14px}.starter-weapon p{font-size:10px}}
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="row">
+      <div class="panel stats">
+        <div class="labels"><span>❤️ HP</span><b id="hpt">100 / 100</b></div>
+        <div class="bar"><i id="hp"></i></div>
+        <div class="xp">
+          <div class="labels"><span>✨ LV.<b id="lv">1</b></span><span id="xpt">0 / 8</span></div>
+          <div class="bar"><i id="xp"></i></div>
+        </div>
+      </div>
+      <div class="panel time"><span>TIME</span><b id="tm">05:00</b><span>K.O.</span><b id="ko">0</b></div>
+      <button id="pause">Ⅱ</button>
+    </div>
+    <div id="weapons"></div>
+    <div id="boss"><span id="bossName">宵闇の王</span><div class="bar"><i id="bossbar"></i></div></div>
+    <div id="notice"></div>
+  </div>
+
+  <div id="joy" class="hidden"><div id="stick"></div></div>
+
+  <div id="start" class="overlay">
+    <div class="modal">
+      <div style="font-size:65px">🌙</div>
+      <h1>月影サバイバー</h1>
+      <p class="sub">5分間を生き残り、夜明け後は好きなだけ無双しよう</p>
+      <div class="guide">
+        <div><b>🕹️</b>左下をドラッグして移動</div>
+        <div><b>✨</b>攻撃はすべて自動</div>
+        <div><b>⬆️</b>武器は4種類まで</div>
+      </div>
+      <button id="startBtn" class="main">ゲーム開始</button>
+      <div class="links"><button id="sound">🔊 効果音 ON</button><a href="../../">ゲーム一覧へ戻る</a></div>
+    </div>
+  </div>
+
+  <div id="starterChoice" class="overlay hidden">
+    <div class="modal starter-modal">
+      <h2>最初の武器を選べ！</h2>
+      <p class="sub">選んだ武器をLv.1で持って出撃します</p>
+      <div id="starterChoiceGrid"></div>
+      <div class="links"><button id="starterCancel">もどる</button></div>
+    </div>
+  </div>
+
+  <div id="level" class="overlay hidden">
+    <div class="modal"><h2>LEVEL UP!</h2><p class="sub">強化をひとつ選んでください</p><div id="cards"></div></div>
+  </div>
+
+  <div id="paused" class="overlay hidden">
+    <div class="modal">
+      <h2>一時停止</h2>
+      <p class="sub">夜明け後は、好きなところで結果を表示できます。</p>
+      <button id="resume" class="main">再開する</button>
+      <div class="links"><button id="finishBtn">結果を見る</button><a href="../../">ゲーム一覧へ戻る</a></div>
+    </div>
+  </div>
+
+  <div id="end" class="overlay hidden">
+    <div class="modal">
+      <div id="endico" style="font-size:65px">🌅</div>
+      <h2 id="endtitle">夜明けを制しました！</h2>
+      <p id="endtext" class="sub"></p>
+      <div class="results">
+        <div><b id="restime">05:00</b><span>生存時間</span></div>
+        <div><b id="resko">0</b><span>撃破数</span></div>
+        <div><b id="reslv">1</b><span>到達レベル</span></div>
+      </div>
+      <button id="retry" class="main">もう一度遊ぶ</button>
+      <div class="links"><a href="../../">ゲーム一覧へ戻る</a></div>
+    </div>
+  </div>
+
+  <script src="game.js?v=20260720-4"></script>
+</body>
+</html>
