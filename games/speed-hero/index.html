@@ -58,10 +58,10 @@
     #prompt {
       position:absolute; left:50%; bottom:max(108px,calc(env(safe-area-inset-bottom) + 98px)); transform:translateX(-50%);
       min-width:min(360px,68vw); max-width:min(600px,74vw); padding:10px 16px; border-radius:18px;
-      background:rgba(6,25,47,.91); border:2px solid rgba(255,255,255,.77); box-shadow:0 7px 0 rgba(5,16,34,.32);
-      text-align:center; font-weight:900; opacity:0; transition:opacity .15s,transform .15s;
+      background:linear-gradient(145deg,rgba(22,137,200,.97),rgba(8,65,112,.97)); border:3px solid rgba(255,255,255,.9); box-shadow:0 7px 0 rgba(5,16,34,.32);
+      text-align:center; font-weight:1000; font-size:17px; opacity:0; pointer-events:none; transition:opacity .15s,transform .15s;
     }
-    #prompt.show { opacity:1; transform:translate(-50%,-5px); }
+    #prompt.show { opacity:1; pointer-events:auto; transform:translate(-50%,-5px); }
     #prompt b { color:#ffe15c; }
     #joystick {
       position:absolute; left:max(22px,calc(env(safe-area-inset-left) + 18px)); bottom:max(22px,calc(env(safe-area-inset-bottom) + 16px));
@@ -81,6 +81,7 @@
     }
     #actionBtn:active,.roundBtn:active,.primary:active,.secondary:active { transform:translateY(3px); box-shadow:none; }
     #actionBtn.boost { background:linear-gradient(145deg,#56f7ff,#168cff); color:#04285e; border-color:#d5ffff; box-shadow:0 8px 0 #064da9,0 14px 25px rgba(25,36,45,.32); }
+    #actionBtn.hold { background:linear-gradient(145deg,#ffef66,#ff7b25); color:#5d2100; border-color:#fffbd0; box-shadow:0 8px 0 #b8470a,0 14px 25px rgba(25,36,45,.32); }
     #actionBtn.hidden,#joystick.hidden,#prompt.hidden,.hud.hidden,#zoneBadge.hidden { display:none; }
     #toast {
       position:absolute; left:50%; top:25%; transform:translate(-50%,-10px); padding:12px 20px; border-radius:18px;
@@ -111,6 +112,9 @@
     .primary { background:linear-gradient(#ffe45f,#ff9e27); color:#5a2603; }
     .secondary { background:linear-gradient(#57d8ff,#1786d9); color:#042849; }
     .danger { background:linear-gradient(#ff7185,#da315a); color:#fff; }
+    #holdReset { position:relative; overflow:hidden; min-width:260px; }
+    #holdReset::before { content:""; position:absolute; inset:0; width:var(--hold,0%); background:rgba(107,0,24,.38); transition:width .05s linear; }
+    #holdReset span { position:relative; z-index:1; }
     .compare { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:9px; margin:17px 0; }
     .compareCard { padding:13px 9px; border-radius:17px; background:rgba(255,255,255,.1); border:2px solid rgba(255,255,255,.24); }
     .compareCard strong { display:block; color:#ffe566; font-size:24px; }
@@ -151,11 +155,12 @@
         <div class="topButtons">
           <button class="roundBtn" id="soundBtn" aria-label="音のオンオフ">🔊</button>
           <button class="roundBtn" id="helpBtn" aria-label="遊び方">？</button>
+          <button class="roundBtn" id="settingsBtn" aria-label="設定">⚙️</button>
         </div>
       </div>
     </div>
     <div id="zoneBadge" class="hidden">はじまりのグラウンド</div>
-    <div id="prompt"><b>ACTION</b> で調べる</div>
+    <button id="prompt"><b>ここをタップ</b>して調べる</button>
     <div id="toast"></div>
     <div id="joystick" class="hidden"><div id="stick"></div></div>
     <button id="actionBtn" class="hidden">ACTION</button>
@@ -164,7 +169,7 @@
       <div class="panel">
         <div class="heroLogo">🏃‍♂️💨</div>
         <h1>爆走！<br>スピードヒーロー</h1>
-        <p>トレーニングでどんどん速くなって、<br>5人のライバルを追いぬこう！</p>
+        <p>トレーニングでどんどん速くなって、<br>8人のライバルを追いぬこう！</p>
         <div class="buttons"><button class="primary" id="startBtn">ゲームスタート！</button></div>
         <p class="hint">セーブは自動です。横向きで遊んでね。</p>
       </div>
@@ -196,27 +201,34 @@
     const WORLD = { w:1600, h:1000 };
     const SAVE_KEY = 'speedHeroSave_v1';
     const zones = [
-      { name:'はじまりのグラウンド', short:'学校', sky:'#82dcff', ground:'#58bf70', path:'#f3d596', accent:'#ffb327', rate:1, reqLeg:90, reqSta:55, rival:'ハヤト', title:'クラス最速', reward:260, icon:'🏫' },
-      { name:'サンライズ・シティ', short:'町大会', sky:'#6bd1ff', ground:'#54ba92', path:'#b9c8d3', accent:'#ff694a', rate:3, reqLeg:310, reqSta:180, rival:'タイガ', title:'町のダッシュ王', reward:720, icon:'🏙️' },
-      { name:'ゴウゴウ山岳コース', short:'山大会', sky:'#71c9ed', ground:'#49a867', path:'#a78b6b', accent:'#7ae65a', rate:8, reqLeg:920, reqSta:560, rival:'シュン', title:'山を走る風', reward:1700, icon:'⛰️' },
-      { name:'ニッポン・スタジアム', short:'日本大会', sky:'#72baff', ground:'#39a985', path:'#df6c63', accent:'#ff4e5f', rate:20, reqLeg:2550, reqSta:1500, rival:'ヤマト', title:'日本最速ランナー', reward:4200, icon:'🗼' },
-      { name:'ワールド・アリーナ', short:'世界大会', sky:'#705ee8', ground:'#2b7a72', path:'#856aab', accent:'#ffd730', rate:50, reqLeg:6800, reqSta:3900, rival:'レオン', title:'世界王者', reward:10000, icon:'🌍' }
+      { name:'はじまりのグラウンド', short:'学校', sky:'#82dcff', ground:'#58bf70', path:'#f3d596', accent:'#ffb327', rate:1, reqLeg:140, reqSta:90, rival:'ハヤト', title:'クラス最速', reward:320, icon:'🏫' },
+      { name:'サンライズ・シティ', short:'町大会', sky:'#6bd1ff', ground:'#54ba92', path:'#b9c8d3', accent:'#ff694a', rate:2.5, reqLeg:600, reqSta:380, rival:'タイガ', title:'町のダッシュ王', reward:900, icon:'🏙️' },
+      { name:'ゴウゴウ山岳コース', short:'山大会', sky:'#71c9ed', ground:'#49a867', path:'#a78b6b', accent:'#7ae65a', rate:6, reqLeg:1800, reqSta:1100, rival:'シュン', title:'山を走る風', reward:2400, icon:'⛰️' },
+      { name:'ニッポン・スタジアム', short:'日本大会', sky:'#72baff', ground:'#39a985', path:'#df6c63', accent:'#ff4e5f', rate:16, reqLeg:5200, reqSta:3200, rival:'ヤマト', title:'日本最速ランナー', reward:6500, icon:'🗼' },
+      { name:'ワールド・アリーナ', short:'世界大会', sky:'#705ee8', ground:'#2b7a72', path:'#856aab', accent:'#ffd730', rate:42, reqLeg:15000, reqSta:9000, rival:'レオン', title:'世界王者', reward:17000, icon:'🌍' },
+      { name:'チャンピオンズ・リーグ', short:'王者決戦', sky:'#395bd9', ground:'#247b70', path:'#c97c3d', accent:'#ffdf3f', rate:110, reqLeg:42000, reqSta:25000, rival:'カイ', title:'王者たちの頂点', reward:45000, icon:'🏆' },
+      { name:'ムーンライト・サーキット', short:'月大会', sky:'#25276e', ground:'#586779', path:'#a6b3c7', accent:'#79eeff', rate:280, reqLeg:110000, reqSta:65000, rival:'ノヴァ', title:'月面最速ランナー', reward:120000, icon:'🌙' },
+      { name:'ギャラクシー・ファイナル', short:'銀河決戦', sky:'#30124f', ground:'#364f72', path:'#674d9b', accent:'#ff6fea', rate:700, reqLeg:280000, reqSta:165000, rival:'ゼロ', title:'銀河の伝説', reward:300000, icon:'🌌' }
     ];
     const shoes = [
       { name:'いつものスニーカー', icon:'👟', price:0, mult:1, unlock:0 },
-      { name:'スカイシューズ', icon:'🪽', price:350, mult:1.15, unlock:0 },
-      { name:'タイガーシューズ', icon:'🐯', price:1100, mult:1.35, unlock:1 },
-      { name:'ニンジャの足袋', icon:'🥷', price:2800, mult:1.65, unlock:2 },
-      { name:'ロケットシューズ', icon:'🚀', price:7000, mult:2.05, unlock:3 },
-      { name:'レインボーシューズ', icon:'🌈', price:15000, mult:2.6, unlock:4 }
+      { name:'スカイシューズ', icon:'🪽', price:350, mult:1.08, unlock:0 },
+      { name:'タイガーシューズ', icon:'🐯', price:1000, mult:1.17, unlock:1 },
+      { name:'ニンジャの足袋', icon:'🥷', price:2600, mult:1.28, unlock:2 },
+      { name:'ロケットシューズ', icon:'🚀', price:7000, mult:1.4, unlock:3 },
+      { name:'レインボーシューズ', icon:'🌈', price:18000, mult:1.55, unlock:4 },
+      { name:'ドラゴンスパイク', icon:'🐉', price:50000, mult:1.72, unlock:5 },
+      { name:'メテオシューズ', icon:'☄️', price:130000, mult:1.9, unlock:6 },
+      { name:'ギャラクシーブーツ', icon:'🌌', price:320000, mult:2.08, unlock:7 },
+      { name:'伝説のゴールドシューズ', icon:'👑', price:650000, mult:2.3, unlock:7 }
     ];
     const machineTypes = [
-      { id:'treadmill', name:'スピードランナー', icon:'⚡', desc:'きゃくりょくが大きくアップ！', leg:1, sta:.22, color:'#31d5ff' },
-      { id:'hill', name:'坂道トレーナー', icon:'❤️', desc:'スタミナが大きくアップ！', leg:.25, sta:1, color:'#ff6f78' },
-      { id:'power', name:'パワーステップ', icon:'🔥', desc:'両方をバランスよくアップ！', leg:.68, sta:.68, color:'#ffb726' }
+      { id:'treadmill', name:'スピードランナー', icon:'⚡', desc:'3つのレーンを動いて、稲妻を集めよう！', leg:1, sta:.18, color:'#31d5ff' },
+      { id:'hill', name:'坂道トレーナー', icon:'❤️', desc:'押して坂を走り、離して体力を回復しよう！', leg:.2, sta:1, color:'#ff6f78' },
+      { id:'power', name:'パワーステップ', icon:'🔥', desc:'自由に動いて、光る床を次々に踏もう！', leg:.65, sta:.65, color:'#ffb726' }
     ];
 
-    const defaultSave = () => ({ version:1, leg:10, stamina:10, coins:0, zone:0, unlockedZone:0, defeated:[false,false,false,false,false], ownedShoes:[0], shoe:0, title:'かけだしランナー', tutorial:false, sound:true });
+    const defaultSave = () => ({ version:2, leg:10, stamina:10, coins:0, zone:0, unlockedZone:0, defeated:Array(zones.length).fill(false), ownedShoes:[0], shoe:0, title:'かけだしランナー', tutorial:false, sound:true });
     let save = loadSave();
     let state = 'start';
     let currentZone = Math.min(save.zone, save.unlockedZone);
@@ -247,8 +259,17 @@
     function loadSave() {
       try {
         const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
-        if (!raw || raw.version !== 1) return defaultSave();
-        return Object.assign(defaultSave(), raw);
+        if (!raw) return defaultSave();
+        const migrated=Object.assign(defaultSave(),raw,{version:2});
+        migrated.defeated=Array.from({length:zones.length},(_,i)=>Boolean(raw.defeated?.[i]));
+        migrated.ownedShoes=Array.isArray(raw.ownedShoes)?raw.ownedShoes.filter(i=>i>=0&&i<shoes.length):[0];
+        if(!migrated.ownedShoes.includes(0))migrated.ownedShoes.unshift(0);
+        migrated.shoe=migrated.ownedShoes.includes(raw.shoe)?raw.shoe:0;
+        migrated.unlockedZone=clamp(Number(raw.unlockedZone)||0,0,zones.length-1);
+        // 旧版で世界王者まで倒していた場合は、追加ステージを1つ解放する。
+        if(raw.version===1&&raw.defeated?.[4])migrated.unlockedZone=Math.max(migrated.unlockedZone,5);
+        migrated.zone=clamp(Number(raw.zone)||0,0,migrated.unlockedZone);
+        return migrated;
       } catch (_) { return defaultSave(); }
     }
     function persist() {
@@ -264,7 +285,7 @@
     function shoeMult() { return shoes[save.shoe]?.mult || 1; }
     function rankTitle() {
       const wins = save.defeated.filter(Boolean).length;
-      return ['かけだしランナー','校庭のスピードスター','町の新チャンピオン','山をこえる疾風','日本一のランナー','世界最速ヒーロー'][wins];
+      return ['かけだしランナー','校庭のスピードスター','町の新チャンピオン','山をこえる疾風','日本一のランナー','世界最速ヒーロー','王者の中の王者','月面の超特急','銀河最速ヒーロー'][wins]||'銀河最速ヒーロー';
     }
 
     function resize() {
@@ -314,15 +335,38 @@
     function showHelp(first=false) {
       openModal(`
         <h2>${first?'ようこそ、未来の世界王者！':'あそびかた'}</h2>
-        <p>左下のスティックで主人公を動かし、<br><b style="color:#ffe15c">光っている器具や人の近く</b>で<br>右下のACTIONを押します。</p>
+        <p>左下のスティックで主人公を動かします。<br><b style="color:#ffe15c">器具や人の近くへ行くと出るボタン</b>を<br>タップして選びましょう。</p>
         <div class="compare">
           <div class="compareCard"><strong>⚡</strong>器具で<br>トレーニング</div>
           <b>→</b>
           <div class="compareCard"><strong>🏁</strong>ライバルと<br>レース！</div>
         </div>
-        <p class="hint">トレーニングとレースでは、左右に動いて<br>エネルギーを集めたり障害物をよけたりできます。連打は必要ありません。</p>
+        <p class="hint">3つの器具は、それぞれ遊び方が違います。<br>どれも連打は必要ありません。</p>
         <div class="buttons"><button class="primary" id="helpOk">わかった！</button></div>
       `, p => p.querySelector('#helpOk').onclick=()=>{ closeModal(); save.tutorial=true; persist(); });
+    }
+
+    function showSettings() {
+      openModal(`<div class="heroLogo">⚙️</div><h2>設定</h2><p>ゲームの音や、セーブデータを管理できます。</p><div class="buttons"><button class="danger primary" id="resetOpen">最初からやり直す</button><button class="secondary" id="settingsClose">もどる</button></div><p class="hint">リセットは次の画面で長押ししないと実行されません。</p>`,p=>{
+        p.querySelector('#resetOpen').onclick=showResetConfirm;
+        p.querySelector('#settingsClose').onclick=closeModal;
+      });
+    }
+
+    function showResetConfirm() {
+      openModal(`<div class="heroLogo">⚠️</div><h2>本当にリセットする？</h2><p>脚力、スタミナ、コイン、靴、ライバルの記録が<br>すべて最初の状態に戻ります。</p><div class="buttons"><button class="danger primary" id="holdReset" style="--hold:0%"><span>3秒長押しでリセット</span></button><button class="secondary" id="resetCancel">やめる</button></div>`,p=>{
+        const btn=p.querySelector('#holdReset'),label=btn.querySelector('span');let started=0,timer=0;
+        const cancel=()=>{started=0;clearInterval(timer);btn.style.setProperty('--hold','0%');label.textContent='3秒長押しでリセット';};
+        const begin=e=>{e.preventDefault();if(started)return;started=performance.now();timer=setInterval(()=>{const elapsed=performance.now()-started;const left=Math.max(0,3-Math.floor(elapsed/1000));btn.style.setProperty('--hold',Math.min(100,elapsed/30)+'%');label.textContent=left>0?`あと${left}秒…`:'リセットします';if(elapsed>=3000){clearInterval(timer);resetGame();}},50);};
+        btn.addEventListener('pointerdown',begin);btn.addEventListener('pointerup',cancel);btn.addEventListener('pointercancel',cancel);btn.addEventListener('pointerleave',cancel);
+        p.querySelector('#resetCancel').onclick=showSettings;
+      });
+    }
+
+    function resetGame() {
+      const sound=save.sound;save=defaultSave();save.sound=sound;currentZone=0;
+      try{localStorage.removeItem(SAVE_KEY);}catch(_){}
+      persist();enterWorld();showToast('最初の状態に戻しました');setTimeout(()=>showHelp(true),500);
     }
 
     function resetPosition() {
@@ -331,8 +375,8 @@
 
     function enterWorld() {
       state='world'; training=null; race=null; closeModal();
-      hud.classList.remove('hidden'); zoneBadge.classList.remove('hidden'); joy.classList.remove('hidden'); actionBtn.classList.remove('hidden');
-      actionBtn.classList.remove('boost'); actionBtn.textContent='ACTION';
+      hud.classList.remove('hidden'); zoneBadge.classList.remove('hidden'); joy.classList.remove('hidden'); actionBtn.classList.add('hidden');
+      actionBtn.classList.remove('boost','hold'); prompt.classList.remove('show');
       resetPosition(); updateHud();
     }
 
@@ -348,7 +392,7 @@
       else if (o.type==='next') {
         if (currentZone < save.unlockedZone && currentZone<zones.length-1) changeZone(currentZone+1);
         else if (!save.defeated[currentZone]) showToast('まずは '+zones[currentZone].rival+' に勝とう！');
-        else showToast('ここが世界の頂点だ！');
+        else showToast('ここが銀河の頂点だ！');
       }
     }
 
@@ -360,13 +404,11 @@
     }
 
     function showMachine(index) {
-      const m=machineTypes[index], z=zones[currentZone];
-      const legGain=Math.round(32*z.rate*m.leg*shoeMult());
-      const staGain=Math.round(24*z.rate*m.sta*shoeMult());
+      const m=machineTypes[index];
       openModal(`
         <div class="heroLogo">${m.icon}</div>
         <h2>${m.name}</h2>
-        <p>${m.desc}<br><span class="hint">15秒で　⚡約${fmt(legGain)} ／ ❤️約${fmt(staGain)} アップ</span></p>
+        <p>${m.desc}<br><span class="hint">上手に遊ぶほど成長量が増えます</span></p>
         <div class="buttons">
           <button class="primary" id="trainGo">トレーニング！</button>
           <button class="secondary" id="cancel">やめる</button>
@@ -380,18 +422,23 @@
     function startTraining(index) {
       closeModal(); state='training'; nearest=null; prompt.classList.remove('show');
       hud.classList.add('hidden'); zoneBadge.classList.add('hidden'); actionBtn.classList.add('hidden');
-      training={ machine:index, time:0, duration:15, lane:1, laneX:1, items:[], spawn:0, leg:0, sta:0, combo:0, bestCombo:0, finished:false };
+      actionBtn.classList.remove('boost','hold');
+      training={ machine:index, time:0, duration:18, lane:1, laneX:1, items:[], spawn:0, leg:0, sta:0, combo:0, bestCombo:0, finished:false, holding:false, energy:100, distance:0, x:.5, y:.72, target:0, padCharge:0, pads:0 };
+      if(index===1){joy.classList.add('hidden');actionBtn.classList.remove('hidden');actionBtn.classList.add('hold');actionBtn.textContent='押して走る';}
+      else joy.classList.remove('hidden');
       beep(330,.1,'square',.045); setTimeout(()=>beep(520,.12,'square',.05),100);
     }
 
     function finishTraining() {
       if (!training || training.finished) return;
       training.finished=true;
+      training.holding=false;actionBtn.classList.add('hidden');
       const m=machineTypes[training.machine];
       save.leg += Math.max(1,Math.round(training.leg));
       save.stamina += Math.max(1,Math.round(training.sta));
       const earned=Math.max(8,Math.round((training.leg+training.sta)*.12));
       save.coins += earned; persist(); fanfare();
+      const scoreText=training.machine===0?`ベストコンボ ${training.bestCombo}！`:training.machine===1?`走った距離 ${Math.round(training.distance)}m！`:`光らせた床 ${training.pads}枚！`;
       openModal(`
         <div class="heroLogo">💪✨</div>
         <h2>トレーニング完了！</h2>
@@ -400,7 +447,7 @@
           <div style="font-size:30px">🔥</div>
           <div class="compareCard">スタミナ<strong>+${fmt(training.sta)}</strong></div>
         </div>
-        <p>ベストコンボ ${training.bestCombo}！　● ${fmt(earned)}コイン</p>
+        <p>${scoreText}　● ${fmt(earned)}コイン</p>
         <div class="buttons"><button class="primary" id="again">もう1回</button><button class="secondary" id="back">ワールドへ</button></div>
       `, p=>{
         p.querySelector('#again').onclick=()=>startTraining(training.machine);
@@ -431,8 +478,8 @@
     }
 
     function startRace() {
-      closeModal(); state='race'; nearest=null; hud.classList.add('hidden'); zoneBadge.classList.add('hidden');
-      joy.classList.remove('hidden'); actionBtn.classList.remove('hidden'); actionBtn.classList.add('boost'); actionBtn.textContent='全力\nDASH!';
+      closeModal(); state='race'; nearest=null; prompt.classList.remove('show'); hud.classList.add('hidden'); zoneBadge.classList.add('hidden');
+      joy.classList.remove('hidden'); actionBtn.classList.remove('hidden'); actionBtn.classList.remove('hold'); actionBtn.classList.add('boost'); actionBtn.textContent='全力\nDASH!';
       race={ time:0, countdown:3.4, lane:1, laneX:1, player:0, rival:0, items:[], spawn:0, boost:0, boostUsed:false, hit:0, stars:0, finished:false };
       beep(360,.09,'square',.05);
     }
@@ -458,9 +505,9 @@
           <div class="heroLogo">🏆✨</div><h2>${first?'勝利！':'また勝った！'}</h2>
           <p>${z.rival}を追いぬいた！<br><b style="color:#ffe15c">称号「${rankTitle()}」</b>を手に入れた！</p>
           <div class="compare"><div class="compareCard">スター<strong>★ ${race.stars}</strong></div><b>＋</b><div class="compareCard">ごほうび<strong>● ${fmt(reward)}</strong></div></div>
-          <div class="buttons"><button class="primary" id="winBack">${first&&currentZone<4?'新しい場所へ！':'ワールドへ'}</button></div>
+          <div class="buttons"><button class="primary" id="winBack">${first&&currentZone<zones.length-1?'新しい場所へ！':'ワールドへ'}</button></div>
         `, p=>p.querySelector('#winBack').onclick=()=>{
-          if(first&&currentZone<4) currentZone++;
+          if(first&&currentZone<zones.length-1) currentZone++;
           enterWorld(); persist();
           if(save.defeated.every(Boolean)) setTimeout(showEnding,450);
         }), 650);
@@ -476,7 +523,7 @@
     }
 
     function showEnding() {
-      openModal(`<div class="heroLogo">🌍🏆🌈</div><h1>世界一<br>おめでとう！</h1><p>5人のライバルをこえ、ついに世界最速のスピードヒーローになった！<br><br>でも、成長に終わりはない。<br>もっと鍛えて、自分の記録に挑戦しよう！</p><div class="buttons"><button class="primary" id="endingOk">まだまだ走る！</button></div>`,p=>p.querySelector('#endingOk').onclick=()=>{closeModal();showToast('めざせ！きゃくりょく10,000！');});
+      openModal(`<div class="heroLogo">🌌🏆🌈</div><h1>銀河一<br>おめでとう！</h1><p>8人のライバルをこえ、ついに銀河最速のスピードヒーローになった！<br><br>でも、成長に終わりはない。<br>もっと鍛えて、自分の記録に挑戦しよう！</p><div class="buttons"><button class="primary" id="endingOk">まだまだ走る！</button></div>`,p=>p.querySelector('#endingOk').onclick=()=>{closeModal();showToast('めざせ！きゃくりょく1,000,000！');});
     }
 
     function showShop() {
@@ -538,7 +585,7 @@
     }
     function drawTree(x,y,accent) {
       shadow(x,y+24,28,10,.18);ctx.fillStyle='#8a5939';roundedRect(x-7,y-6,14,34,5);ctx.fill();
-      ctx.fillStyle=accent;ctx.beginPath();ctx.arc(x,y-15,27,0,Math.PI*2);ctx.arc(x-17,y-1,22,0,Math.PI*2);ctx.arc(x+17,y-1,22,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=accent;ctx.beginPath();ctx.moveTo(x+27,y-15);ctx.arc(x,y-15,27,0,Math.PI*2);ctx.moveTo(x+5,y-1);ctx.arc(x-17,y-1,22,0,Math.PI*2);ctx.moveTo(x+39,y-1);ctx.arc(x+17,y-1,22,0,Math.PI*2);ctx.fill();
     }
 
     function drawObject(o,t,z) {
@@ -548,7 +595,7 @@
       else if(o.type==='shop') drawShopBooth(o.x,o.y,bob);
       else if(o.type==='rival') drawRival(o.x,o.y,bob,z);
       else if(o.type==='prev') drawPortal(o.x,o.y,'←',currentZone>0,z.accent,'まえのエリア');
-      else if(o.type==='next') drawPortal(o.x,o.y,'→',currentZone<save.unlockedZone,z.accent,currentZone<4?'つぎのエリア':'世界の頂点');
+      else if(o.type==='next') drawPortal(o.x,o.y,'→',currentZone<save.unlockedZone,z.accent,currentZone<zones.length-1?'つぎのエリア':'銀河の頂点');
     }
 
     function label(text,x,y,color='#0b2b4d') {
@@ -570,7 +617,7 @@
       for(let i=-55;i<65;i+=30){ctx.fillStyle=(i/30)%2?'#fff':'#ffd13f';ctx.fillRect(i,-83,16,31);}ctx.font='42px sans-serif';ctx.textAlign='center';ctx.fillText('👟',0,6);ctx.restore();label('スピードショップ',x,y-125);
     }
     function drawRival(x,y,bob,z) {
-      drawAvatar(x,y+bob,'#ef394e',currentZone===4?'#ffd53d':'#263b68',1,-1,Math.sin(performance.now()*.006),true);
+      drawAvatar(x,y+bob,'#ef394e',currentZone>=4?'#ffd53d':'#263b68',1,-1,Math.sin(performance.now()*.006),true);
       label((save.defeated[currentZone]?'🏅 ':'🏁 ')+z.rival,x,y-103,save.defeated[currentZone]?'#117857':'#b42736');
     }
     function drawPortal(x,y,arrow,unlocked,accent,text) {
@@ -607,11 +654,11 @@
         const d=dist(player,o);if(d<o.radius&&d<best){nearest=o;best=d;}
       }
       if(nearest){
-        let text='ACTION で調べる';
-        if(nearest.type==='machine')text='<b>ACTION</b>　'+machineTypes[nearest.machine].name;
-        if(nearest.type==='rival')text='<b>ACTION</b>　'+zones[currentZone].rival+'に挑戦';
-        if(nearest.type==='shop')text='<b>ACTION</b>　シューズを見る';
-        if(nearest.type==='prev'||nearest.type==='next')text='<b>ACTION</b>　'+(nearest.type==='prev'?'前のエリアへ':'次のエリアへ');
+        let text='<b>タップ</b>して調べる';
+        if(nearest.type==='machine')text=machineTypes[nearest.machine].icon+' <b>'+machineTypes[nearest.machine].name+'</b>で鍛える';
+        if(nearest.type==='rival')text='🏁 <b>'+zones[currentZone].rival+'</b>に挑戦する';
+        if(nearest.type==='shop')text='👟 <b>スピードショップ</b>を見る';
+        if(nearest.type==='prev'||nearest.type==='next')text=(nearest.type==='prev'?'⬅️ <b>前のエリア</b>へ':'➡️ <b>次のエリア</b>へ');
         prompt.innerHTML=text;prompt.classList.add('show');
       }else prompt.classList.remove('show');
       updateParticles(dt,false);
@@ -622,46 +669,94 @@
       return clamp(x,-1,1);
     }
 
+    function trainingInput2D() {
+      return {
+        x:clamp(joyInput.x+(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),-1,1),
+        y:clamp(joyInput.y+(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0),-1,1)
+      };
+    }
+
     function updateTraining(dt) {
       if(!training||training.finished)return;
-      training.time+=dt; training.laneX=clamp(training.laneX+trainingInput()*dt*2.5,0,2);training.lane=Math.round(training.laneX);
+      training.time+=dt;
       const z=zones[currentZone], m=machineTypes[training.machine];
-      const base=shoeMult()*z.rate*dt;
-      training.leg+=base*2.15*m.leg; training.sta+=base*1.6*m.sta;
-      training.spawn-=dt;
-      if(training.spawn<=0){
-        training.spawn=rand(.62,.92); const bad=Math.random()<.2;
-        training.items.push({lane:Math.floor(Math.random()*3),y:-.1,bad,spin:Math.random()*6.2});
-      }
-      const speed=.67;
-      for(const it of training.items){
-        it.y+=dt*speed;it.spin+=dt*5;
-        if(!it.done&&it.y>.73){
-          it.done=true;
-          if(Math.abs(it.lane-training.laneX)<.46){
-            if(it.bad){training.combo=0;beep(120,.16,'square',.035);}
-            else {training.combo++;training.bestCombo=Math.max(training.bestCombo,training.combo);const bonus=1+Math.min(training.combo,10)*.1;training.leg+=z.rate*3*m.leg*shoeMult()*bonus;training.sta+=z.rate*2.3*m.sta*shoeMult()*bonus;beep(520+training.combo*18,.06,'triangle',.035);burst(cw*(.3+it.lane*.2),ch*.75,m.color,9,true);}
-          } else if(!it.bad) training.combo=0;
+      const mult=shoeMult()*z.rate;
+      if(training.machine===0){
+        training.laneX=clamp(training.laneX+trainingInput()*dt*2.5,0,2);training.lane=Math.round(training.laneX);
+        training.leg+=mult*dt*.55;training.sta+=mult*dt*.08;
+        training.spawn-=dt;
+        if(training.spawn<=0){training.spawn=rand(.62,.92);const bad=Math.random()<.2;training.items.push({lane:Math.floor(Math.random()*3),y:-.1,bad,spin:0});}
+        for(const it of training.items){
+          it.y+=dt*.67;
+          if(!it.done&&it.y>.73){
+            it.done=true;
+            if(Math.abs(it.lane-training.laneX)<.46){
+              if(it.bad){training.combo=0;beep(120,.16,'square',.035);}
+              else {training.combo++;training.bestCombo=Math.max(training.bestCombo,training.combo);const bonus=1+Math.min(training.combo,10)*.05;training.leg+=mult*1.35*bonus;training.sta+=mult*.15*bonus;beep(520+training.combo*18,.06,'triangle',.035);burst(cw*(.3+it.lane*.2),ch*.75,m.color,9,true);}
+            } else if(!it.bad) training.combo=0;
+          }
         }
+        training.items=training.items.filter(i=>i.y<1.15);
+      } else if(training.machine===1){
+        const running=training.holding&&training.energy>1;
+        training.energy=clamp(training.energy+(running?-28:19)*dt,0,100);
+        const pace=running?(training.energy<14?.5:1):.2;
+        training.distance+=pace*9.5*dt;
+        training.leg+=mult*dt*(running?.38:.08);
+        training.sta+=mult*dt*(running?2.4:.45);
+        actionBtn.textContent=running?'走ってる！':'押して走る';
+      } else {
+        const input=trainingInput2D();
+        training.x=clamp(training.x+input.x*dt*.68,.12,.88);training.y=clamp(training.y+input.y*dt*.68,.28,.88);
+        const pads=[[.5,.34],[.27,.5],[.73,.5],[.34,.77],[.66,.77]];const target=pads[training.target];
+        const onTarget=Math.hypot(training.x-target[0],training.y-target[1])<.12;
+        training.leg+=mult*dt*.08;training.sta+=mult*dt*.08;
+        if(onTarget){
+          training.padCharge+=dt;training.leg+=mult*dt*.7;training.sta+=mult*dt*.7;
+          if(training.padCharge>=.75){const old=training.target;training.pads++;training.bestCombo=training.pads;training.padCharge=0;do{training.target=Math.floor(Math.random()*pads.length);}while(training.target===old);training.leg+=mult*1.3;training.sta+=mult*1.3;beep(600+training.pads*14,.08,'triangle',.045);burst(cw*target[0],ch*target[1],'#ffbb32',14,true);}
+        }else training.padCharge=Math.max(0,training.padCharge-dt*.45);
       }
-      training.items=training.items.filter(i=>i.y<1.15);
       updateParticles(dt,true);
       if(training.time>=training.duration)finishTraining();
     }
 
     function drawTraining(t) {
+      if(training.machine===1){drawHillTraining(t);return;}
+      if(training.machine===2){drawPowerTraining(t);return;}
       const m=machineTypes[training.machine], z=zones[currentZone];
       const bg=ctx.createLinearGradient(0,0,0,ch);bg.addColorStop(0,'#11365d');bg.addColorStop(1,'#07192f');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
       ctx.fillStyle='rgba(255,255,255,.06)';for(let y=(t*.25)%70-70;y<ch;y+=70)ctx.fillRect(0,y,cw,3);
       const left=cw*.2,right=cw*.8,top=ch*.19,bottom=ch*.9,laneW=(right-left)/3;
       ctx.fillStyle='#1e405d';roundedRect(left,top,right-left,bottom-top,24);ctx.fill();
       ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=3;ctx.setLineDash([20,17]);for(let i=1;i<3;i++){ctx.beginPath();ctx.moveTo(left+laneW*i,top);ctx.lineTo(left+laneW*i,bottom);ctx.stroke();}ctx.setLineDash([]);
-      for(const it of training.items){const x=left+laneW*(it.lane+.5),y=top+(bottom-top)*it.y;ctx.save();ctx.translate(x,y);ctx.rotate(it.spin);ctx.font=`${Math.max(27,ch*.07)}px sans-serif`;ctx.textAlign='center';ctx.fillText(it.bad?'💧':'⚡',0,0);ctx.restore();}
+      for(const it of training.items){const x=left+laneW*(it.lane+.5),y=top+(bottom-top)*it.y;ctx.save();ctx.translate(x,y);ctx.font=`${Math.max(27,ch*.07)}px sans-serif`;ctx.textAlign='center';ctx.fillText(it.bad?'🪨':'⚡',0,0);ctx.restore();}
       const px=left+laneW*(training.laneX+.5),py=bottom-62;drawRunnerFront(px,py,m.color,t,true);
       drawGameHeader(m.icon+' '+m.name,`のこり ${Math.max(0,Math.ceil(training.duration-training.time))}秒`);
-      ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='1000 18px sans-serif';ctx.fillText('左右に動いて ⚡ を集めよう！',cw/2,ch*.15);
+      ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='1000 18px sans-serif';ctx.fillText('左右に動いて ⚡ を集め、岩をよけよう！',cw/2,ch*.15);
       if(training.combo>1){ctx.fillStyle='#ffe45f';ctx.font='1000 28px sans-serif';ctx.fillText(training.combo+' COMBO!',cw/2,ch*.26);}
       ctx.textAlign='left';drawParticlesScreen();
+    }
+
+    function drawHillTraining(t) {
+      const z=zones[currentZone];const sky=ctx.createLinearGradient(0,0,0,ch);sky.addColorStop(0,z.sky);sky.addColorStop(1,'#dff8ff');ctx.fillStyle=sky;ctx.fillRect(0,0,cw,ch);
+      ctx.fillStyle='rgba(37,83,104,.25)';ctx.beginPath();ctx.moveTo(0,ch*.65);ctx.lineTo(cw*.24,ch*.32);ctx.lineTo(cw*.45,ch*.62);ctx.lineTo(cw*.7,ch*.24);ctx.lineTo(cw,ch*.61);ctx.lineTo(cw,ch);ctx.lineTo(0,ch);ctx.fill();
+      ctx.fillStyle='#81705b';ctx.beginPath();ctx.moveTo(-40,ch*.93);ctx.lineTo(cw*.88,ch*.38);ctx.lineTo(cw*1.1,ch*.6);ctx.lineTo(cw*.16,ch*1.08);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.48)';ctx.lineWidth=5;ctx.setLineDash([28,22]);ctx.beginPath();ctx.moveTo(cw*.08,ch*.92);ctx.lineTo(cw*.92,ch*.42);ctx.stroke();ctx.setLineDash([]);
+      const bounce=training.holding?training.time*1000:t;drawRunnerFront(cw*.5,ch*.66,'#ff6f78',bounce,training.holding);
+      drawGameHeader('❤️ 坂道トレーナー',`のこり ${Math.max(0,Math.ceil(training.duration-training.time))}秒`);
+      ctx.textAlign='center';ctx.fillStyle='#17304b';ctx.font='1000 19px sans-serif';ctx.fillText('右下を押して走る・離して体力回復！',cw/2,ch*.16);
+      const bx=cw*.25,by=ch*.79,bw=cw*.5,bh=28;ctx.fillStyle='rgba(5,25,43,.7)';roundedRect(bx,by,bw,bh,14);ctx.fill();const ew=bw*training.energy/100;if(ew>1){ctx.fillStyle=training.energy<20?'#ff535f':'#58e78c';roundedRect(bx,by,ew,bh,14);ctx.fill();}
+      ctx.fillStyle='#fff';ctx.font='900 15px sans-serif';ctx.fillText(`体力 ${Math.round(training.energy)}　　距離 ${Math.round(training.distance)}m`,cw/2,by+21);ctx.textAlign='left';drawParticlesScreen();
+    }
+
+    function drawPowerTraining(t) {
+      const bg=ctx.createLinearGradient(0,0,0,ch);bg.addColorStop(0,'#334a68');bg.addColorStop(1,'#14273d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
+      ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=2;for(let x=0;x<cw;x+=70){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke();}for(let y=0;y<ch;y+=70){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();}
+      const pads=[[.5,.34],[.27,.5],[.73,.5],[.34,.77],[.66,.77]];
+      pads.forEach((p,i)=>{const active=i===training.target;ctx.fillStyle=active?`rgba(255,190,38,${.68+.2*Math.sin(t*.01)})`:'rgba(106,157,191,.45)';ctx.strokeStyle=active?'#fff36b':'rgba(255,255,255,.3)';ctx.lineWidth=active?7:3;ctx.beginPath();ctx.ellipse(cw*p[0],ch*p[1],58,25,0,0,Math.PI*2);ctx.fill();ctx.stroke();if(active&&training.padCharge>0){ctx.strokeStyle='#fff';ctx.lineWidth=8;ctx.beginPath();ctx.arc(cw*p[0],ch*p[1],68,-Math.PI/2,-Math.PI/2+Math.PI*2*clamp(training.padCharge/.75,0,1));ctx.stroke();}});
+      drawAvatar(cw*training.x,ch*training.y,'#ffad25','#ff4f3d',.92,1,training.time*2.5,false);
+      drawGameHeader('🔥 パワーステップ',`のこり ${Math.max(0,Math.ceil(training.duration-training.time))}秒`);
+      ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='1000 19px sans-serif';ctx.fillText('スティックで光る床へ移動しよう！',cw/2,ch*.16);ctx.fillStyle='#ffe45f';ctx.font='1000 26px sans-serif';ctx.fillText(`${training.pads} パネル`,cw/2,ch*.23);ctx.textAlign='left';drawParticlesScreen();
     }
 
     function drawGameHeader(title,right) {
@@ -688,7 +783,7 @@
       const legRatio=Math.sqrt(clamp(save.leg/z.reqLeg,.18,2.4));const staRatio=Math.sqrt(clamp(save.stamina/z.reqSta,.18,2.4));
       let pace=.63+.22*legRatio+.11*staRatio;
       if(race.boost>0)pace*=1.36;if(race.hit>0)pace*=.63;
-      race.player+=dt/17*pace;race.rival+=dt/17*(1+.025*currentZone);
+      race.player+=dt/17*pace;race.rival+=dt/17*(1+.008*currentZone);
       race.spawn-=dt;
       if(race.spawn<=0){race.spawn=rand(.65,1.05);const bad=Math.random()<.55;race.items.push({lane:Math.floor(Math.random()*3),y:-.12,bad,spin:0});}
       for(const it of race.items){
@@ -709,11 +804,12 @@
       ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=4;for(let i=1;i<3;i++){const tx=lerp(cw*.41,cw*.59,i/3);const bx=left+laneW*i;ctx.beginPath();ctx.moveTo(tx,top);ctx.lineTo(bx,bottom);ctx.stroke();}
       for(const it of race.items){const widen=lerp(.3,1,clamp(it.y,0,1));const topX=cw*.41+cw*.18*(it.lane+.5)/3;const bottomX=left+laneW*(it.lane+.5);const x=lerp(topX,bottomX,it.y);const y=top+(bottom-top)*it.y;ctx.save();ctx.translate(x,y);ctx.rotate(it.spin);ctx.font=`${25+42*widen}px sans-serif`;ctx.textAlign='center';ctx.fillText(it.bad?'🚧':'⭐',0,0);ctx.restore();}
       const px=left+laneW*(race.laneX+.5),py=bottom-96;drawRunnerFront(px,py,race.boost>0?'#59f5ff':'#16a8ef',t,true);
-      const rivalX=cw*.58, rivalY=ch*.43+clamp((race.player-race.rival)*260,-70,95);drawRunnerFront(rivalX,rivalY,'#ef394e',t+400,true);
+      const rivalX=left+laneW*.5;const rivalY=clamp(py-18-(race.rival-race.player)*1100,top+50,bottom-50);drawRunnerFront(rivalX,rivalY,'#ef394e',t+400,true);
       drawGameHeader(`🏁 VS ${z.rival}`,`⭐ ${race.stars}`);
       // Progress bars.
       const bx=cw*.12,by=86,bw=cw*.76,bh=14;ctx.fillStyle='rgba(5,20,38,.58)';roundedRect(bx,by,bw,bh,7);ctx.fill();ctx.fillStyle='#25d5ff';roundedRect(bx,by,bw*clamp(race.player,0,1),bh,7);ctx.fill();ctx.fillStyle='#ff4d62';roundedRect(bx,by+20,bw*clamp(race.rival,0,1),bh,7);ctx.fill();
       ctx.font='900 11px sans-serif';ctx.fillStyle='#fff';ctx.fillText('きみ',bx-34,by+11);ctx.fillText(z.rival,bx-47,by+31);
+      if(race.countdown<=0){ctx.textAlign='center';ctx.font='1000 20px sans-serif';ctx.fillStyle=race.player>=race.rival?'#75ffe0':'#ffe36a';ctx.fillText(race.player>=race.rival?'きみがリード！':z.rival+'がリード！',cw/2,by+58);ctx.textAlign='left';}
       if(race.countdown>0){ctx.fillStyle='rgba(3,18,36,.32)';ctx.fillRect(0,0,cw,ch);ctx.textAlign='center';ctx.font='1000 90px sans-serif';ctx.fillStyle='#fff45d';ctx.strokeStyle='#73310c';ctx.lineWidth=8;const txt=race.countdown>.55?Math.ceil(race.countdown):'GO!';ctx.strokeText(txt,cw/2,ch/2);ctx.fillText(txt,cw/2,ch/2);ctx.textAlign='left';}
       if(!race.boostUsed&&race.countdown<=0){ctx.fillStyle='rgba(4,23,44,.7)';ctx.font='900 15px sans-serif';ctx.textAlign='center';ctx.fillText('好きなタイミングで 全力DASH！',cw*.82,ch*.68);ctx.textAlign='left';}
       drawParticlesScreen();
@@ -747,9 +843,12 @@
     }
     function joyEnd(e) { if(joyInput.pointer!==e.pointerId)return;joyInput.pointer=null;joyInput.x=joyInput.y=0;stick.style.transform='translate(0,0)'; }
     joy.addEventListener('pointerdown',joyStart);joy.addEventListener('pointermove',joyMove);joy.addEventListener('pointerup',joyEnd);joy.addEventListener('pointercancel',joyEnd);
-    actionBtn.addEventListener('pointerdown',e=>{e.preventDefault();interact();});
-    addEventListener('keydown',e=>{keys[e.key]=true;if((e.key===' '||e.key==='Enter')&&!e.repeat)interact();});
-    addEventListener('keyup',e=>keys[e.key]=false);
+    prompt.addEventListener('click',e=>{e.preventDefault();interact();});
+    actionBtn.addEventListener('pointerdown',e=>{e.preventDefault();if(state==='race')useBoost();else if(state==='training'&&training?.machine===1)training.holding=true;});
+    const releaseSpecial=()=>{if(state==='training'&&training?.machine===1)training.holding=false;};
+    actionBtn.addEventListener('pointerup',releaseSpecial);actionBtn.addEventListener('pointercancel',releaseSpecial);actionBtn.addEventListener('pointerleave',releaseSpecial);
+    addEventListener('keydown',e=>{keys[e.key]=true;if(e.key===' '&&state==='training'&&training?.machine===1){e.preventDefault();training.holding=true;}else if((e.key===' '||e.key==='Enter')&&!e.repeat)interact();});
+    addEventListener('keyup',e=>{keys[e.key]=false;if(e.key===' '&&state==='training'&&training?.machine===1)training.holding=false;});
     addEventListener('resize',resize);
     document.addEventListener('contextmenu',e=>e.preventDefault());
     document.addEventListener('gesturestart',e=>e.preventDefault());
@@ -757,6 +856,7 @@
       $('#startOverlay').classList.add('hidden');enterWorld();beep(440,.1,'triangle',.06);setTimeout(()=>beep(660,.16,'triangle',.06),100);if(!save.tutorial)setTimeout(()=>showHelp(true),350);
     };
     $('#helpBtn').onclick=()=>showHelp(false);
+    $('#settingsBtn').onclick=showSettings;
     $('#soundBtn').onclick=()=>{save.sound=!save.sound;persist();if(save.sound)beep(620,.1,'triangle',.06);};
 
     resize();updateHud();requestAnimationFrame(loop);
