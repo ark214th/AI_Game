@@ -1,75 +1,100 @@
 (() => {
   'use strict';
 
-  const proto = CanvasRenderingContext2D.prototype;
-  const native = {
-    arc: proto.arc, fill: proto.fill, stroke: proto.stroke, fillText: proto.fillText,
-    beginPath: proto.beginPath, moveTo: proto.moveTo, lineTo: proto.lineTo,
-    quadraticCurveTo: proto.quadraticCurveTo, closePath: proto.closePath,
-    save: proto.save, restore: proto.restore
-  };
+  const nativeAssign = Object.assign;
+  const nativePush = Array.prototype.push;
+  const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
 
-  let hiddenCircle = null;
+  let player = null;
+  const trackedEnemies = new Set();
 
-  proto.arc = function(x, y, r, start, end, ccw) {
-    const canvas = this.canvas;
-    const isEnemy = x === 0 && y === 0 && r >= 12 && r <= 85;
-    const isPlayer = canvas && Math.abs(x - canvas.clientWidth / 2) < 4 && Math.abs(y - canvas.clientHeight / 2) < 4 && r >= 17 && r <= 20;
-    hiddenCircle = (isEnemy || isPlayer) ? { kind:isPlayer?'player':'enemy', r, color:this.fillStyle } : null;
-    return native.arc.call(this, x, y, r, start, end, ccw);
-  };
-
-  proto.fill = function(...args) {
-    if (hiddenCircle) return;
-    return native.fill.apply(this, args);
-  };
-
-  proto.stroke = function(...args) {
-    if (hiddenCircle) {
-      if (hiddenCircle.kind === 'player') drawHero(this);
-      return;
+  Object.assign = function trackedAssign(target, ...sources) {
+    const result = nativeAssign(target, ...sources);
+    if (
+      target && typeof target === 'object' &&
+      typeof target.x === 'number' && typeof target.y === 'number' &&
+      typeof target.hp === 'number' && typeof target.maxHp === 'number' &&
+      typeof target.speed === 'number' && typeof target.magnet === 'number'
+    ) {
+      player = target;
     }
-    return native.stroke.apply(this, args);
+    return result;
   };
 
-  proto.fillText = function(text, x, y, maxWidth) {
-    if (hiddenCircle && hiddenCircle.kind === 'enemy' && x === 0 && y === 1 && ['🦇','💀','👹','👾','•'].includes(text)) {
-      drawEnemy(this, text, hiddenCircle.r, hiddenCircle.color);
-      hiddenCircle = null;
-      return;
+  Array.prototype.push = function trackedPush(...items) {
+    for (const item of items) {
+      if (
+        item && typeof item === 'object' &&
+        typeof item.type === 'string' && typeof item.hp === 'number' &&
+        typeof item.maxHp === 'number' && typeof item.damage === 'number' &&
+        typeof item.x === 'number' && typeof item.y === 'number'
+      ) {
+        trackedEnemies.add(item);
+      }
     }
-    return maxWidth === undefined ? native.fillText.call(this,text,x,y) : native.fillText.call(this,text,x,y,maxWidth);
+    return nativePush.apply(this, items);
   };
 
-  function drawEnemy(ctx, icon, r, color) {
-    native.save.call(ctx);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = 'rgba(10,8,30,.85)';
-    ctx.lineWidth = 3;
-    native.beginPath.call(ctx);
-    if (icon === '🦇') {
-      native.moveTo.call(ctx,0,-7);native.lineTo.call(ctx,-10,-13);native.lineTo.call(ctx,-r-8,0);native.lineTo.call(ctx,-10,8);native.lineTo.call(ctx,0,12);native.lineTo.call(ctx,10,8);native.lineTo.call(ctx,r+8,0);native.lineTo.call(ctx,10,-13);native.closePath.call(ctx);
-    } else if (icon === '💀') {
-      native.arc.call(ctx,0,-4,r*.76,0,Math.PI*2);native.fill.call(ctx);native.stroke.call(ctx);ctx.fillRect(-8,8,16,11);native.restore.call(ctx);return;
-    } else if (icon === '👹') {
-      native.arc.call(ctx,0,0,r,0,Math.PI*2);
-    } else if (icon === '👾') {
-      native.arc.call(ctx,0,0,r,0,Math.PI*2);
-    } else {
-      native.moveTo.call(ctx,-r,r*.55);native.quadraticCurveTo.call(ctx,-r*1.05,-r*.65,0,-r);native.quadraticCurveTo.call(ctx,r*1.05,-r*.65,r,r*.55);native.quadraticCurveTo.call(ctx,0,r*1.18,-r,r*.55);
+  function drawEmojiAndHealthBars() {
+    const canvas = document.getElementById('game');
+    if (!canvas || !player) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height) return;
+
+    const scaleX = canvas.width / width;
+    const scaleY = canvas.height / height;
+    ctx.save();
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+
+    // 主人公は絵文字を主役にし、既存の当たり判定用の円の上へ重ねる。
+    ctx.globalAlpha = player.invuln > 0 && Math.floor(player.invuln * 18) % 2 === 0 ? 0.45 : 1;
+    ctx.font = '32px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(100,140,255,.8)';
+    ctx.shadowBlur = 12;
+    ctx.fillText('🧙‍♂️', width / 2, height / 2 - 1);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    for (const enemy of trackedEnemies) {
+      if (!enemy || enemy.dead || enemy.type === 'boss') {
+        if (!enemy || enemy.dead) trackedEnemies.delete(enemy);
+        continue;
+      }
+
+      // ライフゲージはダメージを受けた雑魚だけに表示する。
+      if (!(enemy.hp < enemy.maxHp)) continue;
+
+      const sx = enemy.x - player.x + width / 2;
+      const sy = enemy.y - player.y + height / 2;
+      if (sx < -100 || sx > width + 100 || sy < -100 || sy > height + 100) continue;
+
+      const barWidth = Math.max(26, Math.min(72, enemy.r * 2.2));
+      const barHeight = enemy.rank === 'giant' ? 6 : 5;
+      const barX = sx - barWidth / 2;
+      const barY = sy + enemy.r + 8;
+      const ratio = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
+
+      ctx.fillStyle = 'rgba(4,6,20,.78)';
+      ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
+      ctx.fillStyle = enemy.rank === 'elite' ? '#ffd75e' : enemy.rank === 'giant' ? '#ff845c' : '#ff617f';
+      ctx.fillRect(barX, barY, barWidth * ratio, barHeight);
+      ctx.strokeStyle = 'rgba(235,240,255,.42)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
-    native.fill.call(ctx);native.stroke.call(ctx);native.restore.call(ctx);
+
+    ctx.restore();
   }
 
-  function drawHero(ctx) {
-    hiddenCircle = null;
-    const canvas = ctx.canvas, x = canvas.clientWidth/2, y = canvas.clientHeight/2;
-    native.save.call(ctx);ctx.translate(x,y);
-    ctx.shadowColor='#8aa1ff';ctx.shadowBlur=22;ctx.fillStyle='#e9e8ff';ctx.strokeStyle='#25234b';ctx.lineWidth=3;
-    native.beginPath.call(ctx);native.arc.call(ctx,0,0,18,0,Math.PI*2);native.fill.call(ctx);native.stroke.call(ctx);ctx.shadowBlur=0;
-    ctx.fillStyle='#5f54be';native.beginPath.call(ctx);native.moveTo.call(ctx,-15,12);native.quadraticCurveTo.call(ctx,0,29,15,12);native.lineTo.call(ctx,10,-2);native.lineTo.call(ctx,-10,-2);native.closePath.call(ctx);native.fill.call(ctx);
-    ctx.fillStyle='#24233b';native.beginPath.call(ctx);native.arc.call(ctx,-6,-3,2.5,0,Math.PI*2);native.arc.call(ctx,6,-3,2.5,0,Math.PI*2);native.fill.call(ctx);
-    ctx.fillStyle='#ffd769';native.beginPath.call(ctx);native.moveTo.call(ctx,0,-29);native.lineTo.call(ctx,5,-19);native.lineTo.call(ctx,15,-17);native.lineTo.call(ctx,7,-10);native.lineTo.call(ctx,9,0);native.lineTo.call(ctx,0,-5);native.lineTo.call(ctx,-9,0);native.lineTo.call(ctx,-7,-10);native.lineTo.call(ctx,-15,-17);native.lineTo.call(ctx,-5,-19);native.closePath.call(ctx);native.fill.call(ctx);
-    native.restore.call(ctx);
-  }
+  window.requestAnimationFrame = function requestAnimationFrameWithVisuals(callback) {
+    return nativeRequestAnimationFrame((time) => {
+      callback(time);
+      drawEmojiAndHealthBars();
+    });
+  };
 })();
