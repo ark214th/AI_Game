@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#03152b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>深海クラフト アビス・レスキュー</title>
+  <style>
+    *{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020b19;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;color:#fff;touch-action:none}
+    canvas{display:block;width:100%;height:100%}
+    #ui{position:fixed;inset:0;pointer-events:none;padding:calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left))}
+    .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+    .panel{background:rgba(2,14,31,.78);border:1px solid rgba(124,225,255,.32);box-shadow:0 8px 28px rgba(0,0,0,.28);backdrop-filter:blur(7px);border-radius:14px;padding:8px 11px}
+    #stats{width:min(290px,62vw)}
+    .row{display:flex;align-items:center;gap:7px;font-size:12px;margin:3px 0}.row b{min-width:52px}.meter{height:9px;flex:1;border-radius:6px;background:#152a3f;overflow:hidden}.fill{height:100%;border-radius:6px;transition:width .2s}.oxy{background:linear-gradient(90deg,#2ed7ff,#87f5ff)}.hp{background:linear-gradient(90deg,#ff5858,#ffbd5c)}
+    #depth{font-weight:900;font-size:18px;color:#8eefff;text-align:right}#cargo{font-size:12px;line-height:1.6;text-align:right;white-space:nowrap}
+    #mission{position:absolute;top:calc(95px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(520px,84vw);text-align:center;font-size:13px;color:#eafaff;padding:8px 14px;border-radius:999px;background:rgba(0,20,43,.75);border:1px solid rgba(79,217,255,.33)}
+    #message{position:absolute;top:43%;left:50%;transform:translate(-50%,-50%) scale(.9);width:min(500px,86vw);text-align:center;font-size:20px;font-weight:900;text-shadow:0 3px 10px #000;opacity:0;transition:.22s;white-space:pre-line}#message.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    #joy{position:absolute;left:calc(20px + env(safe-area-inset-left));bottom:calc(19px + env(safe-area-inset-bottom));width:126px;height:126px;border-radius:50%;border:2px solid rgba(139,229,255,.35);background:rgba(13,45,69,.28);pointer-events:auto}.stick{position:absolute;width:54px;height:54px;left:36px;top:36px;border-radius:50%;background:rgba(136,231,255,.72);box-shadow:0 0 22px rgba(74,212,255,.55)}
+    #actions{position:absolute;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));display:flex;align-items:flex-end;gap:12px;pointer-events:auto}.btn{border:2px solid rgba(255,255,255,.55);color:#fff;font:800 13px inherit;border-radius:50%;display:grid;place-items:center;text-align:center;text-shadow:0 2px 5px #000;box-shadow:0 8px 25px rgba(0,0,0,.35);background:linear-gradient(145deg,#1c9bd1,#075583)}#pulse{width:86px;height:86px}#boost{width:64px;height:64px;background:linear-gradient(145deg,#ffb531,#e96019)}.btn:active{transform:scale(.94)}
+    #dock{display:none;position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);pointer-events:auto;width:min(560px,94vw);padding:14px;border-radius:20px;background:rgba(2,18,36,.95);border:2px solid #38d8ff;box-shadow:0 0 40px rgba(29,197,255,.25)}#dock.show{display:block}.dockhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.dockhead h2{font-size:19px;margin:0;color:#85edff}.close{border:0;background:#263e53;color:#fff;border-radius:9px;padding:7px 11px;font-weight:800}.upgrades{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.upgrade{border:1px solid #2d7898;background:#092b42;color:#fff;border-radius:12px;padding:9px 5px;font:700 11px inherit;min-height:68px}.upgrade strong{display:block;color:#85edff;font-size:13px;margin-bottom:4px}.upgrade:disabled{opacity:.38}.repair{width:100%;margin-top:8px;border:0;border-radius:10px;padding:9px;background:#1c8c68;color:#fff;font-weight:800}
+    #start,#finish{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 28%,#0b6690 0,#05243e 35%,#010b18 100%);z-index:10}#finish{display:none;background:rgba(0,8,19,.93)}.card{width:min(610px,94vw);text-align:center;padding:26px;border-radius:26px;background:linear-gradient(160deg,rgba(14,66,92,.95),rgba(3,19,37,.98));border:2px solid rgba(105,228,255,.6);box-shadow:0 25px 80px #000}.logo{font-size:clamp(32px,8vw,59px);line-height:1;margin:0;color:#8ceeff;text-shadow:0 0 24px #168fc5}.sub{color:#ffd66c;font-weight:900;letter-spacing:.14em;margin:8px 0 18px}.card p{font-size:14px;line-height:1.7;color:#d4eff8}.startbtn{border:0;border-radius:16px;padding:14px 34px;color:#032039;background:linear-gradient(#fff28b,#ffb52e);font:900 20px inherit;box-shadow:0 7px 0 #c66c13;margin-top:8px}.startbtn:active{transform:translateY(5px);box-shadow:0 2px 0 #c66c13}.tips{font-size:11px!important;color:#91b8c8!important}.hide{display:none!important}
+    @media(max-height:560px){#mission{top:75px}.panel{padding:5px 8px}.row{margin:1px 0}#joy{width:108px;height:108px}.stick{left:31px;top:31px;width:46px;height:46px}#pulse{width:74px;height:74px}#boost{width:56px;height:56px}}
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui" class="hide">
+  <div class="top"><div id="stats" class="panel"><div class="row"><b>酸素</b><div class="meter"><div id="oxyFill" class="fill oxy"></div></div><span id="oxyText"></span></div><div class="row"><b>船体</b><div class="meter"><div id="hpFill" class="fill hp"></div></div><span id="hpText"></span></div></div><div class="panel"><div id="depth">深度 0m</div><div id="cargo">🔩0　💎0　🫧0</div></div></div>
+  <div id="mission">最初の基地を目指そう</div><div id="message"></div>
+  <div id="joy"><div class="stick"></div></div>
+  <div id="actions"><button id="boost" class="btn">⚡<br>加速</button><button id="pulse" class="btn">◉<br>パルス</button></div>
+  <div id="dock"><div class="dockhead"><h2 id="dockTitle">海中基地</h2><button id="closeDock" class="close">出発する</button></div><div id="upgradeList" class="upgrades"></div><button id="repair" class="repair">酸素補給・船体修理（無料）</button></div>
+</div>
+<div id="start"><div class="card"><div style="font-size:62px">🛥️🌊</div><h1 class="logo">深海クラフト</h1><div class="sub">アビス・レスキュー</div><p>海底の基地を復旧し、潜水艇を改造して未知の深海へ。<br>最深部で助けを待つ、小さなクジラを救い出そう！</p><button id="startBtn" class="startbtn">潜水開始！</button><p class="tips">左のスティック：移動　／　パルス：危険な生物を追い払う<br>資源は近づくと自動で回収します</p></div></div>
+<div id="finish"><div class="card"><div style="font-size:76px">🐋✨</div><h1 class="logo">救出成功！</h1><p id="finishText"></p><button id="again" class="startbtn">もう一度 探検する</button></div></div>
+<script>
+(()=>{
+  'use strict';
+  const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+  const $=id=>document.getElementById(id), ui=$('ui'), joy=$('joy'), stick=joy.querySelector('.stick');
+  let W=0,H=0,dpr=1,last=0,playing=false,cam={x:0,y:0},msgTimer=0,shake=0,pulseFx=0,boosting=false,dockCooldown=0;
+  const world={w:2200,h:3400}, keys={}, input={x:0,y:0}, cargo={scrap:0,crystal:0,pearl:0}, upgrades={tank:0,hull:0,light:0};
+  const player={x:1100,y:130,r:22,vx:0,vy:0,angle:0,oxy:100,hp:100,maxOxy:100,maxHp:100,invuln:0};
+  const bases=[{x:1100,y:360,name:'コーラル基地',active:false},{x:410,y:1050,name:'沈没船基地',active:false},{x:1690,y:1900,name:'火山基地',active:false}];
+  const limits=[780,1450,2350,3300], costs={tank:[[8,2,0],[14,7,1],[20,12,5]],hull:[[7,1,0],[12,5,1],[18,9,4]],light:[[5,2,0],[9,5,1],[14,8,3]]};
+  let items=[],creatures=[],bubbles=[],particles=[],artifacts=[],rescued=false,startTime=0,nearBase=-1,activeDock=-1;
+
+  function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)} addEventListener('resize',resize);resize();
+  const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  function reset(){
+    Object.assign(cargo,{scrap:0,crystal:0,pearl:0});Object.assign(upgrades,{tank:0,hull:0,light:0});Object.assign(player,{x:1100,y:130,vx:0,vy:0,angle:0,oxy:100,hp:100,maxOxy:100,maxHp:100,invuln:0});
+    bases.forEach(b=>b.active=false);items=[];creatures=[];bubbles=[];particles=[];artifacts=[];rescued=false;nearBase=-1;activeDock=-1;pulseFx=0;dockCooldown=0;
+    const zones=[[260,780],[800,1450],[1470,2350],[2370,3250]];
+    zones.forEach((z,zi)=>{for(let i=0;i<22;i++){let type=zi===0?(Math.random()<.78?'scrap':'crystal'):zi===1?(Math.random()<.55?'scrap':Math.random()<.87?'crystal':'pearl'):zi===2?(Math.random()<.35?'scrap':Math.random()<.78?'crystal':'pearl'):(Math.random()<.22?'scrap':Math.random()<.62?'crystal':'pearl');items.push({x:rnd(100,2100),y:rnd(z[0],z[1]),type,got:false,phase:rnd(0,6.28)})}
+      const n=zi===0?5:zi===1?8:zi===2?10:12;for(let i=0;i<n;i++)creatures.push({x:rnd(90,2110),y:rnd(z[0]+80,z[1]),zone:zi,type:zi===0?'jelly':zi===1?(i%2?'shark':'jelly'):zi===2?(i%3?'angler':'shark'):(i%2?'squid':'angler'),phase:rnd(0,6.28),stun:0,hp:zi+1});
+    });
+    items.push({x:820,y:870,type:'pearl',got:false,phase:0},{x:560,y:970,type:'pearl',got:false,phase:2},{x:1450,y:1620,type:'pearl',got:false,phase:4},{x:1760,y:1760,type:'pearl',got:false,phase:1});
+    artifacts=[{x:1780,y:720,got:false},{x:245,y:1410,got:false},{x:1880,y:2280,got:false}];
+    for(let i=0;i<90;i++)bubbles.push({x:rnd(0,world.w),y:rnd(0,world.h),r:rnd(1,4),s:rnd(8,25)});
+    updateUI();setMission();
+  }
+  function startGame(){reset();$('start').classList.add('hide');$('finish').style.display='none';ui.classList.remove('hide');playing=true;last=performance.now();startTime=last;requestAnimationFrame(loop);say('潜水開始！\nまずは光る資源を集めよう',1800)}
+
+  function say(t,ms=1500){$('message').textContent=t;$('message').classList.add('show');clearTimeout(msgTimer);msgTimer=setTimeout(()=>$('message').classList.remove('show'),ms)}
+  function burst(x,y,color,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:rnd(-90,90),vy:rnd(-90,90),life:rnd(.4,1),color,r:rnd(2,6)})}
+  function setMission(){
+    let text='';if(!bases[0].active)text='🧭 コーラル基地を見つけて復旧しよう';
+    else if(upgrades.tank<1)text='🔧 基地で「潜水タンク」を改造しよう';
+    else if(!bases[1].active)text='🧭 深度1000mの沈没船基地を探そう';
+    else if(upgrades.tank<2)text='🔧 タンクLv.3を作り、さらに深く潜ろう';
+    else if(!bases[2].active)text='🧭 深度1900mの火山基地を復旧しよう';
+    else if(upgrades.tank<3)text='🔧 最終タンクを作れば深海の底へ行ける！';
+    else text='🐋 深度3100mの救難信号へ向かおう！';$('mission').textContent=text;
+  }
+  function updateUI(){
+    $('oxyFill').style.width=player.oxy/player.maxOxy*100+'%';$('oxyText').textContent=Math.ceil(player.oxy)+'/'+player.maxOxy;$('hpFill').style.width=player.hp/player.maxHp*100+'%';$('hpText').textContent=Math.ceil(player.hp)+'/'+player.maxHp;
+    $('depth').textContent='深度 '+Math.max(0,Math.round((player.y-100)*1.03))+'m';$('cargo').textContent=`🔩${cargo.scrap}　💎${cargo.crystal}　🫧${cargo.pearl}`;
+  }
+  function near(a,b,r){return Math.hypot(a.x-b.x,a.y-b.y)<r}
+  function costText(c){return `🔩${c[0]} 💎${c[1]} 🫧${c[2]}`}
+  function canPay(c){return cargo.scrap>=c[0]&&cargo.crystal>=c[1]&&cargo.pearl>=c[2]}
+  function pay(c){cargo.scrap-=c[0];cargo.crystal-=c[1];cargo.pearl-=c[2]}
+  function openDock(i){activeDock=i;input.x=input.y=0;player.vx=player.vy=0;player.oxy=player.maxOxy;player.hp=player.maxHp;$('dockTitle').textContent='⚓ '+bases[i].name;$('dock').classList.add('show');$('joy').style.display='none';$('actions').style.display='none';renderUpgrades();updateUI()}
+  function closeDock(){$('dock').classList.remove('show');$('joy').style.display='block';$('actions').style.display='flex';activeDock=-1;dockCooldown=1.2}
+  function renderUpgrades(){
+    const defs=[['tank','潜水タンク','深度と酸素UP'],['hull','強化船体','体力と防御UP'],['light','深海ライト','暗闇を照らす']],unlocked=bases.filter(b=>b.active).length;$('upgradeList').innerHTML='';
+    defs.forEach(d=>{const lv=upgrades[d[0]],max=lv>=3,gated=!max&&lv>=unlocked,c=max||gated?null:costs[d[0]][lv],b=document.createElement('button');b.className='upgrade';b.disabled=max||gated||!canPay(c);b.innerHTML=`<strong>${d[1]} Lv.${Math.min(4,lv+1)}</strong>${max?'改造完了！':gated?'次の基地で解禁':d[2]+'<br>'+costText(c)}`;b.onclick=()=>{pay(c);upgrades[d[0]]++;if(d[0]==='tank'){player.maxOxy=100+upgrades.tank*35;player.oxy=player.maxOxy}else if(d[0]==='hull'){player.maxHp=100+upgrades.hull*30;player.hp=player.maxHp}say('改造成功！ '+d[1]+' Lv.'+(lv+2),1400);burst(player.x,player.y,'#79efff',25);renderUpgrades();updateUI();setMission()};$('upgradeList').appendChild(b)});
+  }
+  $('repair').onclick=()=>{player.oxy=player.maxOxy;player.hp=player.maxHp;updateUI();say('補給・修理 完了！')};$('closeDock').onclick=closeDock;$('startBtn').onclick=startGame;$('again').onclick=startGame;
+
+  function collect(it){it.got=true;cargo[it.type]++;const label={scrap:'古代パーツ',crystal:'深海クリスタル',pearl:'バブルコア'}[it.type],color={scrap:'#ffcb67',crystal:'#75ecff',pearl:'#ff91ec'}[it.type];burst(it.x,it.y,color,10);say(label+'を回収！',700);updateUI();if(activeDock>=0)renderUpgrades()}
+  function damage(n,from){if(player.invuln>0)return;player.hp-=n*Math.max(.55,1-upgrades.hull*.14);player.invuln=1.1;shake=10;const dx=player.x-from.x,dy=player.y-from.y,l=Math.hypot(dx,dy)||1;player.vx+=dx/l*230;player.vy+=dy/l*230;say('船体にダメージ！',900);if(player.hp<=0)respawn()}
+  function respawn(){let best={x:1100,y:130};bases.forEach(b=>{if(b.active&&b.y<player.y)best=b});Object.assign(player,{x:best.x,y:best.y-70,hp:player.maxHp,oxy:player.maxOxy,vx:0,vy:0,invuln:2});cargo.scrap=Math.max(0,cargo.scrap-2);say('基地で救助されました\nパーツを2個落としてしまった',2200)}
+  function activateBase(i){const b=bases[i];b.active=true;burst(b.x,b.y,'#5ff3ff',35);say(b.name+' 復旧！\n新しい改造ができるようになった',2100);setMission();openDock(i)}
+  function pulse(){if(pulseFx>0||!playing||activeDock>=0)return;pulseFx=1;creatures.forEach(c=>{if(dist(player,c)<180){c.stun=3;c.hp--;let dx=c.x-player.x,dy=c.y-player.y,l=Math.hypot(dx,dy)||1;c.x+=dx/l*75;c.y+=dy/l*75;if(c.hp<=0){c.x=rnd(100,2100);c.y=Math.max(400,c.y+rnd(350,700));c.hp=c.zone+1}}});burst(player.x,player.y,'#71ecff',22)}
+  $('pulse').addEventListener('pointerdown',e=>{e.preventDefault();pulse()});$('boost').addEventListener('pointerdown',e=>{e.preventDefault();boosting=true});['pointerup','pointercancel','pointerleave'].forEach(ev=>$('boost').addEventListener(ev,()=>boosting=false));
+  addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key===' ')pulse()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+  let joyId=null;
+  function joyMove(e){const r=joy.getBoundingClientRect(),x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2),l=Math.hypot(x,y),m=Math.min(42,l),nx=l?x/l:0,ny=l?y/l:0;input.x=nx*Math.min(1,l/30);input.y=ny*Math.min(1,l/30);stick.style.transform=`translate(${nx*m}px,${ny*m}px)`}
+  joy.addEventListener('pointerdown',e=>{joyId=e.pointerId;joy.setPointerCapture(joyId);joyMove(e)});joy.addEventListener('pointermove',e=>{if(e.pointerId===joyId)joyMove(e)});function joyEnd(e){if(e.pointerId!==joyId)return;joyId=null;input.x=input.y=0;stick.style.transform=''}joy.addEventListener('pointerup',joyEnd);joy.addEventListener('pointercancel',joyEnd);
+
+  function update(dt){
+    if(activeDock>=0)return;dockCooldown=Math.max(0,dockCooldown-dt);player.invuln=Math.max(0,player.invuln-dt);pulseFx=Math.max(0,pulseFx-dt*2.3);shake=Math.max(0,shake-dt*24);
+    let ix=input.x+(keys.a||keys.arrowleft?-1:0)+(keys.d||keys.arrowright?1:0),iy=input.y+(keys.w||keys.arrowup?-1:0)+(keys.s||keys.arrowdown?1:0),il=Math.hypot(ix,iy);if(il>1){ix/=il;iy/=il}
+    const boost=boosting?1.65:1,speed=205*boost;player.vx+=(ix*speed-player.vx)*Math.min(1,dt*4.5);player.vy+=(iy*speed-player.vy)*Math.min(1,dt*4.5);player.x=clamp(player.x+player.vx*dt,45,world.w-45);player.y=clamp(player.y+player.vy*dt,70,limits[upgrades.tank]);if(Math.abs(player.vx)+Math.abs(player.vy)>12)player.angle=Math.atan2(player.vy,player.vx);
+    player.oxy-=dt*(boosting?1.28:.55);if(player.y<180)player.oxy=Math.min(player.maxOxy,player.oxy+dt*24);if(player.oxy<=0){player.oxy=0;player.hp-=dt*13;if(player.hp<=0)respawn()}
+    items.forEach(it=>{it.phase+=dt;if(!it.got&&near(player,it,42))collect(it)});artifacts.forEach((a,i)=>{if(!a.got&&near(player,a,48)){a.got=true;cargo.crystal+=4;cargo.pearl+=2;burst(a.x,a.y,'#fff27a',30);say('秘宝を発見！\nクリスタル+4　バブルコア+2',1800)}});
+    nearBase=-1;bases.forEach((b,i)=>{if(near(player,b,100)){nearBase=i;if(!b.active)activateBase(i);else if(activeDock<0&&dockCooldown<=0&&Math.hypot(player.vx,player.vy)<55)openDock(i)}});
+    creatures.forEach(c=>{c.phase+=dt*(c.stun>0?.4:1);c.stun=Math.max(0,c.stun-dt);if(c.stun<=0){const d=dist(player,c),aggro=d<(c.type==='jelly'?105:190);if(aggro){c.x+=(player.x-c.x)/d*dt*(c.type==='shark'?75:48);c.y+=(player.y-c.y)/d*dt*(c.type==='shark'?75:48)}else{c.x+=Math.cos(c.phase*.7)*dt*22;c.y+=Math.sin(c.phase*.45)*dt*10}}if(near(player,c,player.r+23))damage(c.zone===0?8:11+c.zone*2,c)});
+    if(upgrades.tank>=3&&!rescued&&Math.hypot(player.x-1100,player.y-3180)<90){rescued=true;playing=false;const sec=Math.floor((performance.now()-startTime)/1000),found=artifacts.filter(a=>a.got).length;$('finishText').innerHTML=`深海の迷子クジラを助けました！<br><b>探検時間 ${Math.floor(sec/60)}分${sec%60}秒　秘宝 ${found}/3</b><br>海のすべての基地に明かりが戻りました。`;$('finish').style.display='grid'}
+    bubbles.forEach(b=>{b.y-=b.s*dt;if(b.y<0){b.y=world.h;b.x=rnd(0,world.w)}});particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.97;p.vy*=.97;p.life-=dt});particles=particles.filter(p=>p.life>0);
+    cam.x+=(clamp(player.x-W/2,0,Math.max(0,world.w-W))-cam.x)*Math.min(1,dt*4);cam.y+=(clamp(player.y-H*.42,0,Math.max(0,world.h-H))-cam.y)*Math.min(1,dt*4);updateUI();
+  }
+  function zoneColor(y){if(y<760)return['#0a87ac','#075578'];if(y<1450)return['#075578','#083150'];if(y<2350)return['#082b49','#101a3c'];return['#101a3c','#030817']}
+  function draw(){
+    const sy=shake?rnd(-shake,shake):0,sx=shake?rnd(-shake,shake):0;ctx.save();ctx.translate(sx,sy);const c=zoneColor(player.y),g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,c[0]);g.addColorStop(1,c[1]);ctx.fillStyle=g;ctx.fillRect(-20,-20,W+40,H+40);
+    ctx.save();ctx.translate(-cam.x,-cam.y);drawWorld();ctx.restore();drawDarkness();ctx.restore();
+  }
+  function drawWorld(){
+    // Light rays and zone boundaries
+    ctx.globalAlpha=.09;for(let i=0;i<9;i++){ctx.fillStyle='#bdf7ff';ctx.beginPath();ctx.moveTo(i*280-50,0);ctx.lineTo(i*280+100,0);ctx.lineTo(i*280+420,700);ctx.lineTo(i*280+250,700);ctx.fill()}ctx.globalAlpha=1;
+    [780,1450,2350].forEach((y,i)=>{ctx.fillStyle='rgba(109,223,255,.08)';ctx.fillRect(0,y-2,world.w,4);ctx.fillStyle='rgba(173,236,255,.5)';ctx.font='700 14px sans-serif';ctx.fillText(['海藻の森','沈没船海域','暗黒深海'][i],35,y+24)});
+    // Ground silhouettes
+    for(let x=0;x<world.w;x+=80){const h=35+28*Math.sin(x*.013)+18*Math.sin(x*.037);ctx.fillStyle=player.y>2300?'#050817':'#06263a';ctx.beginPath();ctx.moveTo(x,world.h);ctx.lineTo(x,world.h-h);ctx.quadraticCurveTo(x+40,world.h-h-20,x+80,world.h-(35+28*Math.sin((x+80)*.013)+18*Math.sin((x+80)*.037)));ctx.lineTo(x+80,world.h);ctx.fill()}
+    // Seaweed and corals
+    for(let i=0;i<34;i++){const x=(i*173+91)%world.w,y=610+(i%9)*95;ctx.strokeStyle=i%2?'#0a8e78':'#13a681';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(x,y+80);ctx.quadraticCurveTo(x+Math.sin(performance.now()/700+i)*25,y+38,x+(i%2?12:-12),y);ctx.stroke()}
+    bubbles.forEach(b=>{if(b.x>cam.x-10&&b.x<cam.x+W+10&&b.y>cam.y-10&&b.y<cam.y+H+10){ctx.strokeStyle='rgba(178,241,255,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.28);ctx.stroke()}});
+    artifacts.forEach(a=>{if(a.got)return;ctx.save();ctx.translate(a.x,a.y);ctx.rotate(Math.sin(performance.now()/500)*.1);ctx.shadowBlur=24;ctx.shadowColor='#fff37a';ctx.font='42px serif';ctx.textAlign='center';ctx.fillText('🏺',0,14);ctx.restore()});
+    items.forEach(it=>{if(it.got)return;const bob=Math.sin(it.phase*2)*5;ctx.save();ctx.translate(it.x,it.y+bob);ctx.shadowBlur=15;const data=it.type==='scrap'?['#ffc75f','⚙']:it.type==='crystal'?['#61ecff','◆']:['#ff8ae8','●'];ctx.shadowColor=data[0];ctx.fillStyle=data[0];ctx.font='900 24px sans-serif';ctx.textAlign='center';ctx.fillText(data[1],0,8);ctx.restore()});
+    bases.forEach((b,i)=>drawBase(b,i));creatures.forEach(drawCreature);
+    // whale target
+    ctx.save();ctx.translate(1100,3180);ctx.globalAlpha=upgrades.tank>=3?1:.55;ctx.shadowBlur=30;ctx.shadowColor='#75e5ff';ctx.font='82px serif';ctx.textAlign='center';ctx.fillText('🐋',0,22);ctx.font='700 14px sans-serif';ctx.fillStyle='#baf3ff';ctx.fillText('SOS',0,-62);ctx.restore();
+    drawPlayer();particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.28);ctx.fill()});ctx.globalAlpha=1;
+  }
+  function drawBase(b,i){ctx.save();ctx.translate(b.x,b.y);ctx.shadowBlur=b.active?25:8;ctx.shadowColor=b.active?'#4ceaff':'#1e5368';ctx.fillStyle=b.active?'#0d789b':'#173848';ctx.beginPath();ctx.roundRect(-70,-34,140,68,18);ctx.fill();ctx.fillStyle=b.active?'#75edff':'#334d5a';ctx.fillRect(-43,-18,28,24);ctx.fillRect(15,-18,28,24);ctx.fillStyle='#102536';ctx.beginPath();ctx.arc(0,34,29,Math.PI,0);ctx.fill();ctx.fillStyle=b.active?'#fff06e':'#862f34';ctx.beginPath();ctx.arc(0,-35,7,0,6.28);ctx.fill();ctx.fillStyle='#d8f8ff';ctx.font='700 12px sans-serif';ctx.textAlign='center';ctx.fillText(b.name,0,-50);if(!b.active){ctx.fillStyle='#ffdc67';ctx.fillText('接近して復旧',0,60)}ctx.restore()}
+  function drawCreature(c){ctx.save();ctx.translate(c.x,c.y);ctx.globalAlpha=c.stun>0?.48:1;let emoji={jelly:'🪼',shark:'🦈',angler:'🐟',squid:'🦑'}[c.type];ctx.font=(c.type==='shark'?58:48)+'px serif';ctx.textAlign='center';ctx.scale(Math.cos(c.phase*.35)<0?-1:1,1);ctx.fillText(emoji,0,17);ctx.restore();if(c.stun>0){ctx.fillStyle='#fff36c';ctx.font='18px sans-serif';ctx.fillText('✦',c.x-12,c.y-28);ctx.fillText('✦',c.x+14,c.y-34)}}
+  function drawPlayer(){ctx.save();ctx.translate(player.x,player.y);ctx.rotate(player.angle);if(player.invuln>0&&Math.floor(player.invuln*10)%2)ctx.globalAlpha=.35;ctx.shadowBlur=20;ctx.shadowColor='#45dfff';ctx.fillStyle='#ffc72c';ctx.beginPath();ctx.ellipse(0,0,37,20,0,0,6.28);ctx.fill();ctx.fillStyle='#78e7ff';ctx.beginPath();ctx.arc(7,-8,13,Math.PI,0);ctx.fill();ctx.fillStyle='#e56d20';ctx.fillRect(-41,-7,10,14);ctx.fillStyle='#fff078';ctx.beginPath();ctx.moveTo(35,0);ctx.lineTo(51,-8);ctx.lineTo(51,8);ctx.fill();if(Math.hypot(player.vx,player.vy)>45){ctx.fillStyle='#9af4ff';ctx.beginPath();ctx.moveTo(-39,-7);ctx.lineTo(-61,0);ctx.lineTo(-39,7);ctx.fill()}ctx.restore();if(pulseFx>0){ctx.strokeStyle=`rgba(99,235,255,${pulseFx})`;ctx.lineWidth=5;ctx.beginPath();ctx.arc(player.x,player.y,(1-pulseFx)*180+25,0,6.28);ctx.stroke()}}
+  function drawDarkness(){if(player.y<900)return;const strength=clamp((player.y-900)/1700,0,.86)-upgrades.light*.19;if(strength<=0)return;ctx.save();ctx.fillStyle=`rgba(0,3,13,${strength})`;ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation='destination-out';const px=player.x-cam.x,py=player.y-cam.y,r=125+upgrades.light*95,gr=ctx.createRadialGradient(px,py,15,px,py,r);gr.addColorStop(0,'rgba(0,0,0,1)');gr.addColorStop(.65,'rgba(0,0,0,.88)');gr.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=gr;ctx.beginPath();ctx.arc(px,py,r,0,6.28);ctx.fill();ctx.restore()}
+  function loop(t){if(!playing)return;const dt=Math.min(.034,(t-last)/1000||.016);last=t;update(dt);draw();requestAnimationFrame(loop)}
+  reset();draw();
+})();
+</script>
+</body>
+</html>
