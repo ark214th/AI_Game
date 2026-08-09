@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#02030b">
+  <title>FIREWORK FLIGHT — 夜空を駆ける花火ショー</title>
+  <style>
+    :root{color-scheme:dark;--ink:#f7f6ef;--muted:#a9acc1;--glass:rgba(10,12,25,.62);--line:rgba(255,255,255,.13);--accent:#ffb84d}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#02030b;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif;color:var(--ink);touch-action:none;user-select:none;-webkit-user-select:none}
+    canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+    #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 42%,transparent 38%,rgba(0,0,0,.2) 70%,rgba(0,0,0,.58) 110%)}
+    #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(circle,var(--flash,rgba(255,220,170,.22)),transparent 58%);mix-blend-mode:screen}
+    .topbar{position:fixed;z-index:5;top:calc(14px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));right:calc(16px + env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+    .brand{filter:drop-shadow(0 2px 14px #000)}
+    .brand h1{font:800 clamp(17px,3.2vw,30px)/1 system-ui,sans-serif;letter-spacing:.18em;margin:0}
+    .brand p{font-size:10px;letter-spacing:.24em;color:#c8cad8;margin:7px 0 0}
+    .stats{display:flex;gap:8px;text-align:right}
+    .stat{min-width:72px;padding:8px 11px;border:1px solid var(--line);border-radius:13px;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+    .stat b{display:block;font-size:17px}.stat small{font-size:8px;letter-spacing:.16em;color:var(--muted)}
+    .camera-rail{position:fixed;z-index:6;top:calc(88px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));display:grid;gap:7px}
+    button{font:inherit;color:inherit;border:0;cursor:pointer}
+    .cam{width:94px;padding:9px 8px;border:1px solid var(--line);border-radius:12px;background:var(--glass);font-size:11px;letter-spacing:.06em;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+    .cam.active{background:rgba(255,184,77,.2);border-color:rgba(255,197,107,.7);color:#fff3d2}
+    .panel{position:fixed;z-index:7;left:50%;bottom:calc(15px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(720px,calc(100% - 24px));padding:12px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(135deg,rgba(17,19,37,.8),rgba(4,5,14,.69));box-shadow:0 18px 80px rgba(0,0,0,.5);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+    .controls{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+    .group label{display:block;font-size:8px;letter-spacing:.18em;color:var(--muted);margin:0 0 7px 4px}
+    .choices{display:flex;gap:6px}
+    .choice{flex:1;min-height:38px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.055);font-size:11px;white-space:nowrap}
+    .choice.active{border-color:rgba(255,207,124,.75);background:rgba(255,184,77,.18);color:#fff2d0}
+    .color{position:relative;font-size:0}.color::after{content:"";display:block;width:18px;height:18px;border-radius:50%;margin:auto;background:var(--c);box-shadow:0 0 14px var(--c)}
+    .color.active{border-color:white;transform:translateY(-2px)}
+    .launch{width:124px;height:67px;border-radius:16px;background:linear-gradient(145deg,#ffd078,#ed7b39);color:#2b1004;font-weight:900;letter-spacing:.12em;box-shadow:0 6px 25px rgba(255,128,45,.25),inset 0 1px rgba(255,255,255,.6)}
+    .launch:active{transform:scale(.97)}
+    .subrow{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 4px}
+    .toggle{display:flex;align-items:center;gap:8px;background:none;color:#c5c7d5;font-size:10px;letter-spacing:.08em;padding:3px}
+    .toggle i{width:30px;height:17px;border-radius:10px;background:#33364c;position:relative;transition:.2s}.toggle i::after{content:"";position:absolute;width:11px;height:11px;border-radius:50%;background:white;top:3px;left:3px;transition:.2s}.toggle.on i{background:#c46e31}.toggle.on i::after{left:16px}
+    #hint{font-size:9px;color:#888ca3;letter-spacing:.06em;text-align:right}
+    #intro{position:fixed;z-index:20;inset:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 35%,rgba(31,31,75,.82),rgba(2,3,11,.97) 68%);transition:opacity .6s}
+    #intro.hide{opacity:0;pointer-events:none}
+    .intro-card{text-align:center;max-width:560px}.eyebrow{font-size:10px;letter-spacing:.4em;color:#ffcc7a}.intro-card h2{font:800 clamp(38px,9vw,82px)/.9 system-ui,sans-serif;letter-spacing:.03em;margin:18px 0;background:linear-gradient(#fff,#c7c9df 65%,#74778f);-webkit-background-clip:text;color:transparent}.intro-card p{font-size:13px;line-height:1.9;color:#c6c8d5;margin:0 auto 28px;max-width:420px}.start{padding:15px 34px;border:1px solid rgba(255,220,160,.8);border-radius:99px;background:rgba(255,180,70,.14);font-weight:700;letter-spacing:.16em;box-shadow:0 0 36px rgba(255,155,50,.12)}
+    #toast{position:fixed;z-index:9;left:50%;top:22%;transform:translate(-50%,-10px);padding:9px 15px;border:1px solid var(--line);border-radius:99px;background:rgba(4,5,14,.65);font-size:11px;letter-spacing:.1em;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap}#toast.show{opacity:1;transform:translate(-50%,0)}
+    #loading{position:fixed;z-index:30;inset:0;display:none;place-items:center;background:#03040c;color:#ddd;text-align:center;padding:30px;line-height:1.8}
+    @media(max-width:650px){.stats .stat:first-child{display:none}.camera-rail{top:calc(75px + env(safe-area-inset-top));right:10px}.cam{width:79px;padding:8px 5px;font-size:10px}.panel{padding:10px}.controls{grid-template-columns:1fr 1fr 92px;gap:7px}.launch{width:92px;height:63px;font-size:12px}.choice{min-height:35px;font-size:10px}.brand p{display:none}}
+    @media(max-width:430px){.choice[data-shape="willow"],.color[data-color="ice"]{display:none}.panel{bottom:calc(8px + env(safe-area-inset-bottom))}.stat{min-width:62px}.cam{width:72px}}
+  </style>
+</head>
+<body>
+  <div id="loading">3Dエンジンを読み込めませんでした。<br>通信を確認して、ページを再読み込みしてください。</div>
+  <div id="intro"><div class="intro-card"><div class="eyebrow">INTERACTIVE FIREWORK EXPERIENCE</div><h2>FIREWORK<br>FLIGHT</h2><p>花火を打ち上げ、夜空にショーを描こう。<br>カメラを「飛翔」にすると、光のあいだへ飛び込みます。</p><button class="start" id="start">夜空へ</button></div></div>
+  <div class="topbar"><div class="brand"><h1>FIREWORK FLIGHT</h1><p>夜空を駆ける花火ショー</p></div><div class="stats"><div class="stat"><b id="altitude">0m</b><small>ALTITUDE</small></div><div class="stat"><b id="showScore">000</b><small>SHOW SCORE</small></div></div></div>
+  <div class="camera-rail" aria-label="カメラ"><button class="cam active" data-cam="ground">地上席</button><button class="cam" data-cam="chase">ロケット追尾</button><button class="cam" data-cam="flight">飛翔カメラ</button></div>
+  <div id="toast"></div>
+  <div class="panel">
+    <div class="controls">
+      <div class="group"><label>COLOR</label><div class="choices"><button class="choice color active" data-color="gold" style="--c:#ffbc58">金</button><button class="choice color" data-color="sakura" style="--c:#ff72ad">桃</button><button class="choice color" data-color="ice" style="--c:#76dcff">青</button><button class="choice color" data-color="rainbow" style="--c:linear-gradient(135deg,#ff6666,#ffe66d,#62d6ff)">虹</button></div></div>
+      <div class="group"><label>STYLE</label><div class="choices"><button class="choice active" data-shape="peony">牡丹</button><button class="choice" data-shape="ring">輪</button><button class="choice" data-shape="willow">柳</button></div></div>
+      <button class="launch" id="launch">打ち上げ</button>
+    </div>
+    <div class="subrow"><button class="toggle on" id="auto"><i></i> AUTO SHOW</button><div id="hint">空をタップして狙い打ち</div></div>
+  </div>
+  <div id="vignette"></div><div id="flash"></div>
+  <script type="module">
+  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js';
+
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const loading=$('#loading');
+  let W=innerWidth,H=innerHeight,started=false,score=0,camMode='ground',selectedColor='gold',selectedShape='peony',autoShow=true,lastAuto=0,lastFrame=performance.now(),flashPower=0;
+  const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x050713,.0015);
+  const camera=new THREE.PerspectiveCamera(65,W/H,.1,1600);
+  const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.6)); renderer.setSize(W,H); renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.25; document.body.prepend(renderer.domElement);
+
+  const clock=new THREE.Clock(), rockets=[], bursts=[], embers=[];
+  const palette={gold:[0xffbf52,0xffe4a1,0xff7b31],sakura:[0xff6aa9,0xffb4d2,0xb66cff],ice:[0x5ddcff,0xc8f5ff,0x5e7dff],rainbow:[0xff5468,0xffcf51,0x57f0ba,0x55bfff,0xbe6cff]};
+
+  // 夜空と星
+  const skyGeo=new THREE.SphereGeometry(900,32,20); const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,uniforms:{uTime:{value:0}},vertexShader:'varying vec3 vPos;void main(){vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec3 vPos;uniform float uTime;void main(){float h=normalize(vPos).y;vec3 low=vec3(.025,.035,.095);vec3 high=vec3(.003,.004,.018);float glow=pow(max(0.,1.-abs(h+.04)),8.)*.09;gl_FragColor=vec4(mix(low,high,smoothstep(-.1,.75,h))+vec3(.13,.07,.18)*glow,1.);}'}); scene.add(new THREE.Mesh(skyGeo,skyMat));
+  const starCount=900, starPos=new Float32Array(starCount*3),starCol=new Float32Array(starCount*3);
+  for(let i=0;i<starCount;i++){const r=620,theta=Math.random()*Math.PI*2, y=35+Math.random()*430,rr=Math.sqrt(Math.max(0,r*r-y*y));starPos.set([Math.cos(theta)*rr,y,Math.sin(theta)*rr],i*3);const b=.55+Math.random()*.45;starCol.set([b,b*.92,b],i*3)}
+  const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(starPos,3));sg.setAttribute('color',new THREE.BufferAttribute(starCol,3));scene.add(new THREE.Points(sg,new THREE.PointsMaterial({size:1.25,vertexColors:true,transparent:true,opacity:.75,depthWrite:false})));
+
+  // 水面と街の灯り
+  const water=new THREE.Mesh(new THREE.PlaneGeometry(1500,1500,1,1),new THREE.MeshStandardMaterial({color:0x050b18,metalness:.35,roughness:.38}));water.rotation.x=-Math.PI/2;water.position.y=-18;scene.add(water);
+  const hemi=new THREE.HemisphereLight(0x5368aa,0x08040b,.34);scene.add(hemi);
+  const city=new THREE.Group(), cityLightPos=[], cityLightCol=[];
+  for(let i=0;i<90;i++){const a=(i/90)*Math.PI*2,r=230+Math.random()*65,w=7+Math.random()*12,h=12+Math.random()*48,d=7+Math.random()*12;const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({color:new THREE.Color().setHSL(.64,.25,.035+Math.random()*.03)}));m.position.set(Math.cos(a)*r,-18+h/2,Math.sin(a)*r);m.rotation.y=-a;city.add(m);for(let j=0;j<3;j++){cityLightPos.push(m.position.x+(Math.random()-.5)*w,m.position.y-h/2+4+Math.random()*Math.max(4,h-7),m.position.z+(Math.random()-.5)*d);const c=new THREE.Color(Math.random()>.55?0xffb95e:0x5ebdff);cityLightCol.push(c.r,c.g,c.b)}}scene.add(city);
+  const clg=new THREE.BufferGeometry();clg.setAttribute('position',new THREE.Float32BufferAttribute(cityLightPos,3));clg.setAttribute('color',new THREE.Float32BufferAttribute(cityLightCol,3));scene.add(new THREE.Points(clg,new THREE.PointsMaterial({size:1.8,vertexColors:true,transparent:true,opacity:.82,depthWrite:false})));
+  const horizonGeo=new THREE.RingGeometry(208,211,128);const horizon=new THREE.Mesh(horizonGeo,new THREE.MeshBasicMaterial({color:0xff9358,transparent:true,opacity:.12,side:THREE.DoubleSide}));horizon.rotation.x=-Math.PI/2;horizon.position.y=-15;scene.add(horizon);
+
+  function makeGlowTexture(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.16,'rgba(255,255,255,.95)');g.addColorStop(.48,'rgba(255,255,255,.2)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)}
+  const glowTex=makeGlowTexture();
+  function particleMat(size=3.2){return new THREE.PointsMaterial({size,map:glowTex,transparent:true,opacity:1,vertexColors:true,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true})}
+
+  const audio={ctx:null,master:null};
+  function initAudio(){if(audio.ctx)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audio.ctx=new AC();audio.master=audio.ctx.createGain();audio.master.gain.value=.3;audio.master.connect(audio.ctx.destination)}
+  function soundRocket(){if(!audio.ctx)return;const t=audio.ctx.currentTime,o=audio.ctx.createOscillator(),g=audio.ctx.createGain();o.type='sine';o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(900,t+1.2);g.gain.setValueAtTime(.03,t);g.gain.linearRampToValueAtTime(.12,t+.8);g.gain.exponentialRampToValueAtTime(.001,t+1.35);o.connect(g).connect(audio.master);o.start(t);o.stop(t+1.4)}
+  function soundBoom(strength=1){if(!audio.ctx)return;const t=audio.ctx.currentTime,buffer=audio.ctx.createBuffer(1,audio.ctx.sampleRate*1.2,audio.ctx.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audio.ctx.sampleRate*.15));const src=audio.ctx.createBufferSource(),filter=audio.ctx.createBiquadFilter(),g=audio.ctx.createGain();src.buffer=buffer;filter.type='lowpass';filter.frequency.value=180;g.gain.setValueAtTime(.7*strength,t);g.gain.exponentialRampToValueAtTime(.001,t+1.1);src.connect(filter).connect(g).connect(audio.master);src.start(t)}
+
+  function launch(x=(Math.random()-.5)*190,z=-20-Math.random()*170,opts={}){
+    if(!started)return;initAudio();if(audio.ctx?.state==='suspended')audio.ctx.resume();soundRocket();
+    const color=opts.color||selectedColor,shape=opts.shape||selectedShape,targetY=opts.y||95+Math.random()*135;
+    const geo=new THREE.BufferGeometry(),pos=new Float32Array(24*3),cols=new Float32Array(24*3);for(let i=0;i<24;i++){pos[i*3+1]=-i*.65;const cc=new THREE.Color(palette[color][i%palette[color].length]);cols.set([cc.r,cc.g,cc.b],i*3)}geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('color',new THREE.BufferAttribute(cols,3));const pts=new THREE.Points(geo,particleMat(2.2));pts.position.set(x,-14,z);scene.add(pts);rockets.push({obj:pts,v:88+Math.random()*18,targetY,color,shape,x,z,life:0});score+=3;updateScore();
+  }
+  function explode(r){scene.remove(r.obj);r.obj.geometry.dispose();r.obj.material.dispose();const base=palette[r.color],count=r.shape==='willow'?310:230,positions=new Float32Array(count*3),vel=new Float32Array(count*3),colors=new Float32Array(count*3),twinkle=new Float32Array(count);
+    for(let i=0;i<count;i++){positions[i*3]=(Math.random()-.5)*2;positions[i*3+1]=(Math.random()-.5)*2;positions[i*3+2]=(Math.random()-.5)*2;let vx,vy,vz;if(r.shape==='ring'){const a=Math.random()*Math.PI*2,s=31+Math.random()*13;vx=Math.cos(a)*s;vy=(Math.random()-.5)*4;vz=Math.sin(a)*s}else{const u=Math.random()*2-1,a=Math.random()*Math.PI*2,s=(r.shape==='willow'?20:28)+Math.random()*(r.shape==='willow'?19:24);const q=Math.sqrt(1-u*u);vx=q*Math.cos(a)*s;vy=u*s+(r.shape==='willow'?11:3);vz=q*Math.sin(a)*s}vel.set([vx,vy,vz],i*3);const c=new THREE.Color(base[i%base.length]);c.offsetHSL((Math.random()-.5)*.025,0,(Math.random()-.5)*.12);colors.set([c.r,c.g,c.b],i*3);twinkle[i]=Math.random()*10}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('color',new THREE.BufferAttribute(colors,3));const obj=new THREE.Points(geo,particleMat(r.shape==='willow'?3.2:3.8));obj.position.set(r.x,r.targetY,r.z);scene.add(obj);bursts.push({obj,vel,twinkle,life:0,maxLife:r.shape==='willow'?4.8:3.15,shape:r.shape,center:obj.position.clone(),color:r.color});flashPower=1;score+=r.shape==='ring'?18:r.shape==='willow'?24:14;updateScore();soundBoom(r.shape==='willow'?1:.82);if(camMode==='chase')setTimeout(()=>setCam('flight',false),300)}
+  function addEmber(pos,color){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0],3));const mat=new THREE.PointsMaterial({size:5,map:glowTex,color,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});const p=new THREE.Points(geo,mat);p.position.copy(pos);scene.add(p);embers.push({obj:p,life:0})}
+  function updateScore(){$('#showScore').textContent=String(score%1000).padStart(3,'0')}
+
+  const camTarget=new THREE.Vector3(),camDesired=new THREE.Vector3(),flightAnchor=new THREE.Vector3(0,100,-90),lookDesired=new THREE.Vector3();let flightT=0,chaseRocket=null;
+  function setCam(mode,toast=true){camMode=mode;$$('.cam').forEach(b=>b.classList.toggle('active',b.dataset.cam===mode));if(mode==='flight'){flightT=0;const latest=bursts.at(-1)?.center;flightAnchor.copy(latest||new THREE.Vector3(0,115,-100));if(toast)showToast('光の中へ — 画面をドラッグして見回せます')}else if(mode==='chase'&&toast)showToast('次のロケットを追いかけます')}
+  function updateCamera(dt,t){
+    if(camMode==='ground'){camDesired.set(Math.sin(t*.07)*16,8,55);lookDesired.set(0,105,-80)}
+    else if(camMode==='chase'){chaseRocket=rockets.at(-1)||chaseRocket;if(chaseRocket&&rockets.includes(chaseRocket)){const p=chaseRocket.obj.position;camDesired.set(p.x+13,p.y-6,p.z+20);lookDesired.copy(p).add(new THREE.Vector3(0,22,-3))}else{camDesired.set(0,36,25);lookDesired.set(0,120,-80)}}
+    else{flightT+=dt;const targetBurst=bursts.at(-1);if(targetBurst&&targetBurst.life<1.3)flightAnchor.lerp(targetBurst.center,.025);const radius=32+Math.sin(flightT*.43)*14;camDesired.set(flightAnchor.x+Math.sin(flightT*.65)*radius,flightAnchor.y+Math.sin(flightT*.31)*22,flightAnchor.z+Math.cos(flightT*.65)*radius);const next=bursts.length>1?bursts[bursts.length-2].center:flightAnchor;lookDesired.copy(flightAnchor).lerp(next,.18);lookDesired.y+=Math.sin(flightT*.7)*9}
+    const smooth=1-Math.exp(-dt*(camMode==='flight'?1.5:3.2));camera.position.lerp(camDesired,smooth);camTarget.lerp(lookDesired,1-Math.exp(-dt*2.2));camera.lookAt(camTarget);$('#altitude').textContent=Math.max(0,Math.round(camera.position.y+18))+'m';
+  }
+  function showToast(s){const el=$('#toast');el.textContent=s;el.classList.add('show');clearTimeout(showToast.to);showToast.to=setTimeout(()=>el.classList.remove('show'),1800)}
+
+  function update(dt,t){
+    skyMat.uniforms.uTime.value=t;flashPower*=Math.exp(-dt*8);$('#flash').style.opacity=flashPower*.85;
+    for(let i=rockets.length-1;i>=0;i--){const r=rockets[i];r.life+=dt;r.obj.position.y+=r.v*dt;r.v-=23*dt;const a=r.obj.geometry.attributes.position.array;for(let j=0;j<a.length/3;j++){a[j*3]=(Math.random()-.5)*.45;a[j*3+1]=-j*.65-r.life*j*.08;a[j*3+2]=(Math.random()-.5)*.45}r.obj.geometry.attributes.position.needsUpdate=true;if(r.obj.position.y>=r.targetY||r.v<15){rockets.splice(i,1);explode(r)}}
+    for(let i=bursts.length-1;i>=0;i--){const b=bursts[i];b.life+=dt;const p=b.obj.geometry.attributes.position.array;for(let j=0;j<b.vel.length/3;j++){const k=j*3;b.vel[k]*=1-dt*.08;b.vel[k+1]-=(b.shape==='willow'?8.5:11)*dt;b.vel[k+2]*=1-dt*.08;p[k]+=b.vel[k]*dt;p[k+1]+=b.vel[k+1]*dt;p[k+2]+=b.vel[k+2]*dt}b.obj.geometry.attributes.position.needsUpdate=true;b.obj.material.opacity=Math.min(1,(b.maxLife-b.life)*.72)*(.76+.24*Math.sin(t*15+b.twinkle[0]));if(b.life>b.maxLife){scene.remove(b.obj);b.obj.geometry.dispose();b.obj.material.dispose();bursts.splice(i,1)}}
+    for(let i=embers.length-1;i>=0;i--){const e=embers[i];e.life+=dt;e.obj.material.opacity=1-e.life;e.obj.scale.setScalar(1+e.life*2);if(e.life>1){scene.remove(e.obj);e.obj.geometry.dispose();e.obj.material.dispose();embers.splice(i,1)}}
+    if(autoShow&&started&&t-lastAuto>1.15+Math.random()*.75){lastAuto=t;const patterns=['gold','sakura','ice','rainbow'],shapes=['peony','ring','willow'];launch((Math.random()-.5)*220,-25-Math.random()*190,{color:patterns[Math.floor(Math.random()*patterns.length)],shape:shapes[Math.floor(Math.random()*shapes.length)],y:100+Math.random()*135});if(Math.random()>.72)setTimeout(()=>launch((Math.random()-.5)*180,-60-Math.random()*150,{color:patterns[Math.floor(Math.random()*4)],shape:'peony',y:110+Math.random()*100}),260)}
+    updateCamera(dt,t);
+  }
+  function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-lastFrame)/1000,.035);lastFrame=now;update(dt,now/1000);renderer.render(scene,camera)}requestAnimationFrame(animate);
+
+  $('#start').addEventListener('click',()=>{started=true;initAudio();$('#intro').classList.add('hide');camera.position.set(0,8,55);for(let i=0;i<3;i++)setTimeout(()=>launch((i-1)*58,-70-i*18,{color:['gold','sakura','ice'][i],shape:i===1?'ring':'peony',y:120+i*22}),i*420)});
+  $('#launch').addEventListener('pointerdown',e=>{e.preventDefault();launch();if(camMode==='chase')chaseRocket=rockets.at(-1)});
+  $$('.color').forEach(b=>b.addEventListener('click',()=>{selectedColor=b.dataset.color;$$('.color').forEach(x=>x.classList.toggle('active',x===b))}));
+  $$('[data-shape]').forEach(b=>b.addEventListener('click',()=>{selectedShape=b.dataset.shape;$$('[data-shape]').forEach(x=>x.classList.toggle('active',x===b))}));
+  $$('.cam').forEach(b=>b.addEventListener('click',()=>setCam(b.dataset.cam)));
+  $('#auto').addEventListener('click',e=>{autoShow=!autoShow;e.currentTarget.classList.toggle('on',autoShow);showToast(autoShow?'自動ショー ON':'自動ショー OFF')});
+  renderer.domElement.addEventListener('pointerdown',e=>{if(!started||e.clientY>innerHeight-150)return;const nx=e.clientX/innerWidth*2-1,ny=1-e.clientY/innerHeight;launch(nx*125,-45-ny*145,{y:75+ny*155})});
+  addEventListener('resize',()=>{W=innerWidth;H=innerHeight;camera.aspect=W/H;camera.updateProjectionMatrix();renderer.setSize(W,H);renderer.setPixelRatio(Math.min(devicePixelRatio,1.6))});
+  document.addEventListener('visibilitychange',()=>{lastFrame=performance.now()});
+  setTimeout(()=>{if(!renderer.domElement||!scene)loading.style.display='grid'},5000);
+  </script>
+</body>
+</html>
