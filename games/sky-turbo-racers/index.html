@@ -42,7 +42,7 @@
     .control.active{transform:translateY(3px) scale(.97);filter:brightness(1.35);box-shadow:0 3px 12px rgba(4,9,35,.28),inset 0 0 22px rgba(103,238,255,.27)}
     .turn{width:104px;border-radius:25px;font-size:34px;color:#dffcff}
     .actions{justify-self:end;display:flex;align-items:end;gap:12px;pointer-events:auto}
-    .action{width:112px;border-radius:50%;font-size:12px;letter-spacing:.06em}
+    .action{width:112px;border-radius:50%;font-size:9px;letter-spacing:.02em}
     .action b{display:block;font-size:20px;line-height:1.05}
     .drift{border-color:rgba(255,126,216,.56);background:linear-gradient(155deg,rgba(112,42,123,.72),rgba(34,15,68,.79))}
     .turbo{border-color:rgba(255,229,80,.64);background:linear-gradient(155deg,rgba(172,95,23,.8),rgba(81,32,25,.8))}
@@ -93,8 +93,10 @@
     <div class="card">
       <p class="eyebrow">HIGH-SPEED ISLAND GRAND PRIX</p>
       <h1>SKY TURBO<br>RACERS<span>スカイターボ・レーサーズ</span></h1>
-      <p class="lead">空と海のサーキットを駆け抜け、6台の頂点を目指そう。<br>ドリフトをためて離すと、ミニターボが発動！</p>
-      <div class="rules"><span>画面左を左右にスライド → ハンドル</span><span>DRIFT 長押し→離す</span><span>TURBO エネルギー消費</span><span>3周レース</span></div>
+      <p class="lead">ブレーキで減速して、カーブを安全に抜けよう。<br>速度があるときにハンドルを切りながら押すと、横滑りで旋回！</p>
+      <div class="rules"><span>画面左を左右にスライド → ハンドル</span><span>ブレーキ＋ハンドルでドリフト</span><span>TURBO エネルギー消費</span><span>3周レース</span></div>
+      <p id="stageName">STAGE 1 · スカイアイランド</p>
+      <div class="rules"><a class="back" href="?stage=1">1 · ゆったり入門</a><a class="back" href="?stage=2">2 · ヘアピン・リッジ</a></div>
       <button id="start" class="start" type="button">レーススタート！</button>
       <p class="subnote">アクセルは自動です。画面左の下側に触れるとスティックが現れます。触れた位置を起点に左右へ動かし、離すとハンドルが戻ります。</p>
     </div>
@@ -103,13 +105,13 @@
   <div id="hud" class="hud">
     <div class="topbar">
       <div class="race-info glass"><div id="position" class="position">1<small>st</small></div><div class="lap">CURRENT LAP<b id="lap">1 / 3</b></div></div>
-      <div class="course-progress glass"><div class="progress-label"><span>SKY ISLAND GP</span><span id="zone">SUNRISE COAST</span></div><div class="progress-track"><div id="progress" class="progress-fill"></div></div></div>
+      <div class="course-progress glass"><div class="progress-label"><span id="courseName">SKY ISLAND GP</span><span id="zone">SUNRISE COAST</span></div><div class="progress-track"><div id="progress" class="progress-fill"></div></div></div>
       <div class="speed-panel glass"><div id="speed" class="speed-number">0<small>km/h</small></div><button id="sound" class="sound" type="button" aria-label="サウンドを切り替える">♪</button></div>
     </div>
     <div class="bottom">
       <div class="steer-hint">ここに触れて左右にスライド</div>
       <div class="boost-meter glass"><div class="boost-head"><span>TURBO ENERGY</span><b id="boostText">0%</b></div><div class="meter"><i id="boostBar"></i></div></div>
-      <div class="actions"><button id="drift" class="control action drift" type="button"><b>DRIFT</b>長押し</button><button id="turbo" class="control action turbo" type="button"><b>TURBO</b>ブースト</button></div>
+      <div class="actions"><button id="drift" class="control action drift" type="button"><b>BRAKE</b>＋ハンドルでドリフト</button><button id="turbo" class="control action turbo" type="button"><b>TURBO</b>ブースト</button></div>
     </div>
   </div>
   <div id="stick" aria-hidden="true"><div id="stickKnob"></div></div>
@@ -126,6 +128,6 @@
     </div>
   </section>
 
-  <script type="module" src="./game.js?v=4"></script>
+  <script type="module" src="./game.js?v=5"></script>
 </body>
 </html>

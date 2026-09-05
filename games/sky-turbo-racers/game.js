@@ -1,5 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js';
 
+import { stepHandling } from './handling.js?v=5';
+const technical = new URLSearchParams(location.search).get('stage') === '2';
 const $ = (selector) => document.querySelector(selector);
 const ui = {
   intro: $('#intro'), start: $('#start'), hud: $('#hud'), position: $('#position'), lap: $('#lap'),
@@ -23,11 +25,16 @@ const tempMatrix = new THREE.Matrix4();
 const tempQuat = new THREE.Quaternion();
 const tempColor = new THREE.Color();
 
-const controlPoints = [
+const controlPoints = (technical ? [
+  [0,6,100],[70,6,100],[100,7,75],[100,7,35],[75,8,18],
+  [50,8,35],[48,8,68],[20,8,70],[-8,9,38],[15,9,5],
+  [40,10,-30],[25,10,-72],[-25,8,-100],[-80,7,-80],
+  [-105,6,-35],[-78,6,5],[-105,6,45],[-80,6,90],[-40,6,100]
+] : [
   [0, 4.2, 83], [45, 4.8, 75], [82, 7.5, 47], [94, 11.5, 5],
   [78, 7.2, -43], [43, 4.5, -78], [-4, 5.8, -91], [-49, 12.5, -77],
   [-83, 16.5, -45], [-95, 9.5, 0], [-79, 5.2, 47], [-43, 4.1, 76]
-].map(([x, y, z]) => new THREE.Vector3(x, y, z));
+]).map(([x, y, z]) => new THREE.Vector3(x, y, z));
 
 const track = new THREE.CatmullRomCurve3(controlPoints, true, 'centripetal', 0.5);
 track.arcLengthDivisions = 2400;
@@ -369,7 +376,7 @@ function createBoostPad(t, lateral) {
 
 function createScenery() {
   createTrees();
-  createCity();
+  if (!technical) createCity();
   createMountains();
   createCrystals();
   createBalloons();
@@ -555,7 +562,7 @@ function createRaceObjects() {
   const playerKart = createKart(0x1b76df, 0xffdc50, true);
   player = {
     ...playerKart, total: 0, lateral: 2.6, speed: 0, steer: 0, boost: 38, turboTime: 0,
-    driftCharge: 0, drifting: false, offroad: false, finished: false
+    heading: 0, slip: 0, drifting: false, offroad: false, finished: false
   };
 
   const racerData = [
@@ -638,13 +645,18 @@ function updateParticles(dt) {
 }
 
 function bindHold(button, key, releaseCallback) {
+  let owner = null;
   const down = (event) => {
+    if (owner !== null) return;
+    owner = event.pointerId;
     event.preventDefault();
     input[key] = true;
     button.classList.add('active');
     button.setPointerCapture?.(event.pointerId);
   };
   const up = (event) => {
+    if (event.pointerId !== owner) return;
+    owner = null;
     event.preventDefault();
     if (input[key] && releaseCallback) releaseCallback();
     input[key] = false;
@@ -654,10 +666,14 @@ function bindHold(button, key, releaseCallback) {
   button.addEventListener('pointerup', up);
   button.addEventListener('pointercancel', up);
   button.addEventListener('lostpointercapture', up);
+  addEventListener('blur', () => { owner = null; input[key] = false; button.classList.remove('active'); });
+  document.addEventListener('visibilitychange', () => { owner = null; input[key] = false; button.classList.remove('active'); });
 }
 
 function bindControls() {
   bindHold(ui.drift, 'drift', releaseDrift);
+  $('#stageName').textContent = technical ? 'STAGE 2 · ヘアピン・リッジ' : 'STAGE 1 · スカイアイランド';
+  $('#courseName').textContent = technical ? 'HAIRPIN RIDGE GP' : 'SKY ISLAND GP';
   ui.turbo.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     ui.turbo.classList.add('active');
@@ -723,7 +739,8 @@ function resetSteering() {
   const pointerId = input.swipeId;
   input.swipeId = null;
   input.swipe = 0;
-  input.left = input.right = false;
+  input.left = input.right = input.drift = false;
+  ui.drift.classList.remove('active');
   if (player) player.steer = 0;
   ui.stick.classList.remove('show');
   ui.stickKnob.style.transform = 'translateX(0px)';
@@ -752,16 +769,7 @@ function showCountdown(text) {
 }
 
 function releaseDrift() {
-  if (!player || player.driftCharge < 0.28) {
-    if (player) player.driftCharge = 0;
-    return;
-  }
-  const power = THREE.MathUtils.clamp(player.driftCharge, 0, 1.65);
-  player.turboTime = Math.max(player.turboTime, 0.55 + power * 0.75);
-  player.boost = Math.min(100, player.boost + 7 + power * 5);
-  showMessage(power > 1.15 ? 'SUPER!' : 'NICE!', power > 1.15 ? 'SUPER MINI TURBO' : 'MINI TURBO');
-  playTone(power > 1.15 ? 720 : 570, 0.18, 'sawtooth', 0.045);
-  player.driftCharge = 0;
+  if (player) player.drifting = false;
 }
 
 function activateTurbo() {
@@ -836,43 +844,25 @@ function updateCountdown(dt) {
   }
 }
 
+function curvatureAt(total) {
+  const a = track.getTangentAt(wrap01(total - 0.002));
+  const b = track.getTangentAt(wrap01(total + 0.002));
+  return Math.atan2(a.clone().cross(b).y, a.dot(b)) / (0.004 * trackLength);
+}
+
 function updatePlayer(dt) {
   // frame.side points to the racer's left, so positive steering must come
   // from the left control. A rightward swipe therefore uses the negative side.
   const steerInput = THREE.MathUtils.clamp((input.left ? 1 : 0) - (input.right ? 1 : 0) - input.swipe, -1, 1);
   player.steer += (steerInput - player.steer) * (1 - Math.pow(0.0004, dt));
-  const t = wrap01(player.total);
-  const tangentA = track.getTangentAt(wrap01(t - 0.006)).normalize();
-  const tangentB = track.getTangentAt(wrap01(t + 0.006)).normalize();
-  const curveForce = THREE.MathUtils.clamp(tangentA.cross(tangentB).y * 8.5, -1, 1);
-  const steeringPower = input.drift ? 10.2 : 7.7;
-  player.lateral += player.steer * steeringPower * (0.56 + player.speed / 50) * dt;
-  player.lateral += curveForce * player.speed * 0.042 * dt;
-  if (Math.abs(steerInput) < 0.08) player.lateral *= Math.pow(0.992, dt * 60);
-  player.lateral = THREE.MathUtils.clamp(player.lateral, -11.2, 11.2);
-  player.offroad = Math.abs(player.lateral) > OFFROAD_EDGE;
-
-  if (input.drift && Math.abs(player.steer) > 0.27 && player.speed > 16) {
-    player.drifting = true;
-    player.driftCharge = Math.min(1.65, player.driftCharge + dt * (0.63 + Math.abs(player.steer) * 0.35));
-    if (Math.random() < dt * 22) {
-      const color = player.driftCharge > 1.12 ? 0xffdd51 : 0xff65cf;
-      spawnParticle(player.root.position, color, 1.5);
-    }
-  } else {
-    player.drifting = false;
-    if (!input.drift) player.driftCharge = Math.max(0, player.driftCharge - dt * 0.18);
-  }
-
   player.turboTime = Math.max(0, player.turboTime - dt);
-  const targetSpeed = player.offroad ? 18 : (player.turboTime > 0 ? 45.5 : (player.drifting ? 29 : 32.4));
-  const acceleration = targetSpeed > player.speed ? 1.65 : 2.8;
-  player.speed += (targetSpeed - player.speed) * (1 - Math.pow(0.05, dt * acceleration));
-  if (player.offroad) {
-    player.lateral *= Math.pow(0.975, dt * 60);
-    if (Math.random() < dt * 18) spawnParticle(player.root.position, 0xe5bf79, 1.2);
+  const along = stepHandling(player, player.steer, input.drift, curvatureAt(player.total), dt);
+  player.total += along / trackLength * dt;
+  ui.drift.innerHTML = player.drifting ? '<b>DRIFT</b>横滑り中' : input.drift ? '<b>BRAKE</b>減速中' : '<b>BRAKE</b>＋ハンドルでドリフト';
+  if ((player.drifting || player.offroad) && Math.random() < dt * 30) {
+    const rear = new THREE.Vector3(0, 0.4, -1.5).applyQuaternion(player.root.quaternion).add(player.root.position);
+    spawnParticle(rear, player.drifting ? 0xeef5ff : 0xe5bf79, 1.8);
   }
-  player.total += (player.speed / trackLength) * dt;
 
   updatePickups(dt);
   updateBoostPads(dt);
@@ -908,7 +898,9 @@ function updateRivals(dt) {
       rival.padCooldown = 2;
     }
     const wave = Math.sin(raceTime * 0.7 + rival.phase) * 0.45;
-    const target = rival.turboTime > 0 ? 45.5 : rival.pace + rubberBand + wave;
+    const bend = Math.max(...[0, 0.008, 0.016].map(d => Math.abs(curvatureAt(rival.total + d))));
+    const cornerSpeed = Math.max(14, Math.sqrt(30 / Math.max(0.001, bend)));
+    const target = Math.min(cornerSpeed, rival.turboTime > 0 ? 45.5 : rival.pace + rubberBand + wave);
     const acceleration = target > rival.speed ? 1.65 : 2.8;
     rival.speed += (target - rival.speed) * (1 - Math.pow(0.05, dt * acceleration));
     rival.total += (rival.speed / trackLength) * dt;
@@ -985,7 +977,7 @@ function setRacerTransform(racer, t, lateral, steer, boosting, dt) {
   tempMatrix.makeBasis(frame.side, frame.normal, frame.tangent);
   racer.root.quaternion.setFromRotationMatrix(tempMatrix);
   racer.model.rotation.z += ((-steer * 0.16) - racer.model.rotation.z) * (1 - Math.pow(0.002, Math.max(dt, 0.001)));
-  racer.model.rotation.y += ((steer * 0.1) - racer.model.rotation.y) * (1 - Math.pow(0.004, Math.max(dt, 0.001)));
+  racer.model.rotation.y += (((racer === player ? player.heading : steer * 0.1)) - racer.model.rotation.y) * (1 - Math.pow(0.004, Math.max(dt, 0.001)));
   for (const wheel of racer.wheels) wheel.rotation.x -= racer.speed * dt * 1.5;
   for (const exhaust of racer.exhausts) {
     exhaust.material.opacity += ((boosting ? 0.9 : 0.04) - exhaust.material.opacity) * (1 - Math.pow(0.004, Math.max(dt, 0.001)));
@@ -1053,7 +1045,7 @@ function finishRace() {
   const racers = [player, ...rivals].slice().sort((a, b) => b.total - a.total);
   const place = racers.indexOf(player) + 1;
   ui.resultPlace.innerHTML = `${place}<small>${ordinal(place)}</small>`;
-  ui.resultTitle.innerHTML = place === 1 ? 'VICTORY!<span>スカイアイランドGP 優勝！</span>' : place <= 3 ? 'GREAT RACE!<span>表彰台に入りました！</span>' : 'NICE RUN!<span>スカイアイランドGP 完走</span>';
+  ui.resultTitle.innerHTML = place === 1 ? 'VICTORY!<span>グランプリ 優勝！</span>' : place <= 3 ? 'GREAT RACE!<span>表彰台に入りました！</span>' : 'NICE RUN!<span>スカイアイランドGP 完走</span>';
   const minutes = Math.floor(raceTime / 60);
   const seconds = Math.floor(raceTime % 60);
   const milliseconds = Math.floor((raceTime % 1) * 1000);
