@@ -17,6 +17,7 @@
     .card { display:block; color:inherit; text-decoration:none; padding:22px; border-radius:22px; background:linear-gradient(150deg,rgba(90,91,174,.55),rgba(24,26,65,.9)); border:1px solid rgba(225,229,255,.2); box-shadow:0 18px 50px rgba(0,0,0,.25); transition:transform .15s ease,border-color .15s ease; }
     .card:hover { transform:translateY(-3px); border-color:rgba(255,236,166,.5); }
     .card.blackhole { background:radial-gradient(circle at 12% 8%,rgba(80,232,255,.34),transparent 38%),linear-gradient(145deg,rgba(88,61,190,.82),rgba(7,10,27,.98)); border-color:rgba(102,236,255,.66); }
+    .card.racer { background:radial-gradient(circle at 85% 12%,rgba(255,227,76,.42),transparent 35%),linear-gradient(145deg,rgba(29,154,221,.83),rgba(88,45,165,.8) 58%,rgba(18,22,65,.97)); border-color:rgba(103,239,255,.78); }
     .card.coaster { background:linear-gradient(145deg,rgba(25,157,179,.56),rgba(126,33,120,.62) 55%,rgba(24,26,65,.93)); border-color:rgba(112,246,255,.38); }
     .card.bunny { background:linear-gradient(145deg,rgba(255,126,187,.78),rgba(105,193,205,.58) 62%,rgba(62,48,111,.92)); border-color:rgba(255,211,234,.7); }
     .card.speed { background:linear-gradient(145deg,rgba(28,183,239,.76),rgba(255,94,61,.58) 56%,rgba(27,35,83,.94)); border-color:rgba(255,226,95,.72); }
@@ -34,6 +35,7 @@
   <main>
     <header><h1>AI Game Library</h1><p>AIと一緒に制作した、ブラウザですぐ遊べるゲーム置き場です。</p></header>
     <section class="grid" aria-label="ゲーム一覧">
+      <a class="card racer" href="./games/sky-turbo-racers/"><div class="icon">🏎️⚡</div><h2>SKY TURBO RACERS</h2><p>空と海の3Dコースを6台で競う高速レース。ドリフトでミニターボをため、3周のグランプリを制覇しよう。</p><div class="tags"><span>iPad横持ち</span><span>3Dレース</span><span>タッチ操作</span><span>1人用</span></div></a>
       <a class="card blackhole" href="./games/black-hole-city/"><div class="icon">⚫🏙️</div><h2>BLACK HOLE CITY</h2><p>落とし穴を動かして街を丸ごと飲み込もう。小物から車、建物へと巨大化し、ライバルと競う3Dアクションです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>タッチ操作</span><span>約90秒</span></div></a>
       <a class="card firework" href="./games/firework-flight/"><div class="icon">🎆✨</div><h2>FIREWORK FLIGHT</h2><p>色と形を選んで夜空に花火を打ち上げよう。光のあいだを駆け抜ける、迫力の3D花火ショーです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>花火</span><span>飛翔カメラ</span></div></a>
       <a class="card deepsea" href="./games/deep-sea-craft/"><div class="icon">🛥️🐋</div><h2>深海クラフト</h2><p>海底基地を復旧し、潜水艇を改造して未知の深海へ。資源を集めながら、最深部の救難信号を目指す探索アドベンチャーです。</p><div class="tags"><span>iPad対応</span><span>海中探索</span><span>改造</span><span>1人用</span></div></a>
