@@ -554,21 +554,22 @@ function createKart(color, accent, isPlayer = false) {
 function createRaceObjects() {
   const playerKart = createKart(0x1b76df, 0xffdc50, true);
   player = {
-    ...playerKart, total: 0, lateral: 0, speed: 0, steer: 0, boost: 38, turboTime: 0,
+    ...playerKart, total: 0, lateral: 2.6, speed: 0, steer: 0, boost: 38, turboTime: 0,
     driftCharge: 0, drifting: false, offroad: false, finished: false
   };
 
   const racerData = [
-    ['MOMO', 0xff5683, 0xffffff, 31.1], ['VOLT', 0xffc934, 0x3f3192, 30.7],
-    ['AQUA', 0x32d9cf, 0xffffff, 30.35], ['NOVA', 0x8a62e7, 0xffd650, 29.95],
-    ['JET', 0x48b05c, 0xff7048, 29.6]
+    ['MOMO', 0xff5683, 0xffffff, 33.0], ['VOLT', 0xffc934, 0x3f3192, 32.8],
+    ['AQUA', 0x32d9cf, 0xffffff, 32.6], ['NOVA', 0x8a62e7, 0xffd650, 32.3],
+    ['JET', 0x48b05c, 0xff7048, 32.1]
   ];
   rivals = racerData.map(([name, color, accent, pace], index) => {
     const kart = createKart(color, accent, false);
     return {
-      ...kart, name, total: -0.0085 * (index + 1), lateral: index % 2 ? 2.6 : -2.6,
+      // Two cars per row; the player occupies the right-hand fourth grid slot.
+      ...kart, name, total: [8, 8, 0.8, -8, -8][index] / trackLength, lateral: index % 2 ? 2.6 : -2.6,
       targetLateral: index % 2 ? 2.6 : -2.6, speed: 0, pace, phase: rand(0, Math.PI * 2),
-      changeLane: rand(1, 4), turboTime: 0
+      changeLane: rand(1, 4), turboTime: 0, nextTurbo: rand(4, 8), padCooldown: 0
     };
   });
 
@@ -869,14 +870,29 @@ function updateRivals(dt) {
       rival.targetLateral = rand(-5.5, 5.5);
     }
     rival.lateral += (rival.targetLateral - rival.lateral) * (1 - Math.pow(0.18, dt));
-    const difference = player.total - rival.total;
-    const rubberBand = THREE.MathUtils.clamp(difference * 5.2, -2.1, 2.8);
-    const wave = Math.sin(raceTime * 0.7 + rival.phase) * 0.45;
-    const target = rival.pace + rubberBand + wave + (rival.turboTime > 0 ? 8 : 0);
-    rival.speed += (target - rival.speed) * (1 - Math.pow(0.08, dt));
-    rival.total += (rival.speed / trackLength) * dt;
+    // Measure the gap in metres, not laps. Leave close battles and short
+    // player boosts untouched; gently close large gaps without teleporting.
+    const gapMetres = (player.total - rival.total) * trackLength;
+    const rubberBand = gapMetres > 12
+      ? Math.min(3, (gapMetres - 12) * 0.06)
+      : -Math.min(4, Math.max(0, -gapMetres - 18) * 0.06);
     rival.turboTime = Math.max(0, rival.turboTime - dt);
-    if (random() < dt * 0.025 && rival.total > 0) rival.turboTime = 1.0;
+    rival.nextTurbo -= dt;
+    rival.padCooldown = Math.max(0, rival.padCooldown - dt);
+    if (rival.nextTurbo <= 0) {
+      rival.turboTime = Math.max(rival.turboTime, 1.15);
+      rival.nextTurbo = rand(5, 9);
+    }
+    if (rival.padCooldown <= 0 && boostPads.some(pad =>
+      circularDistance(rival.total, pad.t) < 0.008 && Math.abs(rival.lateral - pad.lateral) < 3.5)) {
+      rival.turboTime = Math.max(rival.turboTime, 1.05);
+      rival.padCooldown = 2;
+    }
+    const wave = Math.sin(raceTime * 0.7 + rival.phase) * 0.45;
+    const target = rival.turboTime > 0 ? 45.5 : rival.pace + rubberBand + wave;
+    const acceleration = target > rival.speed ? 1.65 : 2.8;
+    rival.speed += (target - rival.speed) * (1 - Math.pow(0.05, dt * acceleration));
+    rival.total += (rival.speed / trackLength) * dt;
   }
 }
 
