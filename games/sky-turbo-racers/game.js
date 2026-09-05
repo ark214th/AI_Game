@@ -817,7 +817,9 @@ function updateCountdown(dt) {
 }
 
 function updatePlayer(dt) {
-  const steerInput = THREE.MathUtils.clamp((input.right ? 1 : 0) - (input.left ? 1 : 0) + input.swipe, -1, 1);
+  // frame.side points to the racer's left, so positive steering must come
+  // from the left control. A rightward swipe therefore uses the negative side.
+  const steerInput = THREE.MathUtils.clamp((input.left ? 1 : 0) - (input.right ? 1 : 0) - input.swipe, -1, 1);
   player.steer += (steerInput - player.steer) * (1 - Math.pow(0.0004, dt));
   const t = wrap01(player.total);
   const tangentA = track.getTangentAt(wrap01(t - 0.006)).normalize();
@@ -948,7 +950,7 @@ function setRacerTransform(racer, t, lateral, steer, boosting, dt) {
   tempMatrix.makeBasis(frame.side, frame.normal, frame.tangent);
   racer.root.quaternion.setFromRotationMatrix(tempMatrix);
   racer.model.rotation.z += ((-steer * 0.16) - racer.model.rotation.z) * (1 - Math.pow(0.002, Math.max(dt, 0.001)));
-  racer.model.rotation.y += ((-steer * 0.1) - racer.model.rotation.y) * (1 - Math.pow(0.004, Math.max(dt, 0.001)));
+  racer.model.rotation.y += ((steer * 0.1) - racer.model.rotation.y) * (1 - Math.pow(0.004, Math.max(dt, 0.001)));
   for (const wheel of racer.wheels) wheel.rotation.x -= racer.speed * dt * 1.5;
   for (const exhaust of racer.exhausts) {
     exhaust.material.opacity += ((boosting ? 0.9 : 0.04) - exhaust.material.opacity) * (1 - Math.pow(0.004, Math.max(dt, 0.001)));
