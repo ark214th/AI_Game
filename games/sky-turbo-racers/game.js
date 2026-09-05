@@ -4,7 +4,7 @@ const $ = (selector) => document.querySelector(selector);
 const ui = {
   intro: $('#intro'), start: $('#start'), hud: $('#hud'), position: $('#position'), lap: $('#lap'),
   progress: $('#progress'), zone: $('#zone'), speed: $('#speed'), sound: $('#sound'), boostBar: $('#boostBar'),
-  boostText: $('#boostText'), left: $('#left'), right: $('#right'), drift: $('#drift'), turbo: $('#turbo'),
+  boostText: $('#boostText'), stick: $('#stick'), stickKnob: $('#stickKnob'), drift: $('#drift'), turbo: $('#turbo'),
   message: $('#message'), messageSub: $('#messageSub'), messageMain: $('#messageMain'), countdown: $('#countdown'),
   result: $('#resultOverlay'), resultPlace: $('#resultPlace'), resultTitle: $('#resultTitle'), resultTime: $('#resultTime'),
   retry: $('#retry'), error: $('#error'), speedFlash: $('#speedFlash')
@@ -657,8 +657,6 @@ function bindHold(button, key, releaseCallback) {
 }
 
 function bindControls() {
-  bindHold(ui.left, 'left');
-  bindHold(ui.right, 'right');
   bindHold(ui.drift, 'drift', releaseDrift);
   ui.turbo.addEventListener('pointerdown', (event) => {
     event.preventDefault();
@@ -669,22 +667,32 @@ function bindControls() {
   ui.turbo.addEventListener('pointercancel', () => ui.turbo.classList.remove('active'));
 
   renderer.domElement.addEventListener('pointerdown', (event) => {
-    if (raceState !== 'racing' || event.clientX > innerWidth * 0.5 || event.clientY < innerHeight * 0.3) return;
+    if (raceState !== 'racing' || input.swipeId !== null || event.button !== 0 || event.clientX > innerWidth * 0.5 || event.clientY < innerHeight * 0.3) return;
+    event.preventDefault();
     input.swipeId = event.pointerId;
     input.swipeStartX = event.clientX;
+    input.swipe = 0;
+    ui.stick.style.left = `${event.clientX}px`;
+    ui.stick.style.top = `${event.clientY}px`;
+    ui.stickKnob.style.transform = 'translateX(0px)';
+    ui.stick.classList.add('show');
     renderer.domElement.setPointerCapture?.(event.pointerId);
   });
   renderer.domElement.addEventListener('pointermove', (event) => {
     if (event.pointerId !== input.swipeId) return;
-    input.swipe = THREE.MathUtils.clamp((event.clientX - input.swipeStartX) / 58, -1, 1);
+    const offset = THREE.MathUtils.clamp(event.clientX - input.swipeStartX, -58, 58);
+    // A small dead zone prevents finger jitter from steering at touch-down.
+    input.swipe = Math.sign(offset) * Math.max(0, Math.abs(offset) - 6) / 52;
+    ui.stickKnob.style.transform = `translateX(${offset}px)`;
   });
   const endSwipe = (event) => {
     if (event.pointerId !== input.swipeId) return;
-    input.swipeId = null;
-    input.swipe = 0;
+    resetSteering();
   };
   renderer.domElement.addEventListener('pointerup', endSwipe);
   renderer.domElement.addEventListener('pointercancel', endSwipe);
+  renderer.domElement.addEventListener('lostpointercapture', endSwipe);
+  addEventListener('blur', resetSteering);
 
   addEventListener('keydown', (event) => {
     if (event.code === 'ArrowLeft' || event.code === 'KeyA') input.left = true;
@@ -699,7 +707,7 @@ function bindControls() {
   });
   addEventListener('contextmenu', (event) => event.preventDefault());
   addEventListener('resize', onResize);
-  document.addEventListener('visibilitychange', () => clock?.getDelta());
+  document.addEventListener('visibilitychange', () => { resetSteering(); clock?.getDelta(); });
 
   ui.start.addEventListener('click', startRace);
   ui.retry.addEventListener('click', () => location.reload());
@@ -709,6 +717,17 @@ function bindControls() {
     ui.sound.textContent = audio.muted ? '×' : '♪';
     if (audio.engineGain) audio.engineGain.gain.setTargetAtTime(audio.muted ? 0 : 0.018, audio.context.currentTime, 0.06);
   });
+}
+
+function resetSteering() {
+  const pointerId = input.swipeId;
+  input.swipeId = null;
+  input.swipe = 0;
+  input.left = input.right = false;
+  if (player) player.steer = 0;
+  ui.stick.classList.remove('show');
+  ui.stickKnob.style.transform = 'translateX(0px)';
+  if (pointerId !== null && renderer.domElement.hasPointerCapture?.(pointerId)) renderer.domElement.releasePointerCapture(pointerId);
 }
 
 function startRace() {
@@ -1027,6 +1046,7 @@ function ordinal(place) {
 }
 
 function finishRace() {
+  resetSteering();
   player.finished = true;
   raceState = 'finished';
   player.speed = Math.min(player.speed, 31);
@@ -1080,6 +1100,7 @@ function animate() {
 }
 
 function onResize() {
+  resetSteering();
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
