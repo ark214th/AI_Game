@@ -671,6 +671,20 @@ function bindHold(button, key, releaseCallback) {
 }
 
 function bindControls() {
+  // Safari edge navigation needs a cancelable Touch Event, not only
+  // touch-action or pointerdown. Keep this scoped to race controls.
+  const guardRaceTouch = (event) => {
+    if (raceState !== 'racing' || !event.cancelable) return;
+    const onAction = ui.drift.contains(event.target) || ui.turbo.contains(event.target);
+    const onSteering = event.target === renderer.domElement &&
+      (input.swipeId !== null || Array.from(event.changedTouches).some(touch =>
+        touch.clientX <= innerWidth * 0.5 && touch.clientY >= innerHeight * 0.3));
+    if (onAction || onSteering) event.preventDefault();
+  };
+  for (const element of [renderer.domElement, ui.drift, ui.turbo]) {
+    element.addEventListener('touchstart', guardRaceTouch, { passive: false });
+    element.addEventListener('touchmove', guardRaceTouch, { passive: false });
+  }
   bindHold(ui.drift, 'drift', releaseDrift);
   $('#stageName').textContent = technical ? 'STAGE 2 · ヘアピン・リッジ' : 'STAGE 1 · スカイアイランド';
   $('#courseName').textContent = technical ? 'HAIRPIN RIDGE GP' : 'SKY ISLAND GP';

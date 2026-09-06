@@ -33,7 +33,7 @@
     .sound{pointer-events:auto;width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.09);font-size:16px}
 
     .bottom{display:grid;grid-template-columns:260px 1fr 260px;align-items:end;gap:12px}
-    .steer-hint{align-self:end;padding:12px;color:#dffcff;font-size:12px;text-shadow:0 2px 8px #10173e;pointer-events:none}
+    .steer-hint{align-self:end;padding:12px 8px 12px 64px;color:#dffcff;font-size:12px;text-shadow:0 2px 8px #10173e;pointer-events:none}
     #stick{position:fixed;z-index:7;width:156px;height:100px;margin-left:-78px;margin-top:-50px;border:2px solid rgba(140,241,255,.6);border-radius:50%;background:rgba(9,20,55,.35);opacity:0;pointer-events:none}
     #stick.show{opacity:1}
     #stick::before{content:'';position:absolute;left:18px;right:18px;top:48px;height:2px;background:rgba(190,248,255,.5)}
@@ -109,7 +109,7 @@
       <div class="speed-panel glass"><div id="speed" class="speed-number">0<small>km/h</small></div><button id="sound" class="sound" type="button" aria-label="サウンドを切り替える">♪</button></div>
     </div>
     <div class="bottom">
-      <div class="steer-hint">ここに触れて左右にスライド</div>
+      <div class="steer-hint">端より少し内側で<br>左右にスライド</div>
       <div class="boost-meter glass"><div class="boost-head"><span>TURBO ENERGY</span><b id="boostText">0%</b></div><div class="meter"><i id="boostBar"></i></div></div>
       <div class="actions"><button id="drift" class="control action drift" type="button"><b>BRAKE</b>＋ハンドルでドリフト</button><button id="turbo" class="control action turbo" type="button"><b>TURBO</b>ブースト</button></div>
     </div>
@@ -128,6 +128,6 @@
     </div>
   </section>
 
-  <script type="module" src="./game.js?v=5"></script>
+  <script type="module" src="./game.js?v=6"></script>
 </body>
 </html>
