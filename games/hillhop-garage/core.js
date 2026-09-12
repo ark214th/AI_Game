@@ -6,12 +6,12 @@ const lerp=(a,b,t)=>a+(b-a)*t;
 const angleDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 function rng(seed){let a=seed>>>0;return()=>{a+=0x6D2B79F5;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
 const REGIONS=[
- {name:'草原の丘',en:'MEADOW TRAIL',tag:'01',length:34000,seed:214,amp:1,reward:1,sky:['#a8dcd4','#eff2cf'],mountain:'#8eb9ad',far:'#b0d2bc',hill:'#79a888',grass:'#668d43',edge:'#b4c66a',soil:'#b99765',deep:'#8c724e',accent:'#dfb044',description:'風に揺れる草原を、軽やかに。',fuel:[5100,10800,16500,22400,28200],gaps:[[20880,21010]],par:160},
- {name:'赤岩の峡谷',en:'COPPER CANYON',tag:'02',length:38000,seed:527,amp:1.25,reward:1.65,sky:['#eab58a','#ffdfab'],mountain:'#c08578',far:'#dda188',hill:'#c78561',grass:'#a06e47',edge:'#e5b76d',soil:'#bf7752',deep:'#8c5346',accent:'#d77d47',description:'赤い岩のあいだを、勢いよく。',fuel:[4900,10400,15900,21600,27500,32700],gaps:[[13930,14060],[28600,28750]],par:185},
- {name:'雲上の高原',en:'SKYLINE PASS',tag:'03',length:42000,seed:841,amp:1.5,reward:2.35,sky:['#88abbf','#e3dccc'],mountain:'#8195a9',far:'#b1bbbf',hill:'#7f9c97',grass:'#638b77',edge:'#cad4ae',soil:'#96978c',deep:'#666e73',accent:'#7ea7b8',description:'雲の向こうに、まだ見ぬ道。',fuel:[4500,9900,15300,21000,26800,32700,37500],gaps:[[12830,12970],[25100,25250],[35150,35300]],par:215}
+ {name:'草原の丘',en:'MEADOW TRAIL',tag:'01',length:68000,seed:214,amp:1.4,reward:1,sky:['#a8dcd4','#eff2cf'],mountain:'#8eb9ad',far:'#b0d2bc',hill:'#79a888',grass:'#668d43',edge:'#b4c66a',soil:'#b99765',deep:'#8c724e',accent:'#dfb044',description:'風に揺れる草原を、軽やかに。',fuel:[6500,16000,26000,36500,47500,58500],gaps:[[41680,41810]],par:190},
+ {name:'赤岩の峡谷',en:'COPPER CANYON',tag:'02',length:78000,seed:527,amp:1.65,reward:1.65,sky:['#eab58a','#ffdfab'],mountain:'#c08578',far:'#dda188',hill:'#c78561',grass:'#a06e47',edge:'#e5b76d',soil:'#bf7752',deep:'#8c5346',accent:'#d77d47',description:'赤い岩のあいだを、勢いよく。',fuel:[6200,16500,27300,38500,49800,61400,71900],gaps:[[27830,27960],[57200,57350]],par:220},
+ {name:'雲上の高原',en:'SKYLINE PASS',tag:'03',length:88000,seed:841,amp:1.9,reward:2.35,sky:['#88abbf','#e3dccc'],mountain:'#8195a9',far:'#b1bbbf',hill:'#7f9c97',grass:'#638b77',edge:'#cad4ae',soil:'#96978c',deep:'#666e73',accent:'#7ea7b8',description:'雲の向こうに、まだ見ぬ道。',fuel:[5900,16400,27400,38900,50900,63200,75500,83500],gaps:[[25630,25770],[50200,50350],[70350,70500]],par:250}
 ];
 const UPGRADES=[
- {key:'engine',name:'エンジン',icon:'⚙',detail:'登る力と、再加速をアップ'},
+ {key:'engine',name:'エンジン',icon:'⚙',detail:'短い加速で、勢いを取り戻す'},
  {key:'tires',name:'タイヤ',icon:'◎',detail:'荒れた道でも、勢いを保つ'},
  {key:'suspension',name:'サスペンション',icon:'≋',detail:'着地をやさしく、安定して'},
  {key:'tank',name:'燃料タンク',icon:'▣',detail:'燃料を増やして、もう一つ先へ'}
@@ -24,7 +24,7 @@ const PARTS=[
  {id:'jump',name:'ジャンプ補助',help:'長押しで、少し高く。短いジャンプの感覚はそのまま。'}
 ];
 const PAINTS=['#f2bf4d','#e57d60','#6dafa2','#a6a1ca'];
-function freshSave(){return{version:1,coins:0,upgrades:{engine:0,tires:0,suspension:0,tank:0},unlocked:0,selected:0,part:'none',parts:['none'],records:Array.from({length:4},()=>({distance:0,time:0,medals:0})),milestones:[0,0,0],runs:0,paint:0,sound:.45,music:true,shake:true,remoteSeed:24681};}
+function freshSave(){return{version:1,courseVersion:2,coins:0,upgrades:{engine:0,tires:0,suspension:0,tank:0},unlocked:0,selected:0,part:'none',parts:['none'],records:Array.from({length:4},()=>({distance:0,time:0,legacyTime:0,medals:0})),milestones:[0,0,0],runs:0,paint:0,sound:.45,music:true,shake:true,remoteSeed:24681};}
 function sanitizeSave(value){
  if(!value||value.version!==1||typeof value.upgrades!=='object'||!Array.isArray(value.records))throw new Error('このゲームのセーブデータではありません。');
  const s=freshSave(),num=(v,min,max)=>Number.isFinite(v)?clamp(v,min,max):min;
@@ -32,7 +32,7 @@ function sanitizeSave(value){
  for(const u of UPGRADES)s.upgrades[u.key]=Math.floor(num(value.upgrades[u.key],0,5));
  s.parts=['none'];for(const p of PARTS.slice(1))if(value.parts?.includes(p.id))s.parts.push(p.id);
  s.part=s.parts.includes(value.part)?value.part:'none';
- s.records=s.records.map((r,i)=>{const a=value.records[i]||{};return{distance:num(a.distance,0,1e8),time:num(a.time,0,1e7),medals:Math.floor(num(a.medals,0,7))};});
+ s.records=s.records.map((r,i)=>{const a=value.records[i]||{};const legacy=i<3&&value.courseVersion!==2;return{distance:num(a.distance,0,1e8),time:legacy?0:num(a.time,0,1e7),legacyTime:legacy?num(a.time,0,1e7):num(a.legacyTime,0,1e7),medals:Math.floor(num(a.medals,0,7))};});
  s.milestones=s.milestones.map((v,i)=>Math.floor(num(value.milestones?.[i],0,7)));
  s.runs=Math.floor(num(value.runs,0,1e7));s.paint=Math.floor(num(value.paint,0,3));s.sound=num(value.sound??.45,0,1);s.music=value.music!==false;s.shake=value.shake!==false;s.remoteSeed=Math.floor(num(value.remoteSeed??24681,1,0x7fffffff));
  return s;
@@ -57,17 +57,17 @@ class Track{
  }
  buildFinite(){
   this.nodes=[{x:-1000,y:185},{x:600,y:185}];let x=600,n=0;
-  while(x<this.length+2500){const width=1800+(n%3)*160;this.addSection(x,width,PROFILES[ORDERS[this.index][n%ORDERS[this.index].length]],n===0?.45:this.region.amp);x+=width;n++;}
+  while(x<this.length+2500){const width=2350+(n%3)*200;this.addSection(x,width,PROFILES[ORDERS[this.index][n%ORDERS[this.index].length]],n===0?.45:this.region.amp);x+=width;n++;}
   this.built=x;const joins=this.nodes.filter(n=>Math.abs(n.y-185)<.001);this.gaps=this.region.gaps.map(g=>{const center=(g[0]+g[1])/2,join=joins.reduce((best,n)=>Math.abs(n.x-center)<Math.abs(best.x-center)?n:best),half=(g[1]-g[0])/2;return{a:join.x-half,b:join.x+half};});
   this.populate(800,this.length-400,rng(this.seed+357));
-  for(const x of this.region.fuel)this.addItem('fuel',x,this.height(x)+47,this.index===0?20:24);
+  for(const x of this.region.fuel)this.addItem('fuel',x,this.height(x)+47,this.index===0?18:20);
   this.props.push({type:'start',x:420},{type:'finish',x:this.length});
  }
  extend(until){
   if(!this.nodes.length)this.nodes=[{x:-1000,y:185},{x:600,y:185}],this.built=600;
-  const start=this.built;let count=Math.floor(start/2200);
-  while(this.built<until){const width=1900+this.random()*350;const startX=this.built;this.addSection(startX,width,PROFILES[Math.floor(this.random()*PROFILES.length)],1.1+Math.min(.5,count*.012));if(count>7&&count%10===7)this.gaps.push({a:startX-65,b:startX+70});this.built+=width;count++;}
-  if(this.built>start){this.populate(Math.max(800,start+300),this.built-500,this.random);for(let x=Math.max(4500,Math.ceil(start/5000)*5000);x<this.built-400;x+=5000)this.addItem('fuel',x,this.height(x)+47,26);}
+  const start=this.built;let count=Math.floor(start/2800);
+  while(this.built<until){const width=2450+this.random()*400;const startX=this.built;this.addSection(startX,width,PROFILES[Math.floor(this.random()*PROFILES.length)],1.45+Math.min(.45,count*.012));if(count>7&&count%10===7)this.gaps.push({a:startX-65,b:startX+70});this.built+=width;count++;}
+  if(this.built>start){this.populate(Math.max(800,start+300),this.built-500,this.random);for(let x=Math.max(6200,Math.ceil(start/11000)*11000);x<this.built-400;x+=11000)this.addItem('fuel',x,this.height(x)+47,20);}
  }
  rawHeight(x){
   const a=this.nodes;let lo=0,hi=a.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(a[m].x>x)hi=m;else lo=m;}
@@ -100,36 +100,37 @@ class Run{
   if(this.result)return;this.time+=dt;this.landed=Math.max(0,this.landed-dt);this.turbo=Math.max(0,this.turbo-dt);this.magnet=Math.max(0,this.magnet-dt);this.jumpBuffer=Math.max(0,this.jumpBuffer-dt);
   const u=this.upgrades,gas=!!input.gas&&this.fuel>0,brake=!!input.brake,jump=!!input.jump;
   if(jump&&!this.jumpWas)this.jumpBuffer=.15;this.jumpWas=jump;
-  this.fuel=Math.max(0,this.fuel-dt*(gas?2.08:.48*(this.part==='eco'?.5:1)));
+  this.fuel=Math.max(0,this.fuel-dt*(gas?8.5:1*(this.part==='eco'?.5:1)));
   const ground=this.track.surface(this.x,this.y+3),slope=ground?ground.slope:0;
   if(this.grounded&&ground&&this.flip<=0){
-   this.groundAge+=dt;this.coyote=.11;this.v=clamp(this.v,-80,450);
-   const maxSpeed=365+u.engine*7+(this.turbo>0?48:0);
-   const engine=gas?330*(1+u.engine*.08)*(1-.45*clamp(this.v/maxSpeed,0,1))*(this.turbo>0?1.45:1):0;
-   const resistance=(12+Math.abs(this.v)*.19)*(this.v>=0?1:-1);
-   this.v+=(engine-650*Math.sin(slope)-resistance)*dt;
-   if(brake){this.brakeAge+=dt;if(this.v>5)this.v=Math.max(0,this.v-740*dt);else if(this.brakeAge>.45&&this.fuel>0)this.v=Math.max(-70,this.v-150*dt);else this.v=0;}else this.brakeAge=0;
+   this.groundAge+=dt;this.coyote=.11;this.v=clamp(this.v,-80,880);
+   const driveSpeed=600+u.engine*12+(this.turbo>0?85:0);
+   const maxSpeed=780+u.engine*8+(this.turbo>0?60:0);
+   const engine=gas&&this.v<driveSpeed?980*(1+u.engine*.08)*(1-.45*clamp(this.v/driveSpeed,0,1))*(this.turbo>0?1.3:1):0;
+   const resistance=(5+Math.abs(this.v)*.045)*(this.v>=0?1:-1);
+   this.v+=(engine-900*Math.sin(slope)-resistance)*dt;
+   if(brake){this.brakeAge+=dt;if(this.v>5)this.v=Math.max(0,this.v-1100*dt);else if(this.brakeAge>.45&&this.fuel>0)this.v=Math.max(-70,this.v-150*dt);else this.v=0;}else this.brakeAge=0;
    if(!gas&&Math.abs(this.v)<4&&Math.abs(slope)<.1)this.v=0;
    this.v=clamp(this.v,-75,maxSpeed);this.vx=this.v*Math.cos(slope);this.vy=this.v*Math.sin(slope);
    const curve=(this.track.height(this.x+15)-2*this.track.height(this.x)+this.track.height(this.x-15))/225;
    if(this.jumpBuffer>0&&this.groundAge>.16&&this.fuel>=.8){this.launch(slope);}
-   else if(!ground.platform&&curve*this.v*this.v < -540&&this.v>130){this.grounded=false;this.airAge=0;this.canHold=false;this.y+=1.5;}
+   else if(!ground.platform&&curve*this.v*this.v < -780&&this.v>130){this.grounded=false;this.airAge=0;this.canHold=false;this.y+=1.5;}
    if(this.grounded){
     const oldSlope=slope;this.x+=this.vx*dt;const s=this.track.surface(this.x,this.y+20);
-    if(s){this.y=s.height+23;const rough=Math.abs(angleDiff(s.slope,oldSlope));this.v*=Math.max(.97,1-rough*(rough/dt>.8?.65:.14)*(1-u.tires*.12));}
+    if(s){this.y=s.height+23;const rough=Math.abs(angleDiff(s.slope,oldSlope));this.v*=Math.max(.97,1-rough*(rough/dt>1.3?.5:.045)*(1-u.tires*.12));}
     else{this.grounded=false;this.airAge=0;this.canHold=false;}
    }
   }else if(this.grounded&&!ground){this.grounded=false;this.airAge=0;}
   if(!this.grounded){
    this.airAge+=dt;this.coyote=Math.max(0,this.coyote-dt);
    if(this.jumpBuffer>0&&this.coyote>0&&!this.canHold&&this.fuel>=.8)this.launch(slope);
-   if(this.canHold&&jump&&this.jumpHold<.24&&this.vy>0&&this.fuel>0){this.vy+=(this.part==='jump'?770:520)*dt;this.jumpHold+=dt;this.fuel=Math.max(0,this.fuel-2*dt);}else if(!jump)this.canHold=false;
-   this.prevY=this.y;this.vy-=650*dt;this.vx*=Math.exp(-.022*dt);this.x+=this.vx*dt;this.y+=this.vy*dt;
+   if(this.canHold&&jump&&this.jumpHold<.24&&this.vy>0&&this.fuel>0){this.vy+=(this.part==='jump'?970:720)*dt;this.jumpHold+=dt;this.fuel=Math.max(0,this.fuel-2*dt);}else if(!jump)this.canHold=false;
+   this.prevY=this.y;this.vy-=900*dt;this.vx*=Math.exp(-.012*dt);this.x+=this.vx*dt;this.y+=this.vy*dt;
    const s=this.track.surface(this.x,this.prevY+1);
    if(s&&this.y<=s.height+23&&this.prevY>=s.height-35&&this.vy-this.vx*Math.tan(s.slope)<0){
     const impact=Math.max(0,-this.vy+this.vx*Math.tan(s.slope));const difference=Math.abs(angleDiff(this.angle,s.slope));
-    const nice=this.airAge>.28&&difference<.34&&impact<340&&this.x>this.lastNiceX+160&&this.vx>90;
-    let penalty=clamp((impact-130)/1100,0,.28)+clamp(difference-.25,0,1.2)*.22;penalty*=1-u.suspension*.115;
+    const nice=this.airAge>.28&&difference<.34&&impact<405&&this.x>this.lastNiceX+160&&this.vx>90;
+    let penalty=clamp((impact-170)/1600,0,.24)+clamp(difference-.25,0,1.2)*.17;penalty*=1-u.suspension*.115;
     this.v=(this.vx*Math.cos(s.slope)+this.vy*Math.sin(s.slope))*(nice?1:1-penalty);this.v=Math.max(this.v,this.vx*.42);
     this.y=s.height+23;this.grounded=true;this.groundAge=0;this.canHold=false;this.landed=.24;
     if(nice){this.nice++;this.coins+=2;this.lastNiceX=this.x;this.emit('nice',{x:this.x,y:this.y+55});}
@@ -158,7 +159,7 @@ class Run{
   else if(this.stopped>2)this.end('fuel');
   else if(this.x>=this.track.length)this.end('clear');
  }
- launch(slope){this.grounded=false;this.groundAge=0;this.airAge=0;this.coyote=0;this.jumpBuffer=0;this.jumpHold=0;this.canHold=true;this.vy=Math.max(0,this.vy*.5)+262;this.vx=Math.max(this.vx,30);this.fuel-=.8;this.y+=2;this.emit('jump',{x:this.x,y:this.y-20});}
+ launch(slope){this.grounded=false;this.groundAge=0;this.airAge=0;this.coyote=0;this.jumpBuffer=0;this.jumpHold=0;this.canHold=true;this.vy=Math.max(0,this.vy*.35)+308;this.vx=Math.max(this.vx,30);this.fuel-=.8;this.y+=2;this.emit('jump',{x:this.x,y:this.y-20});}
  collect(item){item.taken=true;if(item.type==='coin'){this.coins+=item.value;this.pickupCoins+=item.value;this.collectedCoins++;}else if(item.type==='fuel')this.fuel=Math.min(this.maxFuel,this.fuel+item.value);else if(item.type==='turbo')this.turbo=4;else if(item.type==='magnet')this.magnet=8;this.emit('pickup',{item});}
  end(reason){if(this.result)return;this.result={reason,distance:this.distance,time:this.time,fuel:this.fuel,coins:this.coins};this.emit('end',{reason});}
 }
