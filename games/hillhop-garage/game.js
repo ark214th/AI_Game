@@ -1,6 +1,6 @@
 /* Original canvas artwork and audio for Hillhop Garage. No external assets. */
 (()=>{'use strict';
-const H=Hillhop,{clamp,lerp,rng,REGIONS,UPGRADES,COSTS,PARTS,PAINTS}=H;
+const H=Hillhop,{clamp,lerp,rng,REGIONS,UPGRADES,COSTS,MAX_LEVEL,tankCapacity,PARTS,PAINTS}=H;
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d');
 let save,saveWarning=false;const KEY='hillhop-garage-v1';
 try{const raw=localStorage.getItem(KEY);save=raw?H.sanitizeSave(JSON.parse(raw)):H.freshSave();}catch{save=H.freshSave();saveWarning=true;}
@@ -27,8 +27,8 @@ function refreshMenu(){
  $('heroTag').textContent=tab==='garage'?'BUILT BY YOU. READY FOR MORE.':selected===3?'THE LONG WAY HOME':activeRegion.en;
  $('heroName').textContent=tab==='garage'?'少しずつ、頼もしく。':save.runs===0?'旅は、ここから。':selected===3?'道は、まだ続いている。':activeRegion.description;
  $('heroNote').textContent=tab==='garage'?'強化した分だけ、遠くへ行ける。':save.runs===0?'アクセルは短く。下りの勢いで、次の丘へ。':save.records[selected].distance?`前回までの最高記録 ${meters(save.records[selected].distance)}`:'新しい景色が、あなたを待っています。';
- const total=Object.values(save.upgrades).reduce((a,b)=>a+b,0);$('heroStats').innerHTML=`<span class="hero-stat">愛車の成長<b>${total} / 20</b></span><span class="hero-stat">燃料タンク<b>${100+save.upgrades.tank*12}</b></span><span class="hero-stat">旅のメダル<b>${medalCount()} / 9</b></span>`;
- $('upgradeCount').textContent=`${total} / 20`;$('upgrades').innerHTML=UPGRADES.map(u=>{const level=save.upgrades[u.key],max=level===5,cost=COSTS[level];return`<div class="upgrade"><div class="upgrade-icon">${u.icon}</div><div><strong>${u.name}</strong><small>${u.detail}</small><div class="level-dots">${Array.from({length:5},(_,i)=>`<i class="${i<level?'on':''}"></i>`).join('')}</div></div><button class="buy" data-buy="${u.key}" ${max||save.coins<cost?'disabled':''}>${max?'MAX':`● ${format(cost)}`}</button></div>`;}).join('');
+ const total=Object.values(save.upgrades).reduce((a,b)=>a+b,0);$('heroStats').innerHTML=`<span class="hero-stat">愛車の成長<b>${total} / ${MAX_LEVEL*4}</b></span><span class="hero-stat">燃料タンク<b>${Math.round(tankCapacity(save.upgrades.tank))}</b></span><span class="hero-stat">旅のメダル<b>${medalCount()} / 9</b></span>`;
+ $('upgradeCount').textContent=`${total} / ${MAX_LEVEL*4}`;$('upgrades').innerHTML=UPGRADES.map(u=>{const level=save.upgrades[u.key],max=level===MAX_LEVEL,cost=COSTS[level];return`<div class="upgrade"><div class="upgrade-icon">${u.icon}</div><div><strong>${u.name}</strong><small>${u.detail} · Lv ${level} / ${MAX_LEVEL}${u.key==='tank'?` · 容量 ${Math.round(tankCapacity(level))}${max?'':` → ${Math.round(tankCapacity(level+1))}`}`:u.key==='engine'?` · 消費 −${Math.round((1-1/(1+level*.045))*100)}%`:''}</small><div class="level-dots">${Array.from({length:5},(_,i)=>`<i class="${i<Math.ceil(level/4)?'on':''}"></i>`).join('')}</div></div><button class="buy" data-buy="${u.key}" ${max||save.coins<cost?'disabled':''}>${max?'MAX':`● ${format(cost)}`}</button></div>`;}).join('');
  $('runCount').textContent=`${save.runs} RUNS`;$('recordList').innerHTML=REGIONS.map((r,i)=>{const rec=save.records[i];return`<div class="record-card"><div class="record-top"><b>${r.name}</b><small>${rec.distance?meters(rec.distance):'—'}${rec.time?` · ${timeString(rec.time)}`:rec.legacyTime?` · 旧 ${timeString(rec.legacyTime)}`:''}</small></div><div class="medals">${['完走','コイン60%回収','燃料20%を残す'].map((m,j)=>`<span class="medal ${rec.medals&(1<<j)?'earned':''}">${rec.medals&(1<<j)?'★':'☆'} ${m}</span>`).join('')}</div></div>`;}).join('')+(save.unlocked===3?`<div class="record-card"><div class="record-top"><b>果てしない遠征</b><small>${meters(save.records[3].distance)}</small></div></div>`:'');
  $('paintList').innerHTML=PAINTS.map((c,i)=>`<button class="paint ${save.paint===i?'selected':''}" data-paint="${i}" style="background:${c}" aria-label="車体色 ${['サンイエロー','コーラル','ミント','ラベンダー'][i]}${i*2>medalCount()?`（メダル${i*2}枚で解放）`:''}" ${i*2>medalCount()?'disabled':''}>${i*2>medalCount()?'⌑':''}</button>`).join('');
 }
@@ -49,7 +49,7 @@ function showResult(){
  if(mode==='result')return;const prevBest=previousBest;resultData=H.finishRun(run,save);persist();mode='result';clearInput();updateHUD();const clear=run.result.reason==='clear';audio.effect(clear?'clear':'fail');
  const allGained=save.coins-runInitialCoins,newRecord=run.distance>prevBest+1;
  let message=clear?resultData.newRegion?(selected===2?'3つの地域を踏破！ 果てしない遠征が開きました。':`${REGIONS[selected+1].name}への道が開きました。`):'いい走りでした。次は、もう一つのメダルへ。':run.result.reason==='fuel'?'燃料切れ。アクセルは勢いをつけるときだけ。下りで速度を稼ごう。':'落とし穴に落ちてしまいました。手前から勢いをつけて跳ぼう。';
- const canBuy=UPGRADES.some(u=>save.upgrades[u.key]<5&&save.coins>=COSTS[save.upgrades[u.key]]);
+ const canBuy=UPGRADES.some(u=>save.upgrades[u.key]<MAX_LEVEL&&save.coins>=COSTS[save.upgrades[u.key]]);
  showModal(`<div class="eyebrow">${clear?'TRAIL COMPLETE':newRecord?'A LITTLE FURTHER':'BACK TO THE GARAGE'}</div><div class="result-stamp">${clear?'★ ★ ★':newRecord?'✦':'↟'}</div><h2>${clear?'走りきった！':newRecord?'新しい景色まで、来た。':'もう一度、あの坂へ。'}</h2><div class="result-big">${format(run.distance)} <small>m</small></div><p>${newRecord?`自己記録を ${meters(run.distance-prevBest)} 更新！`:previousBest?`自己記録まで、あと ${meters(Math.max(0,previousBest-run.distance))}`:''}</p><div class="result-stats"><div><span>今回のコイン</span><b>+${format(allGained)}</b></div><div><span>ナイス着地</span><b>${run.nice}</b></div><div><span>走行時間</span><b>${timeString(run.time)}</b></div></div><div class="result-bonus">${message}${resultData.awards.length?`<br>★ ${resultData.awards.join(' / ')}`:''}</div><button class="primary" data-action="${clear&&resultData.newRegion?'next':'retry'}">${clear&&resultData.newRegion?'次の道へ':'もう一度走る'} <span>→</span></button><button class="secondary" data-action="garage">${canBuy?'● 強化できるパーツがあります':'車を育てる'}</button>${selected===3?'<button class="text-button" data-action="newExpedition">新しい道に挑む</button>':''}<button class="text-button" data-action="menu">行き先を選ぶ</button>`,false);
 }
 function settings(){
@@ -62,7 +62,7 @@ $('importFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;
 document.addEventListener('click',e=>{
  const route=e.target.closest('[data-route]'),buy=e.target.closest('[data-buy]'),paint=e.target.closest('[data-paint]'),action=e.target.closest('[data-action]');
  if(route){audio.start();audio.effect('click');chooseRoute(Number(route.dataset.route));}
- if(buy){const key=buy.dataset.buy,lv=save.upgrades[key],cost=COSTS[lv];if(lv<5&&save.coins>=cost){save.coins-=cost;save.upgrades[key]++;persist();audio.start();audio.effect('upgrade');toast(`${UPGRADES.find(u=>u.key===key).name}がレベル${lv+1}に！`);refreshMenu();}}
+ if(buy){const key=buy.dataset.buy,lv=save.upgrades[key],cost=COSTS[lv];if(lv<MAX_LEVEL&&save.coins>=cost){save.coins-=cost;save.upgrades[key]++;persist();audio.start();audio.effect('upgrade');toast(`${UPGRADES.find(u=>u.key===key).name}がレベル${lv+1}に！`);refreshMenu();}}
  if(paint){save.paint=Number(paint.dataset.paint);persist();refreshMenu();audio.effect('click');}
  if(action){audio.start();const a=action.dataset.action;if(a==='resume')resumeRun();else if(a==='retry'){if(run&&mode!=='result'){H.bankProgress(run,save);persist();}startRun();}else if(a==='garage')goMenu('garage');else if(a==='menu')goMenu();else if(a==='next'){chooseRoute(Math.min(3,selected+1));startRun();}else if(a==='newExpedition')startRun(false);else if(a==='settings')settings();else if(a==='settingsDone'){closeModal();if(mode==='paused')resumeRun();else refreshMenu();}else if(a==='export')exportSave();else if(a==='import')$('importFile').click();}
  const t=e.target.closest('[data-tab]');if(t){setTab(t.dataset.tab);audio.effect('click');}
@@ -150,7 +150,7 @@ function drawCar(x,y,angle,scale,spin,upgrades,throttle=false,air=false){
  const main=PAINTS[save.paint],spring=Math.sin(clock*16)*(throttle?1.3:.2),bounce=run&&mode!=='menu'?Math.sin(run.landed/.24*Math.PI)*5:Math.sin(clock*1.8)*.6;
  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);ctx.rotate(-angle);ctx.lineJoin='round';ctx.lineCap='round';
  if(throttle){for(let i=0;i<3;i++)ellipse(-66-i*10,-13+Math.sin(clock*21+i)*2,5-i,3-i*.4,`rgba(229,217,171,${.25-i*.065})`);}
- const radius=21+upgrades.tires*.65;const rearY=spring-bounce*.3,frontY=-spring-bounce*.3;
+ const radius=21+Math.min(5,upgrades.tires)*.65;const rearY=spring-bounce*.3,frontY=-spring-bounce*.3;
  line(-38,rearY,-26,-24-bounce,'#465652',5);line(40,frontY,29,-24-bounce,'#465652',5);
  for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(side*37,-1-bounce*.3);for(let i=0;i<7;i++)ctx.lineTo(side*34+(i%2?3:-3),-4-i*3-bounce*.6);ctx.strokeStyle=upgrades.suspension>2?'#cf8057':'#e4c987';ctx.lineWidth=2.7;ctx.stroke();}
  wheel(-39,rearY,radius,spin);wheel(41,frontY,radius,spin);
@@ -171,7 +171,7 @@ function drawCar(x,y,angle,scale,spin,upgrades,throttle=false,air=false){
  ctx.beginPath();ctx.arc(-39,0,radius+6,Math.PI*1.08,Math.PI*1.93);ctx.strokeStyle='#486357';ctx.lineWidth=7;ctx.stroke();ctx.beginPath();ctx.arc(41,0,radius+6,Math.PI*1.08,Math.PI*1.93);ctx.stroke();
  rounded(56,-25,8,9,3,'#fff1b5','#976e40',1.5);rounded(-64,-23,5,8,1,'#c96c4c');rounded(55,-6,13,5,2,'#4b6559');rounded(-67,-7,12,5,2,'#4b6559');
  line(-48,-32,-52,-45,'#36524a',3);rounded(-60,-52,19,16,3,'#587c66','#355347',2);line(-53,-47,-46,-41,'#8fa685',2);
- if(upgrades.tank>0){rounded(-53,-47,8+upgrades.tank,-4+upgrades.tank*2+12,2,'#cf8356','#6c6548',1.5);}
+ if(upgrades.tank>0){rounded(-53,-47,8+Math.min(5,upgrades.tank),8+Math.min(5,upgrades.tank)*2,2,'#cf8356','#6c6548',1.5);}
  if(upgrades.engine>1){rounded(32,-38,18,7,2,'#587267');for(let i=0;i<3;i++)line(36+i*4,-36,36+i*4,-32,'#c1c7a5',1.5);}
  if(upgrades.engine>3){line(-15,-67,13,-67,'#304d45',4);for(let i=0;i<3;i++)ellipse(-10+i*9,-69,3.8,3.8,'#fff5bd');}
  if(save.part==='arm'){line(62,-11,74,-18,'#526f5b',3);line(74,-18,80,-12,'#526f5b',3);}
