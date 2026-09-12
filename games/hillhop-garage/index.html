@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#223e42">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="坂道の勢いを、次のジャンプへ。愛車を育てて3つの土地を旅するオフロードゲーム。">
+<title>HILLHOP GARAGE — ヒルホップ・ガレージ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="world" aria-label="坂道を走る車のゲーム画面"></canvas>
+<main id="menu" class="screen">
+  <header class="brand"><div class="eyebrow">SMALL CAR. BIG ADVENTURE.</div><h1>HILLHOP<span>GARAGE</span></h1><p>次の坂へ、もう一度。</p></header>
+  <div class="top-actions"><div class="wallet"><span class="coin-dot">●</span> <b id="wallet">0</b></div><button class="icon-button" id="settingsOpen" aria-label="設定">⚙</button></div>
+  <div class="hero-caption"><span id="heroTag" class="eyebrow">YOUR LITTLE ADVENTURER</span><h2 id="heroName">旅は、ここから。</h2><p id="heroNote">下りで勢いをつけて、次の丘へ。</p><div id="heroStats" class="hero-stats"></div></div>
+  <section class="dashboard">
+    <nav class="tabs" aria-label="メニュー"><button class="active" data-tab="routes">出発する</button><button data-tab="garage">車を育てる</button><button data-tab="records">旅の記録</button></nav>
+    <div id="routes" class="tab-content"><div class="panel-heading"><span>行き先を選ぼう</span><small id="routeCount">01 / 03</small></div><div id="routeList"></div><div class="part-line"><label for="partSelect">補助パーツ</label><select id="partSelect" aria-label="補助パーツ"></select></div><p class="part-help" id="partHelp"></p><button id="start" class="primary">走り出す <span>→</span></button><p class="small-note" id="routeHint">失敗しても、集めたコインは持ち帰れます。</p></div>
+    <div id="garage" class="tab-content" hidden><div class="panel-heading"><span>小さな相棒を、頼もしく。</span><small id="upgradeCount"></small></div><div id="upgrades"></div><button class="primary" id="garageStart">この車で走る <span>→</span></button></div>
+    <div id="records" class="tab-content" hidden><div class="panel-heading"><span>走ってきた道</span><small id="runCount"></small></div><div id="recordList"></div><p class="small-note">メダルを集めると、新しい車体色が使えます。</p><div id="paintList" class="paints"></div></div>
+  </section>
+  <footer class="menu-footer"><span>坂を読んで、勢いをつなごう。</span><a href="../../">ゲーム一覧</a></footer>
+</main>
+<div id="hud" hidden>
+  <div class="route-hud"><span id="stageLabel">01 / 草原の丘</span><b id="distanceLabel">0 m</b><div class="route-meter"><i id="routeFill"></i><span id="bestMarker"></span></div></div>
+  <div class="fuel-hud"><div><span>FUEL</span><b id="fuelValue">100</b><small id="ecoLabel">READY</small></div><div class="fuel-track"><i id="fuelFill"></i></div><span id="fuelNext"></span></div>
+  <div class="run-actions"><div class="wallet"><span class="coin-dot">●</span><b id="runCoins">0</b></div><button id="pause" class="icon-button" aria-label="一時停止">Ⅱ</button></div>
+  <div id="effectBadges"></div><div id="callout" role="status"></div><div id="tip"></div>
+  <div class="pedals left"><button id="brake" class="pedal brake" aria-label="ブレーキ"><span>▥</span><b>ブレーキ</b><small>← / A</small></button><button id="gas" class="pedal gas" aria-label="アクセル"><span>»</span><b>アクセル</b><small>→ / D</small></button></div>
+  <div class="pedals right"><button id="jump" class="pedal jump" aria-label="ジャンプ"><span>↟</span><b>ジャンプ</b><small>SPACE</small></button><div class="jump-help">短く押すと、低く跳ぶ</div></div>
+</div>
+<div id="modal" class="modal-backdrop" hidden><section class="modal"><button id="modalClose" class="close-button" aria-label="閉じる">×</button><div id="modalBody"></div></section></div>
+<div id="toast" role="status"></div><input id="importFile" type="file" accept="application/json,.json" hidden>
+<div class="portrait-note">横向きにすると、先の坂がよく見えます ↻</div>
+<script src="core.js"></script><script src="game.js"></script>
+</body>
+</html>
