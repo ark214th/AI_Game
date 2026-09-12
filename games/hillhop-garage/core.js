@@ -11,12 +11,15 @@ const REGIONS=[
  {name:'雲上の高原',en:'SKYLINE PASS',tag:'03',length:88000,seed:841,amp:1.9,reward:2.35,sky:['#88abbf','#e3dccc'],mountain:'#8195a9',far:'#b1bbbf',hill:'#7f9c97',grass:'#638b77',edge:'#cad4ae',soil:'#96978c',deep:'#666e73',accent:'#7ea7b8',description:'雲の向こうに、まだ見ぬ道。',fuel:[5900,16400,27400,38900,50900,63200,75500,83500],gaps:[[25630,25770],[50200,50350],[70350,70500]],par:250}
 ];
 const UPGRADES=[
- {key:'engine',name:'エンジン',icon:'⚙',detail:'短い加速で、勢いを取り戻す'},
+ {key:'engine',name:'エンジン',icon:'⚙',detail:'加速力アップ＋燃料消費を軽減'},
  {key:'tires',name:'タイヤ',icon:'◎',detail:'荒れた道でも、勢いを保つ'},
  {key:'suspension',name:'サスペンション',icon:'≋',detail:'着地をやさしく、安定して'},
  {key:'tank',name:'燃料タンク',icon:'▣',detail:'燃料を増やして、もう一つ先へ'}
 ];
-const COSTS=[120,240,450,750,1200];
+const MAX_LEVEL=20;
+const COSTS=Array.from({length:MAX_LEVEL},(_,i)=>i<5?[120,240,450,750,1200][i]:1200+180*(i-5));
+const tankCapacity=level=>100+20*level+1.5*level*level;
+const handlingLevel=level=>level<=5?level:5+(level-5)*.15;
 const PARTS=[
  {id:'none',name:'装備なし',help:'草原の中間地点で、最初のパーツが手に入ります。'},
  {id:'arm',name:'回収アーム',help:'近くのコインや燃料に、少し手が届きやすくなります。'},
@@ -29,7 +32,7 @@ function sanitizeSave(value){
  if(!value||value.version!==1||typeof value.upgrades!=='object'||!Array.isArray(value.records))throw new Error('このゲームのセーブデータではありません。');
  const s=freshSave(),num=(v,min,max)=>Number.isFinite(v)?clamp(v,min,max):min;
  s.coins=Math.floor(num(value.coins,0,1e9));s.unlocked=Math.floor(num(value.unlocked,0,3));s.selected=Math.floor(num(value.selected,0,s.unlocked));
- for(const u of UPGRADES)s.upgrades[u.key]=Math.floor(num(value.upgrades[u.key],0,5));
+ for(const u of UPGRADES)s.upgrades[u.key]=Math.floor(num(value.upgrades[u.key],0,MAX_LEVEL));
  s.parts=['none'];for(const p of PARTS.slice(1))if(value.parts?.includes(p.id))s.parts.push(p.id);
  s.part=s.parts.includes(value.part)?value.part:'none';
  s.records=s.records.map((r,i)=>{const a=value.records[i]||{};const legacy=i<3&&value.courseVersion!==2;return{distance:num(a.distance,0,1e8),time:legacy?0:num(a.time,0,1e7),legacyTime:legacy?num(a.time,0,1e7):num(a.legacyTime,0,1e7),medals:Math.floor(num(a.medals,0,7))};});
@@ -91,7 +94,7 @@ class Track{
 }
 class Run{
  constructor(index,save,seed){
-  this.index=index;this.track=new Track(index,seed);this.upgrades={...save.upgrades};this.part=save.part;this.maxFuel=100+save.upgrades.tank*12;this.fuel=this.maxFuel;
+  this.index=index;this.track=new Track(index,seed);this.upgrades={...save.upgrades};this.part=save.part;this.maxFuel=tankCapacity(save.upgrades.tank);this.fuel=this.maxFuel;
   this.x=250;this.y=this.track.height(this.x)+23;this.v=0;this.vx=0;this.vy=0;this.angle=0;this.omega=0;this.grounded=true;this.groundAge=1;this.airAge=0;this.coyote=.1;this.jumpBuffer=0;this.jumpHold=0;this.canHold=false;this.jumpWas=false;this.brakeAge=0;
   this.time=0;this.maxX=this.x;this.distance=0;this.coins=0;this.pickupCoins=0;this.nice=0;this.lastNiceX=-1000;this.turbo=0;this.magnet=0;this.stopped=0;this.flip=0;this.result=null;this.events=[];this.lastDust=0;this.landed=0;this.nextMilestone=0;this.bankCoins=0;this.savedDistance=0;this.collectedCoins=0;this.totalCoins=this.track.items.filter(i=>i.type==='coin').length;this.prevY=this.y;
  }
@@ -100,13 +103,13 @@ class Run{
   if(this.result)return;this.time+=dt;this.landed=Math.max(0,this.landed-dt);this.turbo=Math.max(0,this.turbo-dt);this.magnet=Math.max(0,this.magnet-dt);this.jumpBuffer=Math.max(0,this.jumpBuffer-dt);
   const u=this.upgrades,gas=!!input.gas&&this.fuel>0,brake=!!input.brake,jump=!!input.jump;
   if(jump&&!this.jumpWas)this.jumpBuffer=.15;this.jumpWas=jump;
-  this.fuel=Math.max(0,this.fuel-dt*(gas?8.5:1*(this.part==='eco'?.5:1)));
+  this.fuel=Math.max(0,this.fuel-dt*(gas?8.5:1*(this.part==='eco'?.5:1))/(1+u.engine*.045));
   const ground=this.track.surface(this.x,this.y+3),slope=ground?ground.slope:0;
   if(this.grounded&&ground&&this.flip<=0){
    this.groundAge+=dt;this.coyote=.11;this.v=clamp(this.v,-80,880);
-   const driveSpeed=600+u.engine*12+(this.turbo>0?85:0);
-   const maxSpeed=780+u.engine*8+(this.turbo>0?60:0);
-   const engine=gas&&this.v<driveSpeed?980*(1+u.engine*.08)*(1-.45*clamp(this.v/driveSpeed,0,1))*(this.turbo>0?1.3:1):0;
+   const driveSpeed=600+handlingLevel(u.engine)*12+(this.turbo>0?85:0);
+   const maxSpeed=780+handlingLevel(u.engine)*8+(this.turbo>0?60:0);
+   const engine=gas&&this.v<driveSpeed?980*(1+handlingLevel(u.engine)*.08)*(1-.45*clamp(this.v/driveSpeed,0,1))*(this.turbo>0?1.3:1):0;
    const resistance=(5+Math.abs(this.v)*.045)*(this.v>=0?1:-1);
    this.v+=(engine-900*Math.sin(slope)-resistance)*dt;
    if(brake){this.brakeAge+=dt;if(this.v>5)this.v=Math.max(0,this.v-1100*dt);else if(this.brakeAge>.45&&this.fuel>0)this.v=Math.max(-70,this.v-150*dt);else this.v=0;}else this.brakeAge=0;
@@ -117,7 +120,7 @@ class Run{
    else if(!ground.platform&&curve*this.v*this.v < -780&&this.v>130){this.grounded=false;this.airAge=0;this.canHold=false;this.y+=1.5;}
    if(this.grounded){
     const oldSlope=slope;this.x+=this.vx*dt;const s=this.track.surface(this.x,this.y+20);
-    if(s){this.y=s.height+23;const rough=Math.abs(angleDiff(s.slope,oldSlope));this.v*=Math.max(.97,1-rough*(rough/dt>1.3?.5:.045)*(1-u.tires*.12));}
+    if(s){this.y=s.height+23;const rough=Math.abs(angleDiff(s.slope,oldSlope));this.v*=Math.max(.97,1-rough*(rough/dt>1.3?.5:.045)*(1-handlingLevel(u.tires)*.12));}
     else{this.grounded=false;this.airAge=0;this.canHold=false;}
    }
   }else if(this.grounded&&!ground){this.grounded=false;this.airAge=0;}
@@ -130,7 +133,7 @@ class Run{
    if(s&&this.y<=s.height+23&&this.prevY>=s.height-35&&this.vy-this.vx*Math.tan(s.slope)<0){
     const impact=Math.max(0,-this.vy+this.vx*Math.tan(s.slope));const difference=Math.abs(angleDiff(this.angle,s.slope));
     const nice=this.airAge>.28&&difference<.34&&impact<405&&this.x>this.lastNiceX+160&&this.vx>90;
-    let penalty=clamp((impact-170)/1600,0,.24)+clamp(difference-.25,0,1.2)*.17;penalty*=1-u.suspension*.115;
+    let penalty=clamp((impact-170)/1600,0,.24)+clamp(difference-.25,0,1.2)*.17;penalty*=1-handlingLevel(u.suspension)*.115;
     this.v=(this.vx*Math.cos(s.slope)+this.vy*Math.sin(s.slope))*(nice?1:1-penalty);this.v=Math.max(this.v,this.vx*.42);
     this.y=s.height+23;this.grounded=true;this.groundAge=0;this.canHold=false;this.landed=.24;
     if(nice){this.nice++;this.coins+=2;this.lastNiceX=this.x;this.emit('nice',{x:this.x,y:this.y+55});}
@@ -183,5 +186,5 @@ function finishRun(run,save){
  }
  save.coins+=bonus;save.runs++;return{...bank,bonus,awards,newRegion,record:run.distance>oldBest+1};
 }
-const api={clamp,lerp,angleDiff,rng,REGIONS,UPGRADES,COSTS,PARTS,PAINTS,freshSave,sanitizeSave,Track,Run,bankProgress,finishRun};root.Hillhop=api;if(typeof module!=='undefined')module.exports=api;
+const api={clamp,lerp,angleDiff,rng,REGIONS,UPGRADES,COSTS,MAX_LEVEL,tankCapacity,PARTS,PAINTS,freshSave,sanitizeSave,Track,Run,bankProgress,finishRun};root.Hillhop=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
