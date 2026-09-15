@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="坂道の勢いを、次のジャンプへ。加速とジャンプで空中の補給を取り、下りへの着地をつなぐオフロードゲーム。">
 <title>HILLHOP GARAGE 2 — ヒルホップ・ガレージ 2</title>
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <canvas id="world" aria-label="坂道を走る車のゲーム画面"></canvas>
@@ -28,13 +28,13 @@
   <div class="route-hud"><span id="stageLabel">01 / 草原の丘</span><b id="distanceLabel">0 m</b><div class="route-meter"><i id="routeFill"></i><span id="bestMarker"></span></div></div>
   <div class="fuel-hud"><div><span>FUEL</span><b id="fuelValue">100</b><small id="ecoLabel">READY</small></div><div class="fuel-track"><i id="fuelFill"></i></div><span id="fuelNext"></span></div>
   <div class="run-actions"><div class="wallet"><span class="coin-dot">●</span><b id="runCoins">0</b></div><button id="pause" class="icon-button" aria-label="一時停止">Ⅱ</button></div>
-  <div class="drive-hud"><b><span id="speedValue">0</span><small> km/h</small></b><strong id="flowValue">FLOW —</strong></div><div id="effectBadges"></div><div id="callout" role="status"></div><div id="tip"></div>
+  <div class="drive-hud"><b><span id="speedValue">0</span><small> km/h</small></b><strong id="flowValue">FLOW —</strong></div><div id="terrainHint"></div><div id="landingFeedback" class="landing-feedback" role="status" aria-live="polite"></div><div id="effectBadges"></div><div id="callout" role="status"></div><div id="tip"></div>
   <div class="pedals left"><button id="brake" class="pedal brake" aria-label="ブレーキ"><span>▥</span><b>ブレーキ</b><small>← / A</small></button><button id="gas" class="pedal gas" aria-label="アクセル"><span>»</span><b>アクセル</b><small>→ / D</small></button></div>
   <div class="pedals right"><button id="jump" class="pedal jump" aria-label="ジャンプ"><span>↟</span><b>ジャンプ</b><small>SPACE</small></button><div class="jump-help">長押しで高く・燃料消費なし</div></div>
 </div>
 <div id="modal" class="modal-backdrop" hidden><section class="modal"><button id="modalClose" class="close-button" aria-label="閉じる">×</button><div id="modalBody"></div></section></div>
 <div id="toast" role="status"></div><input id="importFile" type="file" accept="application/json,.json" hidden>
 <div class="portrait-note">横向きにすると、先の坂がよく見えます ↻</div>
-<script src="core.js?v=1"></script><script src="game.js?v=1"></script>
+<script src="core.js?v=2"></script><script src="game.js?v=2"></script>
 </body>
 </html>
