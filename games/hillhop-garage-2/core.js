@@ -7,8 +7,8 @@ const angleDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 function rng(seed){let a=seed>>>0;return()=>{a+=0x6D2B79F5;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
 const REGIONS=[
  {name:'草原の丘',en:'MEADOW TRAIL',tag:'01',length:48000,seed:214,amp:1.4,reward:1,sky:['#a8dcd4','#eff2cf'],mountain:'#8eb9ad',far:'#b0d2bc',hill:'#79a888',grass:'#668d43',edge:'#b4c66a',soil:'#b99765',deep:'#8c724e',accent:'#dfb044',description:'風に揺れる草原を、軽やかに。'},
- {name:'赤岩の峡谷',en:'COPPER CANYON',tag:'02',length:58000,seed:527,amp:1.65,reward:1.65,sky:['#eab58a','#ffdfab'],mountain:'#c08578',far:'#dda188',hill:'#c78561',grass:'#a06e47',edge:'#e5b76d',soil:'#bf7752',deep:'#8c5346',accent:'#d77d47',description:'赤い岩のあいだを、勢いよく。'},
- {name:'雲上の高原',en:'SKYLINE PASS',tag:'03',length:68000,seed:841,amp:1.9,reward:2.35,sky:['#88abbf','#e3dccc'],mountain:'#8195a9',far:'#b1bbbf',hill:'#7f9c97',grass:'#638b77',edge:'#cad4ae',soil:'#96978c',deep:'#666e73',accent:'#7ea7b8',description:'雲の向こうに、まだ見ぬ道。'}
+ {name:'赤岩の峡谷',en:'COPPER CANYON',tag:'02',length:58000,seed:527,amp:1.65,reward:1.65,sky:['#eab58a','#ffdfab'],mountain:'#c08578',far:'#dda188',hill:'#c78561',grass:'#a06e47',edge:'#e5b76d',soil:'#bf7752',deep:'#8c5346',accent:'#d77d47',description:'大きく跳んで、赤岩の連続ステップへ。',brief:'長い谷は長押し、連続ステップは短押し。着地の勢いをつなごう。',sections:[{at:0,name:'赤岩の入口',hint:'長い谷は、黄色の後半から長押し。'},{at:.34,name:'採掘場の連続段丘',hint:'短いジャンプへ切り替え、着地の加速をつなごう。'},{at:.68,name:'夕映えの大峡谷',hint:'長い谷と短い段丘。次の地形を見て跳び分けよう。'}]},
+ {name:'雲上の高原',en:'SKYLINE PASS',tag:'03',length:68000,seed:841,amp:1.9,reward:2.35,sky:['#88abbf','#e3dccc'],mountain:'#8195a9',far:'#b1bbbf',hill:'#7f9c97',grass:'#638b77',edge:'#cad4ae',soil:'#96978c',deep:'#666e73',accent:'#7ea7b8',description:'高く跳び、雲海へ降りる最後の峠。',brief:'高台へは長押し、雲海への下りは短押し。高さを使い分けよう。',sections:[{at:0,name:'雲の登山道',hint:'高台の下りへ届くよう、長押しで高さを稼ごう。'},{at:.34,name:'雲海の尾根',hint:'低い着地点へは、跳びすぎず短押し。'},{at:.68,name:'天空の峠',hint:'高台と急降下をつないで、最後の頂へ。'}]}
 ];
 const UPGRADES=[
  {key:'engine',name:'エンジン',icon:'⚙',detail:'助走を短く、狙った速度へ'},
@@ -27,7 +27,7 @@ const PARTS=[
  {id:'jump',name:'ジャンプ補助',help:'長押しで、少し高く。短いジャンプの感覚はそのまま。'}
 ];
 const PAINTS=['#f2bf4d','#e57d60','#6dafa2','#a6a1ca'];
-function freshSave(){return{version:1,gameId:'hillhop-garage-2',courseVersion:2,coins:0,upgrades:{engine:0,tires:0,suspension:0,tank:0},unlocked:0,selected:0,part:'none',parts:['none'],records:Array.from({length:4},()=>({distance:0,time:0,legacyTime:0,medals:0})),milestones:[0,0,0],runs:0,paint:0,sound:.45,music:true,shake:true,remoteSeed:24681};}
+function freshSave(){return{version:1,gameId:'hillhop-garage-2',courseVersion:3,coins:0,upgrades:{engine:0,tires:0,suspension:0,tank:0},unlocked:0,selected:0,part:'none',parts:['none'],records:Array.from({length:4},()=>({distance:0,time:0,legacyTime:0,medals:0})),milestones:[0,0,0],runs:0,paint:0,sound:.45,music:true,shake:true,remoteSeed:24681};}
 function sanitizeSave(value){
  if(!value||value.gameId!=='hillhop-garage-2'||value.version!==1||typeof value.upgrades!=='object'||!Array.isArray(value.records))throw new Error('HILLHOP GARAGE 2 のセーブデータを選んでください。');
  const s=freshSave(),num=(v,min,max)=>Number.isFinite(v)?clamp(v,min,max):min;
@@ -35,7 +35,7 @@ function sanitizeSave(value){
  for(const u of UPGRADES)s.upgrades[u.key]=Math.floor(num(value.upgrades[u.key],0,MAX_LEVEL));
  s.parts=['none'];for(const p of PARTS.slice(1))if(value.parts?.includes(p.id))s.parts.push(p.id);
  s.part=s.parts.includes(value.part)?value.part:'none';
- s.records=s.records.map((r,i)=>{const a=value.records[i]||{};const legacy=i<3&&value.courseVersion!==2;return{distance:num(a.distance,0,1e8),time:legacy?0:num(a.time,0,1e7),legacyTime:legacy?num(a.time,0,1e7):num(a.legacyTime,0,1e7),medals:Math.floor(num(a.medals,0,7))};});
+ s.records=s.records.map((r,i)=>{const a=value.records[i]||{};const version=Number(value.courseVersion)||1;const legacy=i<3&&(version<2||(i>0&&version<3));return{distance:num(a.distance,0,1e8),time:legacy?0:num(a.time,0,1e7),legacyTime:legacy?num(a.time||a.legacyTime,0,1e7):num(a.legacyTime,0,1e7),medals:Math.floor(num(a.medals,0,7))};});
  s.milestones=s.milestones.map((v,i)=>Math.floor(num(value.milestones?.[i],0,7)));
  s.runs=Math.floor(num(value.runs,0,1e7));s.paint=Math.floor(num(value.paint,0,3));s.sound=num(value.sound??.45,0,1);s.music=value.music!==false;s.shake=value.shake!==false;s.remoteSeed=Math.floor(num(value.remoteSeed??24681,1,0x7fffffff));
  return s;
@@ -46,9 +46,13 @@ const JUMP_PATTERNS=[
  {id:'skim',name:'ショートホップ',hint:'短く、低く跳ぼう',width:2840,points:[[200,185],[650,150],[990,205],[1120,215],[1320,95],[1490,210],[1780,130],[2110,185]],launch:[940,1105],land:[1520,1760],rough:[1170,1450],fuel:[1330,310]},
  {id:'wide',name:'ロングフライト',hint:'助走をつけて、遠くへ',width:3400,points:[[200,185],[520,90],[960,235],[1120,255],[1430,-15],[1710,225],[2310,50],[2670,185]],launch:[970,1105],land:[1740,2260],rough:[1240,1700],fuel:[1530,365]},
  {id:'drop',name:'段差ドロップ',hint:'下の斜面へ、跳びすぎ注意',width:3300,points:[[200,185],[630,110],[1010,290],[1140,310],[1340,40],[1660,130],[2140,-20],[2480,130],[2700,185]],launch:[980,1125],land:[1700,2100],rough:[1240,1620],fuel:[1510,365]},
- {id:'double',name:'二連リッジ',hint:'ふたつの山を、ひと跳び',width:3300,points:[[200,185],[590,100],[1010,240],[1140,250],[1340,80],[1460,165],[1550,60],[1730,210],[2250,110],[2550,185]],launch:[980,1125],land:[1770,2200],rough:[1240,1730],fuel:[1530,360]}
+ {id:'double',name:'二連リッジ',hint:'ふたつの山を、ひと跳び',width:3300,points:[[200,185],[590,100],[1010,240],[1140,250],[1340,80],[1460,165],[1550,60],[1730,210],[2250,110],[2550,185]],launch:[980,1125],land:[1770,2200],rough:[1240,1730],fuel:[1530,360]},
+ {id:'span',name:'赤岩スパン',hint:'黄色の後半から、長押し',width:3600,points:[[200,185],[600,50],[1090,280],[1250,295],[1530,-110],[1840,225],[2460,45],[2820,185]],launch:[1070,1235],land:[1870,2420],rough:[1350,1790],fuel:[1650,390]},
+ {id:'steps',name:'連続ステップ',hint:'短押しで、加速をつなごう',width:2400,points:[[160,185],[390,140],[700,215],[820,225],[980,95],[1180,205],[1500,105],[1780,185]],launch:[650,805],land:[1210,1480],rough:[890,1140],fuel:[1020,315]},
+ {id:'shelf',name:'高台ジャンプ',hint:'長押しで、高い下りへ',width:3400,points:[[200,185],[580,140],[1040,290],[1170,320],[1380,80],[1590,335],[2120,230],[2780,185]],launch:[1000,1150],land:[1620,2080],rough:[1270,1550],fuel:[1430,465]},
+ {id:'dive',name:'雲海ダイブ',hint:'短押しで、低い斜面へ',width:3500,impactLimit:600,points:[[200,185],[580,165],[1010,365],[1140,390],[1390,20],[1580,220],[2130,20],[2620,125],[2860,185]],launch:[980,1125],land:[1610,2090],rough:[1240,1540],fuel:[1460,470]}
 ];
-const PATTERN_ORDER=[[0,1,3,0,2,1,4,3,2,0,4,1],[0,2,1,4,3,2,0,3,4,1,2,4],[2,3,4,1,0,4,2,1,3,4,0,2]];
+const PATTERN_ORDER=[[0,1,3,0,2,1,4,3,2,0,4,1],[0,5,2,5,1,5,6,6,4,6,6,5,2,6,5,6,4,5,6],[0,7,2,7,1,7,8,3,8,4,8,7,8,7,4,8,7,8,2,7,8]];
 class Track{
  constructor(index=0,seed=0){
   this.index=index;this.endless=index===3;this.region=REGIONS[Math.min(index,2)];this.seed=seed||this.region.seed;this.length=this.endless?Infinity:this.region.length;this.nodes=[];this.gaps=[];this.items=[];this.props=[];this.platforms=[];this.challenges=[];this.built=0;this.sectionCount=0;this.random=rng(this.seed);this.itemId=0;
@@ -63,6 +67,7 @@ class Track{
   this.nodes.push({x:this.length+1500,y:185});
   this.populate(800,this.length-400,rng(this.seed+357));this.addChallengeItems();
   this.props.push({type:'start',x:420},{type:'finish',x:this.length});
+  for(const section of this.region.sections||[])this.props.push({type:'sector',x:Math.max(850,this.length*section.at),name:section.name});
  }
  addChallenge(){
   const n=this.sectionCount++,start=this.built,stage=Math.min(this.index,2),order=PATTERN_ORDER[stage];
@@ -75,7 +80,7 @@ class Track{
    this.gaps.push({a:start+a*scale,b:start+b*scale,name:['小さな穴','広い穴','段差の穴'][kind]});
   }
   points.push([p.width,185]);for(const [x,y]of points)this.nodes.push({x:start+x*scale,y});
-  const c={id:n,a:start,scale,pattern:p.id,name:p.name,hint:p.hint,launchA:start+p.launch[0]*scale,launchB:start+p.launch[1]*scale,landA:start+p.land[0]*scale,landB:start+p.land[1]*scale,roughA:start+p.rough[0]*scale,roughB:start+p.rough[1]*scale,fuelX:start+p.fuel[0]*scale,fuelY:p.fuel[1]+lift,safeX:start+(p.width-500)*scale,attempted:false,cleared:false,missed:false,itemsAdded:false};
+  const c={id:n,a:start,scale,pattern:p.id,name:p.name,hint:p.hint,impactLimit:p.impactLimit||(p.id==='drop'?600:460),launchA:start+p.launch[0]*scale,launchB:start+p.launch[1]*scale,landA:start+p.land[0]*scale,landB:start+p.land[1]*scale,roughA:start+p.rough[0]*scale,roughB:start+p.rough[1]*scale,fuelX:start+p.fuel[0]*scale,fuelY:p.fuel[1]+lift,safeX:start+(p.width-500)*scale,attempted:false,cleared:false,missed:false,itemsAdded:false};
   this.challenges.push(c);this.built=start+p.width*scale;
  }
  addChallengeItems(){
@@ -155,7 +160,7 @@ class Run{
     const challenge=this.challenge,entrySpeed=Math.max(0,this.vx),suspension=handlingLevel(u.suspension);
     const inZone=this.manualFlight&&this.airAge>.28&&challenge&&!challenge.cleared&&this.x>=challenge.landA&&this.x<=challenge.landB&&s.slope<-.04&&entrySpeed>380;
     const nice=!!inZone&&difference<.70+suspension*.012&&impact<620;
-    const just=nice&&difference<.38+suspension*.01&&impact<(challenge.pattern==='drop'?600:460)+suspension*8;
+    const just=nice&&difference<.38+suspension*.01&&impact<challenge.impactLimit+suspension*8;
     const hard=!nice&&this.airAge>.18&&(difference>.62+suspension*.01||impact>640||(s.slope>.18&&impact>360));
     const projected=Math.max(entrySpeed*.2,this.vx*Math.cos(s.slope)+this.vy*Math.sin(s.slope));
     let penalty=clamp((impact-150)/1200,0,.38)+clamp(difference-.2,0,1.2)*.15;penalty*=1-suspension*.085;

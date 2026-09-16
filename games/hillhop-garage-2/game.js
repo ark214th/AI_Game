@@ -26,7 +26,7 @@ function refreshMenu(){
   return`<button class="route-card ${selected===i?'selected':''}" data-route="${i}" ${unlocked?'':'disabled'}><div class="route-picture">${routePicture(i)}</div><div class="route-detail"><b>${i===3?'∞':String(i+1).padStart(2,'0')}　${r.name}</b><small>${!unlocked?'前の地域を完走すると解放':rec.medals&1?rec.time?`踏破済み · BEST ${timeString(rec.time)}`:'前の地形で踏破 · 新コースに挑戦':rec.distance?`最高 ${meters(rec.distance)}`:i===3?'育てた相棒と、どこまでも':'新しい道が待っています'}</small><div class="route-mini-progress"><i style="width:${pct}%"></i></div></div><span class="route-symbol">${!unlocked?'⌑':rec.medals&1?'✓':selected===i?'●':'›'}</span></button>`;
  }).join('');
  $('partSelect').innerHTML=PARTS.filter(p=>save.parts.includes(p.id)).map(p=>`<option value="${p.id}" ${save.part===p.id?'selected':''}>${p.name}</option>`).join('');$('partHelp').textContent=PARTS.find(p=>p.id===save.part).help;
- $('routeHint').textContent=selected===3?'前回と同じ道に、何度でも挑戦できます。':'助走 → 黄色でジャンプ → 青緑の下りへ着地。';
+ $('routeHint').textContent=selected===3?'前回と同じ道に、何度でも挑戦できます。':activeRegion.brief||'助走 → 黄色でジャンプ → 青緑の下りへ着地。';
  $('heroTag').textContent=tab==='garage'?'BUILT BY YOU. READY FOR MORE.':selected===3?'THE LONG WAY HOME':activeRegion.en;
  $('heroName').textContent=tab==='garage'?'少しずつ、頼もしく。':save.runs===0?'旅は、ここから。':selected===3?'道は、まだ続いている。':activeRegion.description;
  $('heroNote').textContent=tab==='garage'?'強化した分だけ、遠くへ行ける。':save.runs===0?'加速して、跳んで、次の下りへつなごう。':save.records[selected].distance?`前回までの最高記録 ${meters(save.records[selected].distance)}`:'新しい景色が、あなたを待っています。';
@@ -41,7 +41,7 @@ function startRun(sameSeed=true){
  audio.start();closeModal();clearInput();if(selected===3&&!sameSeed){save.remoteSeed=(Date.now()%0x7fffffff)||1;persist();}
  run=new H.Run(selected,save,selected===3?save.remoteSeed:REGIONS[selected].seed+save.runs*17);activeRegion=run.track.region;mode='playing';particles=[];floaters=[];landingBursts=[];landingTime=0;$('landingFeedback').className='landing-feedback';clock=0;accumulator=0;camX=run.x;camY=run.y;zoom=1;wheelSpin=0;bankTimer=0;runInitialCoins=save.coins;previousBest=save.records[selected].distance;tutorialSeen=new Set();
  $('menu').hidden=true;$('hud').hidden=false;$('stageLabel').textContent=selected===3?'∞ / 果てしない遠征':`${activeRegion.tag} / ${activeRegion.name}`;$('bestMarker').style.left=`${clamp(previousBest*10/run.track.length*100,0,100)}%`;$('bestMarker').hidden=selected===3||previousBest===0;
- callout('LET’S ROLL!',1.5);if(save.runs<3)tip('黄色の帯までに加速。青緑の下りと車の角度が合えば JUST！',7);updateHUD();
+ callout(selected>0&&selected<3?activeRegion.en:'LET’S ROLL!',1.5);if(selected>0&&selected<3)tip(activeRegion.brief,6);else if(save.runs<3)tip('黄色の帯までに加速。青緑の下りと車の角度が合えば JUST！',7);updateHUD();
 }
 function goMenu(name='routes'){if(run&&mode!=='result'){H.bankProgress(run,save);persist();}mode='menu';run=null;clearInput();closeModal();$('hud').hidden=true;$('menu').hidden=false;menuTrack=new H.Track(Math.min(selected,2));activeRegion=REGIONS[Math.min(selected,2)];setTab(name);}
 function pauseRun(){if(mode!=='playing')return;mode='paused';clearInput();H.bankProgress(run,save);persist();showModal(`<div class="eyebrow">TAKE A BREATHER</div><h2>ひとやすみ。</h2><p>ここまでのコインは、持ち帰れます。</p><button class="primary" data-action="resume">つづける <span>→</span></button><button class="secondary" data-action="retry">最初から走る</button><button class="secondary" data-action="garage">ガレージへ</button><button class="text-button" data-action="settings">音・操作・セーブの設定</button>`);}
@@ -117,6 +117,17 @@ function background(r,camera){
  if(r===REGIONS[0]){for(let i=0;i<10;i++){let x=i*170-camera*.4%170;tree(x,476+Math.sin((x+camera*.4)/180)*17,.28,'#648f79',i*.23,false);}const x=((800-camera*.22)%(w+700)+(w+700))%(w+700)-180;windmill(x,430,.7);}
  if(r===REGIONS[1]){for(let i=0;i<7;i++){let x=i*250-camera*.4%250;cactus(x,476,.5,'#9b805f');}}
  if(r===REGIONS[2]){for(let i=0;i<6;i++){let x=i*280-camera*.4%280;pine(x,466,.58,'#67857f');}let x=800-camera*.22%1600;line(x,390,x,280,'#668287',3);line(x-45,287,x+45,287,'#668287',3);ctx.beginPath();ctx.moveTo(x-900,264);ctx.quadraticCurveTo(x-420,375,x,287);ctx.quadraticCurveTo(x+420,375,x+900,264);ctx.strokeStyle='#66828766';ctx.lineWidth=1.4;ctx.stroke();}
+ if(r===REGIONS[1]){
+  const ax=((900-camera*.28)%(w+1000)+w+1000)%(w+1000)-300;
+  ctx.save();ctx.strokeStyle='#a77358';ctx.lineWidth=47;ctx.beginPath();ctx.moveTo(ax,492);ctx.lineTo(ax,402);ctx.bezierCurveTo(ax,240,ax+245,240,ax+245,402);ctx.lineTo(ax+245,492);ctx.stroke();
+  ctx.strokeStyle='#d79b6f';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(ax-16,392);ctx.bezierCurveTo(ax,247,ax+250,240,ax+260,390);ctx.stroke();
+  for(let j=0;j<4;j++){const tx=ax+370+j*62;line(tx,490,tx,434,'#82684f',6);line(tx,486,tx+62,438,'#82684f',3);}line(ax+358,433,ax+630,433,'#82684f',7);ctx.restore();
+ }
+ if(r===REGIONS[2]){
+  for(let i=-1;i<8;i++){const cx=((i*225-camera*.17)%(w+450)+w+450)%(w+450)-190;cloud(cx,492+(i%2)*22,1.6,.35);}
+  const t=.26,cx=800-camera*.22%1600+2*(1-t)*t*420+t*t*900,cy=(1-t)**2*287+2*(1-t)*t*375+t*t*264;
+  line(cx,cy,cx,cy+16,'#668287',2);rounded(cx-15,cy+14,30,23,5,'#c29664','#627d80',2);rounded(cx-10,cy+18,20,10,2,'#dbe5da');
+ }
  for(let i=0;i<4;i++){const x=((i*211+clock*9-camera*.08)%(w+160)+w+160)%(w+160)-60,y=190+(i%3)*35;ctx.beginPath();ctx.moveTo(x-7,y);ctx.quadraticCurveTo(x-3,y-4-Math.sin(clock*4+i)*2,x,y);ctx.quadraticCurveTo(x+4,y-5+Math.sin(clock*4+i)*2,x+8,y);ctx.strokeStyle='#53776b66';ctx.lineWidth=1.5;ctx.stroke();}
 }
 function tree(x,y,s,color,seed=0,detailed=true){ctx.save();ctx.translate(x,y);ctx.scale(s,s);line(0,0,-2,-88,detailed?'#706c46':color,9);line(-2,-48,-28,-78,detailed?'#706c46':color,5);ellipse(-28,-87,28,34,color);ellipse(18,-109,35,39,color);ellipse(-8,-128,29,30,color);ellipse(32,-78,29,28,color);if(detailed){ellipse(-18,-118,21,20,'#aac475');ellipse(14,-137,16,15,'#aac475');ellipse(30,-93,17,17,'#8eaf62');}ctx.restore();}
@@ -156,6 +167,7 @@ function scenery(track,r){const left=camX-w*.33/zoom-150,right=camX+w*.8/zoom+15
   else if(p.type==='rock'){ctx.save();ctx.translate(pos.x,pos.y);ctx.scale(s,s);path([[-17,1],[-13,-12],[1,-20],[14,-10],[21,1]],r===REGIONS[1]?'#b88967':'#8b9674');path([[-13,-12],[1,-20],[14,-10],[-2,-7]],'#d0c69b77');ctx.restore();}
   else if(p.type==='grass'){ctx.save();ctx.translate(pos.x,pos.y+1);ctx.scale(s,s);const sway=Math.sin(clock*1.8+p.x)*3;line(-5,0,-10+sway,-16,r.grass,2);line(0,0,sway,-21,r.grass,2);line(4,0,11+sway,-12,r.grass,2);if(p.seed>.6){ellipse(sway,-22,3,3,r===REGIONS[0]?'#f0d674':'#e7dfbc');ellipse(-10+sway,-17,2.3,2.3,'#f7edc3');}ctx.restore();}
   else if(p.type==='sign'){ctx.save();ctx.translate(pos.x,pos.y);ctx.scale(zoom,zoom);line(0,0,0,-53,'#8a7857',4);rounded(-22,-62,44,21,4,'#f3e9bd','#baaa79',1);text(`${p.number}`,0,-48,10,'#5d765f');ctx.restore();}
+  else if(p.type==='sector'){ctx.save();ctx.translate(pos.x,pos.y);ctx.scale(zoom,zoom);line(-72,0,-72,-108,'#706b55',5);line(72,0,72,-108,'#706b55',5);rounded(-89,-116,178,43,6,r===REGIONS[1]?'#714e40':'#41686e','#f1d89f',2);text(p.name,0,-89,16,'#fff2ce');for(let j=0;j<5;j++)path([[-70+j*30,-71],[-50+j*30,-71],[-60+j*30,-53]],j%2?'#efc56e':'#79bbad');ctx.restore();}
   else if(p.type==='finish'||p.type==='start'){ctx.save();ctx.translate(pos.x,pos.y);ctx.scale(zoom,zoom);line(0,0,0,-166,'#516d5e',7);line(220,0,220,-166,'#516d5e',7);rounded(-12,-170,244,41,4,p.type==='finish'?'#fff4d0':'#367668');text(p.type==='finish'?'FINISH · おかえり':'HAVE A GOOD TRIP',110,-143,p.type==='finish'?18:14,p.type==='finish'?'#31564c':'#fff3d0');if(p.type==='finish'){for(let k=0;k<12;k++)if(k%2===0)ctx.fillStyle='#31564c',ctx.fillRect(k*20-12,-170,20,8);}ctx.restore();}
  }
 }
@@ -256,12 +268,14 @@ function updateHUD(){if(!run)return;
  $('fuelValue').textContent=Math.ceil(run.fuel);$('fuelFill').style.width=`${Math.max(0,run.fuel/run.maxFuel*100)}%`;$('fuelFill').parentElement.parentElement.classList.toggle('low',run.fuel<20);
  $('ecoLabel').textContent=run.fuel<=0?'EMPTY':input.gas?'加速中':run.vx>430?'快走中':'惰性';$('ecoLabel').style.color=input.gas&&run.fuel>0?'#c76c42':'#387f77';
  $('runCoins').textContent=format(run.coins+Math.floor(run.distance/100)*Math.round(2*activeRegion.reward));
+ const sector=!run.track.endless&&activeRegion.sections?.filter(s=>run.x>=s.at*run.track.length).at(-1);if(sector)$('stageLabel').textContent=`${activeRegion.tag} / ${sector.name}`;
  const c=run.track.challenges.find(c=>c.landB>run.x),air=c&&run.track.items.find(i=>i.skill&&i.challengeId===c.id&&!i.taken);
  $('fuelNext').textContent=air&&air.x>run.x?`空中の燃料 +10 ／ ${Math.ceil((air.x-run.x)/10)} m先`:'下りに着地して、次の坂へつなごう';
  $('speedValue').textContent=Math.round(Math.max(0,run.vx)*.36);$('flowValue').textContent=run.chain?`FLOW ×${run.chain}`:'FLOW —';$('flowValue').classList.toggle('active',run.chain>0);$('flowValue').classList.toggle('boosting',run.landingBoost>0);const ahead=c&&c.launchB>run.x?`${c.name} · ${c.hint}`:'';$('terrainHint').textContent=ahead;
  $('effectBadges').innerHTML=(run.landingBoost>0?'<span class="boost-badge">✦ JUST BOOST</span>':'')+(run.magnet>0?`<span>∩ MAGNET ${Math.ceil(run.magnet)}s</span>`:'')+(run.turbo>0?`<span>ϟ TURBO ${Math.ceil(run.turbo)}s</span>`:'');
 }
 function updateTutorial(){if(!run)return;const show=(id,cond,msg,dur=4)=>{if(cond&&!tutorialSeen.has(id)){tutorialSeen.add(id);tip(msg,dur);}};
+ if(!run.track.endless)for(const [i,section] of (activeRegion.sections||[]).entries())if(i>0)show(`sector${i}`,run.x>=section.at*run.track.length,`${section.name} — ${section.hint}`,5);
  if(save.runs<3){show('air',run.manualFlight,'空中はアクセルを離そう。青緑の下りへ、車の鼻を合わせて。',4);show('again',run.x>3100,'次は形が変わります。短い谷は低く、遠い下りは長めに跳ぼう。',5);}
  show('stall',run.time>8&&run.grounded&&Math.abs(run.vx)<8&&run.fuel>20,'助走が足りないときはアクセルで立て直そう。次の谷で取り返せます。',5);
  show('fuel',run.fuel<20&&run.fuel>0,'燃料が残りわずか。空中の補給に届けば、もう少し先へ！',3);
