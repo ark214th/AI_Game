@@ -32,6 +32,12 @@ if(require.main===module){
  const land=offset=>{const r=new H.Run(0,H.freshSave()),c=r.track.challenges[0];r.x=c.landA+(c.landB-c.landA)*.45;r.y=r.track.height(r.x)+23.05;r.grounded=false;r.manualFlight=true;r.challenge=c;r.airAge=.7;r.vx=600;r.vy=-500;r.angle=r.track.slope(r.x)+offset;r.track.items=[];r.update(1/120,{});return r;};
  const perfect=land(.05),good=land(.5),crash=land(.95);
  assert.equal(perfect.just,1);assert.equal(good.nice,1);assert.equal(good.just,0);assert.equal(crash.hardLandings,1);assert(perfect.vx>600*1.2);assert(crash.vx<600*.45);
+
+ // JUST carries road speed through a climb for half a second; brakes still win.
+ assert.equal(perfect.landingGrace,.5);assert.equal(good.landingGrace,0);assert.equal(crash.landingGrace,0);
+ const climb=()=>{const r=land(.05);r.track.height=x=>x*.4;r.track.slope=()=>Math.atan(.4);r.track.items=[];r.track.challenges=[];r.track.gaps=[];r.x=1000;r.y=r.track.height(r.x)+23;r.v=700;r.vx=700*Math.cos(r.track.slope(r.x));r.vy=700*Math.sin(r.track.slope(r.x));return r;};
+ const carry=climb();for(let i=0;i<60;i++)carry.update(1/120,{});assert(Math.abs(carry.v-700)<.01);carry.update(1/120,{});assert(carry.v<699);
+ const stopped=climb();for(let i=0;i<20;i++)stopped.update(1/120,{brake:true});assert(stopped.v<550);
  for(let i=0;i<3;i++)assert.equal(new Set(new H.Track(i).challenges.map(c=>c.pattern)).size,5);
 
  const track=new H.Track(3,412);const count=track.challenges.length;track.extend(track.built+25000);

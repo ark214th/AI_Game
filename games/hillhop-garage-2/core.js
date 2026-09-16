@@ -114,11 +114,11 @@ class Run{
  constructor(index,save,seed){
   this.index=index;this.track=new Track(index,seed);this.upgrades={...save.upgrades};this.part=save.part;this.maxFuel=tankCapacity(save.upgrades.tank);this.fuel=this.maxFuel;
   this.x=250;this.y=this.track.height(this.x)+23;this.v=0;this.vx=0;this.vy=0;this.angle=0;this.omega=0;this.grounded=true;this.groundAge=1;this.airAge=0;this.coyote=.1;this.jumpBuffer=0;this.jumpHold=0;this.canHold=false;this.jumpWas=false;this.brakeAge=0;
-  this.just=0;this.landingBoost=0;this.landingDrag=0;this.manualFlight=false;this.challenge=null;this.chain=0;this.bestChain=0;this.skillFuel=0;this.spentFuel=0;this.hardLandings=0;this.time=0;this.maxX=this.x;this.distance=0;this.coins=0;this.pickupCoins=0;this.nice=0;this.lastNiceX=-1000;this.turbo=0;this.magnet=0;this.stopped=0;this.flip=0;this.result=null;this.events=[];this.lastDust=0;this.landed=0;this.nextMilestone=0;this.bankCoins=0;this.savedDistance=0;this.collectedCoins=0;this.totalCoins=this.track.items.filter(i=>i.type==='coin').length;this.prevY=this.y;
+  this.just=0;this.landingGrace=0;this.landingBoost=0;this.landingDrag=0;this.manualFlight=false;this.challenge=null;this.chain=0;this.bestChain=0;this.skillFuel=0;this.spentFuel=0;this.hardLandings=0;this.time=0;this.maxX=this.x;this.distance=0;this.coins=0;this.pickupCoins=0;this.nice=0;this.lastNiceX=-1000;this.turbo=0;this.magnet=0;this.stopped=0;this.flip=0;this.result=null;this.events=[];this.lastDust=0;this.landed=0;this.nextMilestone=0;this.bankCoins=0;this.savedDistance=0;this.collectedCoins=0;this.totalCoins=this.track.items.filter(i=>i.type==='coin').length;this.prevY=this.y;
  }
  emit(type,data={}){this.events.push({type,...data});}
  update(dt,input={}){
-  if(this.result)return;this.time+=dt;this.landingBoost=Math.max(0,this.landingBoost-dt);this.landingDrag=Math.max(0,this.landingDrag-dt);this.landed=Math.max(0,this.landed-dt);this.turbo=Math.max(0,this.turbo-dt);this.magnet=Math.max(0,this.magnet-dt);this.jumpBuffer=Math.max(0,this.jumpBuffer-dt);
+  if(this.result)return;const preserveMomentum=this.landingGrace>1e-6;this.landingGrace=Math.max(0,this.landingGrace-dt);this.time+=dt;this.landingBoost=Math.max(0,this.landingBoost-dt);this.landingDrag=Math.max(0,this.landingDrag-dt);this.landed=Math.max(0,this.landed-dt);this.turbo=Math.max(0,this.turbo-dt);this.magnet=Math.max(0,this.magnet-dt);this.jumpBuffer=Math.max(0,this.jumpBuffer-dt);
   const u=this.upgrades,gas=!!input.gas&&this.fuel>0,brake=!!input.brake,jump=!!input.jump;
   if(jump&&!this.jumpWas)this.jumpBuffer=.15;this.jumpWas=jump;
   const burn=dt*(2.2*(this.part==='eco'&&!gas?.85:1)+(gas?3.8:0));this.spentFuel+=Math.min(this.fuel,burn);this.fuel=Math.max(0,this.fuel-burn);
@@ -129,8 +129,9 @@ class Run{
    const maxSpeed=860+handlingLevel(u.engine)*6+(this.turbo>0?60:0)+200*Math.min(1,this.landingBoost/.5);
    const engine=gas&&this.v<driveSpeed?980*(1+handlingLevel(u.engine)*.08)*(1-.45*clamp(this.v/driveSpeed,0,1))*(this.turbo>0?1.3:1)*(this.landingDrag>0?.28:1):0;
    const roughRoad=this.track.challenges.some(c=>this.x>c.roughA&&this.x<c.roughB);
-   const resistance=(16+Math.abs(this.v)*.065+(roughRoad?145*(1-handlingLevel(u.tires)*.08):0))*(this.v>=0?1:-1);
-   this.v+=(engine-900*Math.sin(slope)-resistance)*dt;
+   const protectedClimb=preserveMomentum&&this.v>0&&!brake&&slope>0;
+   const resistance=protectedClimb?0:(16+Math.abs(this.v)*.065+(roughRoad?145*(1-handlingLevel(u.tires)*.08):0))*(this.v>=0?1:-1);
+   this.v+=(engine-(protectedClimb?0:900*Math.sin(slope))-resistance)*dt;
    if(brake){this.brakeAge+=dt;if(this.v>5)this.v=Math.max(0,this.v-1100*dt);else if(this.brakeAge>.45&&this.fuel>0)this.v=Math.max(-70,this.v-150*dt);else this.v=0;}else this.brakeAge=0;
    if(!gas&&Math.abs(this.v)<4&&Math.abs(slope)<.1)this.v=0;
    this.v=clamp(this.v,-75,maxSpeed);this.vx=this.v*Math.cos(slope);this.vy=this.v*Math.sin(slope);
@@ -139,7 +140,7 @@ class Run{
    // Wheels follow the road until the player jumps; shortcuts require a deliberate takeoff.
    if(this.grounded){
     const oldSlope=slope;this.x+=this.vx*dt;const s=this.track.surface(this.x,this.y+20);
-    if(s){this.y=s.height+23;const rough=Math.abs(angleDiff(s.slope,oldSlope));this.v*=Math.max(.97,1-rough*(rough/dt>1.3?.5:.045)*(1-handlingLevel(u.tires)*.12));}
+    if(s){this.y=s.height+23;const rough=Math.abs(angleDiff(s.slope,oldSlope));if(!(preserveMomentum&&this.v>0&&!brake&&s.slope>0))this.v*=Math.max(.97,1-rough*(rough/dt>1.3?.5:.045)*(1-handlingLevel(u.tires)*.12));}
     else{this.grounded=false;this.airAge=0;this.canHold=false;}
    }
   }else if(this.grounded&&!ground){this.grounded=false;this.airAge=0;}
@@ -162,11 +163,11 @@ class Run{
     if(nice){
      challenge.cleared=true;this.chain++;this.bestChain=Math.max(this.bestChain,this.chain);this.nice++;
      const reward=4+Math.min(5,this.chain)*2+(just?6:0);this.coins+=reward;
-     if(just){this.just++;this.landingBoost=1.05;this.v=Math.min(1080,Math.max(projected,entrySpeed*1.22)+100);}
+     if(just){this.just++;this.landingGrace=.5;this.landingBoost=1.05;this.v=Math.min(1080,Math.max(projected,entrySpeed*1.22)+100);}
      else this.v=Math.min(900,Math.max(this.v,entrySpeed*.96));
      this.emit('nice',{x:this.x,y:s.height+23,chain:this.chain,reward,just,before:entrySpeed,after:this.v*Math.cos(s.slope)});
     }else if(hard){
-     this.v=Math.min(this.v,entrySpeed*(.25+suspension*.018));this.landingBoost=0;this.landingDrag=.42;this.chain=0;this.hardLandings++;
+     this.v=Math.min(this.v,entrySpeed*(.25+suspension*.018));this.landingBoost=0;this.landingGrace=0;this.landingDrag=.42;this.chain=0;this.hardLandings++;
      this.emit('roughLand',{x:this.x,y:s.height+23,before:entrySpeed,after:this.v*Math.cos(s.slope)});
     }else if(this.manualFlight&&challenge)this.chain=0;
     this.y=s.height+23;this.grounded=true;this.groundAge=0;this.canHold=false;this.landed=.24;this.manualFlight=false;this.challenge=null;
