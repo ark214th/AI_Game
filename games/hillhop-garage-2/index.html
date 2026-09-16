@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="坂道の勢いを、次のジャンプへ。加速とジャンプで空中の補給を取り、下りへの着地をつなぐオフロードゲーム。">
 <title>HILLHOP GARAGE 2 — ヒルホップ・ガレージ 2</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <canvas id="world" aria-label="坂道を走る車のゲーム画面"></canvas>
@@ -18,7 +18,7 @@
   <div class="hero-caption"><span id="heroTag" class="eyebrow">YOUR LITTLE ADVENTURER</span><h2 id="heroName">旅は、ここから。</h2><p id="heroNote">下りで勢いをつけて、次の丘へ。</p><div id="heroStats" class="hero-stats"></div></div>
   <section class="dashboard">
     <nav class="tabs" aria-label="メニュー"><button class="active" data-tab="routes">出発する</button><button data-tab="garage">車を育てる</button><button data-tab="records">旅の記録</button></nav>
-    <div id="routes" class="tab-content"><div class="panel-heading"><span>行き先を選ぼう</span><small id="routeCount">01 / 03</small></div><div id="routeList"></div><div class="part-line"><label for="partSelect">補助パーツ</label><select id="partSelect" aria-label="補助パーツ"></select></div><p class="part-help" id="partHelp"></p><button id="start" class="primary">走り出す <span>→</span></button><button class="text-button" data-action="help">走り方・ジャンプのコツ</button><p class="small-note" id="routeHint">失敗しても、集めたコインは持ち帰れます。</p></div>
+    <div id="routes" class="tab-content"><div class="panel-heading"><span>行き先を選ぼう</span><small id="routeCount">01 / 03</small></div><div id="routeList"></div><div class="part-line"><label for="partSelect">補助パーツ</label><select id="partSelect" aria-label="補助パーツ"></select></div><p class="part-help" id="partHelp"></p><button id="start" class="primary">走り出す <span>→</span></button><button class="secondary" data-action="lesson">操作を練習する</button><p class="small-note" id="routeHint">失敗しても、集めたコインは持ち帰れます。</p></div>
     <div id="garage" class="tab-content" hidden><div class="panel-heading"><span>小さな相棒を、頼もしく。</span><small id="upgradeCount"></small></div><div id="upgrades"></div><button class="primary" id="garageStart">この車で走る <span>→</span></button></div>
     <div id="records" class="tab-content" hidden><div class="panel-heading"><span>走ってきた道</span><small id="runCount"></small></div><div id="recordList"></div><p class="small-note">メダルを集めると、新しい車体色が使えます。</p><div id="paintList" class="paints"></div></div>
   </section>
@@ -30,11 +30,16 @@
   <div class="run-actions"><div class="wallet"><span class="coin-dot">●</span><b id="runCoins">0</b></div><button id="pause" class="icon-button" aria-label="一時停止">Ⅱ</button></div>
   <div class="drive-hud"><b><span id="speedValue">0</span><small> km/h</small></b><strong id="flowValue">FLOW —</strong></div><div id="terrainHint"></div><div id="landingFeedback" class="landing-feedback" role="status" aria-live="polite"></div><div id="effectBadges"></div><div id="callout" role="status"></div><div id="tip"></div>
   <div class="pedals left"><button id="brake" class="pedal brake" aria-label="ブレーキ"><span>▥</span><b>ブレーキ</b><small>← / A</small></button><button id="gas" class="pedal gas" aria-label="アクセル"><span>»</span><b>アクセル</b><small>→ / D</small></button></div>
-  <div class="pedals right"><button id="jump" class="pedal jump" aria-label="ジャンプ"><span>↟</span><b>ジャンプ</b><small>SPACE</small></button><div class="jump-help">長押しで高く・燃料消費なし</div></div>
+  <div class="pedals right"><button id="jump" class="pedal jump" aria-label="ジャンプ"><span>↟</span><b>ジャンプ</b><small>SPACE</small></button></div>
 </div>
+<section id="coach" class="coach" hidden aria-label="操作の練習">
+  <div id="coachStep" class="eyebrow"></div><h2 id="coachTitle" aria-live="polite"></h2><p id="coachText"></p>
+  <div class="coach-actions"><button id="coachNext" class="primary" data-action="coachNext" hidden></button><button id="coachRetry" class="primary" data-action="coachRetry" hidden>同じ場所からやり直す</button><button id="coachPlay" class="primary" data-action="coachPlay" hidden>本番を走る →</button><button id="coachAgain" class="secondary" data-action="coachAgain" hidden>自分のタイミングで練習する</button></div>
+  <button id="coachExit" class="text-button" data-action="menu">練習を終える</button>
+</section>
 <div id="modal" class="modal-backdrop" hidden><section class="modal"><button id="modalClose" class="close-button" aria-label="閉じる">×</button><div id="modalBody"></div></section></div>
 <div id="toast" role="status"></div><input id="importFile" type="file" accept="application/json,.json" hidden>
 <div class="portrait-note">横向きにすると、先の坂がよく見えます ↻</div>
-<script src="core.js?v=4"></script><script src="game.js?v=4"></script>
+<script src="core.js?v=5"></script><script src="tutorial.js?v=5"></script><script src="game.js?v=5"></script>
 </body>
 </html>
