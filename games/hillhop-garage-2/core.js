@@ -27,10 +27,11 @@ const PARTS=[
  {id:'jump',name:'ジャンプ補助',help:'長押しで、少し高く。短いジャンプの感覚はそのまま。'}
 ];
 const PAINTS=['#f2bf4d','#e57d60','#6dafa2','#a6a1ca'];
-function freshSave(){return{version:1,gameId:'hillhop-garage-2',courseVersion:3,coins:0,upgrades:{engine:0,tires:0,suspension:0,tank:0},unlocked:0,selected:0,part:'none',parts:['none'],records:Array.from({length:4},()=>({distance:0,time:0,legacyTime:0,medals:0})),milestones:[0,0,0],runs:0,paint:0,sound:.45,music:true,shake:true,remoteSeed:24681};}
+function freshSave(){return{version:1,gameId:'hillhop-garage-2',courseVersion:3,tutorial:'new',coins:0,upgrades:{engine:0,tires:0,suspension:0,tank:0},unlocked:0,selected:0,part:'none',parts:['none'],records:Array.from({length:4},()=>({distance:0,time:0,legacyTime:0,medals:0})),milestones:[0,0,0],runs:0,paint:0,sound:.45,music:true,shake:true,remoteSeed:24681};}
 function sanitizeSave(value){
  if(!value||value.gameId!=='hillhop-garage-2'||value.version!==1||typeof value.upgrades!=='object'||!Array.isArray(value.records))throw new Error('HILLHOP GARAGE 2 のセーブデータを選んでください。');
  const s=freshSave(),num=(v,min,max)=>Number.isFinite(v)?clamp(v,min,max):min;
+ s.tutorial=['seen','done'].includes(value.tutorial)?value.tutorial:'new';
  s.coins=Math.floor(num(value.coins,0,1e9));s.unlocked=Math.floor(num(value.unlocked,0,3));s.selected=Math.floor(num(value.selected,0,s.unlocked));
  for(const u of UPGRADES)s.upgrades[u.key]=Math.floor(num(value.upgrades[u.key],0,MAX_LEVEL));
  s.parts=['none'];for(const p of PARTS.slice(1))if(value.parts?.includes(p.id))s.parts.push(p.id);
@@ -183,10 +184,7 @@ class Run{
    }
   }
   if(this.flip>0){this.flip-=dt;this.v=0;this.vx=0;if(ground)this.y=ground.height+23;}
-  const target=this.grounded?slope:Math.atan2(this.vy,this.vx||100)*.66;
-  const manual=this.grounded?0:(gas?.7:0)-(brake?1.1:0);
-  this.omega+=(angleDiff(target,this.angle)*(this.grounded?70:9)+manual*8-this.omega*(this.grounded?16:5))*dt;
-  this.angle+=this.omega*dt;
+  this.updatePose(dt,gas,brake,slope);
   if(this.x<100){this.x=100;this.v=Math.max(0,this.v);this.vx=Math.max(0,this.vx);}
   this.maxX=Math.max(this.maxX,this.x);this.distance=Math.max(0,(this.maxX-250)/10);
   if(this.track.endless&&this.x>this.track.built-10000)this.track.extend(this.track.built+25000);
@@ -204,11 +202,18 @@ class Run{
   else if(this.stopped>2)this.end('fuel');
   else if(this.x>=this.track.length)this.end('clear');
  }
+ updatePose(dt,gas,brake,slope=0){
+  const target=this.grounded?slope:Math.atan2(this.vy,this.vx||100)*.66;
+  const manual=this.grounded?0:(gas?.7:0)-(brake?1.1:0);
+  this.omega+=(angleDiff(target,this.angle)*(this.grounded?70:9)+manual*8-this.omega*(this.grounded?16:5))*dt;
+  this.angle+=this.omega*dt;
+ }
  launch(slope){this.grounded=false;this.groundAge=0;this.airAge=0;this.coyote=0;this.jumpBuffer=0;this.jumpHold=0;this.canHold=true;this.vy=Math.max(0,this.vy*.35)+308;this.vx=Math.max(this.vx,30);this.manualFlight=true;this.challenge=this.track.challenges.find(c=>this.x>=c.a&&this.x<c.landA)||null;if(this.challenge)this.challenge.attempted=true;this.y+=2;this.emit('jump',{x:this.x,y:this.y-20});}
  collect(item){item.taken=true;if(item.type==='coin'){this.coins+=item.value;this.pickupCoins+=item.value;this.collectedCoins++;}else if(item.type==='fuel'){const gain=Math.min(this.maxFuel-this.fuel,item.value);this.fuel+=gain;if(item.skill)this.skillFuel+=gain;}else if(item.type==='turbo')this.turbo=4;else if(item.type==='magnet')this.magnet=8;this.emit('pickup',{item});}
  end(reason){if(this.result)return;this.result={reason,distance:this.distance,time:this.time,fuel:this.fuel,coins:this.coins};this.emit('end',{reason});}
 }
 function bankProgress(run,save){
+ if(run.practice)return{gained:0,distanceReward:0,bonuses:[]};
  const gained=Math.max(0,run.coins-run.bankCoins);save.coins+=gained;run.bankCoins=run.coins;
  const rewardRate=run.track.region.reward;
  const distanceSteps=Math.floor(run.distance/100),oldSteps=Math.floor(run.savedDistance/100);const distanceReward=Math.max(0,distanceSteps-oldSteps)*Math.round(2*rewardRate);save.coins+=distanceReward;run.savedDistance=run.distance;
@@ -219,6 +224,7 @@ function bankProgress(run,save){
  return{gained,distanceReward,bonuses};
 }
 function finishRun(run,save){
+ if(run.practice)return{gained:0,distanceReward:0,bonuses:[],bonus:0,awards:[],newRegion:false,record:false};
  const oldBest=save.records[run.index].distance;const bank=bankProgress(run,save);let bonus=0,newRegion=false;const awards=[];
  if(run.result?.reason==='clear'){
   const r=save.records[run.index];let earned=1;if(run.collectedCoins>=run.totalCoins*.6)earned|=2;if(run.fuel>=run.maxFuel*.2)earned|=4;
