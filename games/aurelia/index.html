@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#102d30">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="天空遺跡を駆け抜ける3Dランゲーム。結晶を集め、装備を育て、暁の秘宝へ。スマートフォン・iPad縦持ち対応。">
+  <title>AURELIA — 暁の遺跡</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css?v=1">
+</head>
+<body>
+<main id="game" aria-label="Aurelia 暁の遺跡">
+  <div id="sky"></div><canvas id="world" aria-label="天空遺跡のランゲーム"></canvas>
+  <div class="cinema"></div><div id="speed-lines"></div><div id="flash"></div>
+  <section id="hud" class="hidden" aria-label="探索状況">
+    <div class="hud-top"><div><span class="eyebrow" id="zone-name">01 / 翠緑の参道</span><div class="distance"><span id="distance">0</span><small>m</small></div></div><button id="pause" class="square" aria-label="一時停止">Ⅱ</button></div>
+    <div class="journey"><div id="journey-fill"></div><i style="left:26%"></i><i style="left:58%"></i><i style="left:100%"></i></div>
+    <div class="vitals"><div class="lamp"><div class="vital-label"><span>☀ 灯火</span><span id="energy-text">100</span></div><div class="bar"><div id="energy-fill"></div></div></div><div class="loot"><span id="hp" aria-label="耐久力">◇ ◇</span><div>✧ <b id="coins">0</b></div></div></div>
+  </section>
+  <div id="callout" aria-live="polite"></div>
+  <div id="training" class="hidden"><span id="training-icon">↑</span><div><b id="training-title">上へスワイプ</b><small id="training-copy">低い障害物をジャンプ</small></div></div>
+  <div id="run-controls" class="hidden"><div id="touch-buttons" class="hidden"><button data-action="left" aria-label="左へ移動">←</button><button data-action="jump" aria-label="ジャンプ">↑</button><button data-action="slide" aria-label="スライディング">↓</button><button data-action="right" aria-label="右へ移動">→</button></div><button id="boost" disabled><span class="boost-track"><i id="boost-fill"></i></span><span class="boost-mark">ϟ</span><span><b id="boost-label">共鳴をためる</b><small id="boost-percent">0%</small></span></button></div>
+
+  <section id="home" class="screen">
+    <div class="home-top"><a class="quiet-link" href="../../" aria-label="ゲーム一覧に戻る">← ゲーム一覧</a><button id="settings-open" class="square" aria-label="設定">⚙</button></div>
+    <div class="title-lockup"><span class="eyebrow gold">THE LOST SANCTUARY</span><h1>AURELIA</h1><div class="title-rule"><i></i><span>暁の遺跡</span><i></i></div></div>
+    <div class="home-bottom"><p class="home-story">消えゆく灯火と、まだ見ぬ世界へ。</p><div class="home-stats"><div><small>最長到達</small><b><span id="best">0</span> <em>m</em></b></div><span class="stat-divider"></span><div><small>所持結晶</small><b class="gold">✧ <span id="wallet">0</span></b></div></div><button id="start" class="primary">遺跡へ走り出す <span>→</span></button><div class="home-actions"><button id="workshop-open" class="secondary">◇ 装備を強化 <span id="upgrade-badge"></span></button><button id="help-open" class="secondary">操作ガイド</button></div><p class="footnote">左右に移動 · 上でジャンプ · 下でスライド</p><p id="save-warning" class="warning hidden">保存が利用できません。強化はこの画面を閉じるまで有効です。</p></div>
+  </section>
+
+  <section id="workshop" class="screen sheet hidden"><div class="sheet-inner"><div class="sheet-heading"><div><span class="eyebrow gold">PREPARE FOR THE NEXT RUN</span><h2>旅の支度</h2></div><button data-close class="square" aria-label="閉じる">×</button></div><div class="bank">所持結晶 <b>✧ <span id="shop-wallet">0</span></b></div><p class="muted">持ち帰った結晶は、次の一歩の力になる。</p><div id="upgrades"></div><p class="footnote">強化は何度でも引き継がれます。各装備は12段階。</p><button class="primary" id="shop-start">装備を整えて走る →</button></div></section>
+
+  <section id="result" class="screen sheet hidden"><div class="sheet-inner result-inner"><span class="eyebrow gold" id="result-eyebrow">EXPEDITION COMPLETE</span><h2 id="result-title">次の一歩へ。</h2><p id="result-reason" class="muted"></p><div class="result-distance"><span id="result-distance">0</span><small>m</small></div><span id="new-record" class="tag hidden">NEW RECORD</span><div id="result-zone" class="muted"></div><div class="result-stats"><div><b id="result-perfect">0</b><small>華麗な回避</small></div><div><b id="result-combo">0</b><small>最大コンボ</small></div><div><b id="result-gems">0</b><small>獲得した結晶</small></div></div><div class="reward-box"><div><span>持ち帰った結晶</span><b>✧ +<span id="result-reward">0</span></b></div><small id="reward-detail"></small></div><p id="result-tip" class="result-tip"></p><button id="retry" class="primary">もう一度、遺跡へ →</button><button id="result-upgrade" class="secondary full">◇ 装備を強化する</button><button id="result-home" class="text-button">タイトルへ戻る</button></div></section>
+
+  <section id="blessing" class="screen sheet hidden"><div class="sheet-inner"><span class="eyebrow gold">A MOMENT OF RESPITE</span><h2 id="blessing-title">水鏡の神殿へ</h2><p class="muted">灯火 +35・耐久力 +1<br>今回の探索を支える祝福を、ひとつ。</p><div id="boons"></div></div></section>
+  <section id="paused" class="screen sheet hidden"><div class="sheet-inner compact"><span class="eyebrow gold">TAKE A BREATH</span><h2>ひと休み</h2><p class="muted">灯火は、あなたを待っています。</p><button id="resume" class="primary">探索を続ける</button><button id="retire" class="secondary full">結晶を持って帰る</button></div></section>
+
+  <section id="help" class="screen sheet hidden"><div class="sheet-inner"><div class="sheet-heading"><h2>遺跡の歩き方</h2><button data-close class="square" aria-label="閉じる">×</button></div><div class="guide-row"><span>↔</span><div><b>左右にスワイプ</b><p>3本の道を移動。高い石柱は横にかわします。</p></div></div><div class="guide-row"><span>↑</span><div><b>上にスワイプ</b><p>金色の低い障害物と、足場の切れ目をジャンプ。</p></div></div><div class="guide-row"><span>↓</span><div><b>下にスワイプ</b><p>青緑色の梁の下をスライド。空中では急降下。</p></div></div><div class="guide-row"><span>ϟ</span><div><b>共鳴がたまったらボタンをタップ</b><p>約5秒間、無敵で加速。切れ目も飛び越えます。</p></div></div><div class="guide-note"><p>☀ 灯火が尽きる前に秘宝へ。青い灯りを拾うと回復します。障害物をジャンプ・スライドで抜けると灯火 +5。直前の横回避でも共鳴がたまります。</p><p>✧ 結晶と到達距離が強化資金に。24個の結晶回収で +25、8回の華麗な回避で +35 の追加報酬。</p><p>最初の190mは練習区間。初回は失敗しても耐久力が減りません。目標は2,500m先の秘宝です。</p></div><p class="footnote">キーボード：矢印 / WASD · Spaceで共鳴 · Escで一時停止</p><button data-close class="primary">わかった</button></div></section>
+  <section id="settings" class="screen sheet hidden"><div class="sheet-inner compact"><div class="sheet-heading"><h2>設定</h2><button data-close class="square" aria-label="閉じる">×</button></div><label class="setting"><span>サウンド</span><input id="sound-setting" type="checkbox"></label><label class="setting"><span>操作ボタンを表示</span><input id="buttons-setting" type="checkbox"></label><label class="setting"><span>描画品質</span><select id="quality-setting"><option value="auto">自動</option><option value="high">高画質</option><option value="low">軽量</option></select></label><p class="muted small">進行はこの端末・ブラウザに保存されます。Safariとホーム画面起動では、保存先が別になる場合があります。</p><div class="save-tools"><button id="export-save" class="secondary">セーブを書き出す</button><label class="secondary import-label">読み込む<input id="import-save" type="file" accept=".json,application/json"></label></div><p id="save-status" class="small" role="status"></p></div></section>
+  <div id="loading"><div class="loader-ring"></div><span>遺跡への道をひらいています</span><small id="load-detail">AURELIA</small></div>
+  <div id="error" class="screen sheet hidden"><div class="sheet-inner compact"><h2>遺跡を表示できませんでした</h2><p id="error-detail" class="muted"></p><button class="primary" onclick="location.reload()">もう一度読み込む</button></div></div>
+</main>
+<script type="module" src="./app.js?v=1"></script>
+<script>window.addEventListener('error',function(e){if(!window.aureliaReady){document.getElementById('loading').classList.add('hidden');document.getElementById('error').classList.remove('hidden');document.getElementById('error-detail').textContent='読み込みに失敗しました。通信状態を確認して、Safariで開き直してください。';}});</script>
+</body></html>
