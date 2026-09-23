@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import {Run,SAVE_KEY,normalizeSave,purchase,stats,upgradeCost,GATES,TRAINING_END} from './core.mjs?v=3';
-import {COURSES,phraseRows} from './courses.mjs?v=3';
+import {Run,SAVE_KEY,normalizeSave,purchase,stats,upgradeCost,GATES,TRAINING_END} from './core.mjs?v=4';
+import {COURSES,phraseRows} from './courses.mjs?v=4';
 const fresh=()=>normalizeSave({tutorial:true});
 assert.equal(SAVE_KEY,'aurelia.save.v1');
 const old=normalizeSave({version:1,wallet:423,best:912,runs:6,tutorial:true,levels:{flame:4,guard:3,magnet:2,fortune:1},settings:{sound:false,buttons:true,quality:'low'}});
-assert.equal(old.wallet,423);assert.equal(old.best,912);assert.deepEqual(old.levels,{flame:4,guard:3,magnet:2,fortune:1});assert.equal(old.settings.sound,false);
+assert.equal(old.wallet,423);assert.equal(old.best,912);assert.deepEqual(old.levels,{flame:4,guard:3,magnet:2,fortune:1});assert.deepEqual(old.settings,{sound:false,buttons:true});
 assert.equal(normalizeSave(null).wallet,0);assert.equal(normalizeSave({levels:{flame:999}}).levels.flame,12);
 const save=fresh();save.wallet=100;assert.equal(purchase(save,'flame'),true);assert.equal(save.wallet,55);assert.equal(stats(save).energy,114);assert.equal(purchase(save,'flame'),false);assert.equal(save.wallet,55);assert.equal(purchase(save,'unknown'),false);
 for(let i=1;i<12;i++)assert.ok(upgradeCost(i)>upgradeCost(i-1));

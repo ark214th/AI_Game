@@ -1,13 +1,13 @@
 import * as T from './vendor/three.module.min.js';
-import {rng,PICKUPS} from './core.mjs?v=3';
+import {rng,PICKUPS} from './core.mjs?v=4';
 const LANE=2.3;
 const lerp=T.MathUtils.lerp;
 export class World {
-  constructor(canvas,quality='auto',renderer=null){
-    this.canvas=canvas;this.quality=quality;this.performanceLow=false;this.low=quality==='low';this.clock=0;this.travel=0;this.shake=0;this.kick=0;this.objectViews=new Map();this.pool={};this.particles=[];this.effects=[];this.lastTravel=0;this.effectTick=0;this.reaction={hit:0,land:0,near:0,collect:0,surge:0,slide:0,death:0,ending:false,side:1,gap:false};this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  constructor(canvas,renderer=null){
+    this.canvas=canvas;this.clock=0;this.travel=0;this.shake=0;this.kick=0;this.objectViews=new Map();this.pool={};this.particles=[];this.effects=[];this.lastTravel=0;this.effectTick=0;this.reaction={hit:0,land:0,near:0,collect:0,surge:0,slide:0,death:0,ending:false,side:1,gap:false};this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.renderer=renderer||new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
     this.renderer.setClearColor(0x000000,0);this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.22;
-    this.renderer.shadowMap.enabled=!this.low;this.renderer.shadowMap.type=T.PCFSoftShadowMap;this.syncShadows();
+    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;this.renderer.shadowMap.autoUpdate=true;
     this.scene=new T.Scene();this.scene.fog=new T.FogExp2(0x32534e,.021);
     this.camera=new T.PerspectiveCamera(59,1,.1,190);this.camera.position.set(0,4.7,9.2);
     this.scene.add(new T.HemisphereLight(0xffe6b2,0x173e3e,2.1));
@@ -81,21 +81,19 @@ export class World {
     return g;
   }
   chevron(g,dir,color,y,z=.48){const mat=new T.MeshBasicMaterial({color});for(const sign of [-1,1]){const bar=this.mesh('box',mat,g,[sign*.13,y,z],[.08,.39,.02]);bar.rotation.z=sign*dir*.75;} }
-  spawnParticles(x,y,z,color,count=10){if(this.particles.length>90)return;for(let i=0;i<count;i++){const mat=new T.SpriteMaterial({map:this.glowTexture,color,blending:T.AdditiveBlending,depthWrite:false});const s=new T.Sprite(mat);s.position.set(x,y,z);s.scale.setScalar(.12+Math.random()*.17);this.scene.add(s);this.particles.push({mesh:s,life:.6+Math.random()*.4,velocity:new T.Vector3((Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5)});}}
+  spawnParticles(x,y,z,color,count=10){for(let i=0;i<count;i++){const mat=new T.SpriteMaterial({map:this.glowTexture,color,blending:T.AdditiveBlending,depthWrite:false});const s=new T.Sprite(mat);s.position.set(x,y,z);s.scale.setScalar(.12+Math.random()*.17);this.scene.add(s);this.particles.push({mesh:s,life:.6+Math.random()*.4,velocity:new T.Vector3((Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5)});}}
   resetEffects(){
     for(const f of [...this.effects,...this.particles]){this.scene.remove(f.mesh);if(f.owned!==false)f.mesh.material.dispose();}
     this.effects=[];this.particles=[];Object.assign(this.reaction,{hit:0,land:0,near:0,collect:0,surge:0,slide:0,death:0,ending:false,side:1,gap:false});this.lastTravel=0;this.effectTick=0;this.shake=0;this.kick=0;
   }
   ring(x,color,size=1,vertical=false){
-    if(this.effects.length>72)return;
     const mat=new T.MeshBasicMaterial({color,transparent:true,opacity:.85,depthWrite:false,blending:T.AdditiveBlending});const mesh=new T.Mesh(this.geos.ring,mat);mesh.position.set(x,vertical?1.1:.05,0);mesh.rotation.x=vertical?0:-Math.PI/2;mesh.scale.setScalar(.2);this.scene.add(mesh);this.effects.push({kind:'ring',mesh,life:.43,total:.43,size,vertical});
   }
   debris(x,z,strong=false){
-    const count=this.low?5:strong?14:7;
-    for(let i=0;i<count&&this.effects.length<85;i++){const mesh=new T.Mesh(this.geos.box,i%3===0?this.mat.gold:this.mat.stone);const size=(strong?.22:.07)+Math.random()*(strong?.38:.12);mesh.scale.set(size,size*.7,size);mesh.position.set(x+(Math.random()-.5)*1.2,.5+Math.random()*1.5,z);this.scene.add(mesh);this.effects.push({kind:'debris',mesh,owned:false,life:strong?1.1:.65,total:strong?1.1:.65,velocity:new T.Vector3((Math.random()-.5)*8,2+Math.random()*5,1+Math.random()*5)});}
+    const count=strong?14:7;
+    for(let i=0;i<count;i++){const mesh=new T.Mesh(this.geos.box,i%3===0?this.mat.gold:this.mat.stone);const size=(strong?.22:.07)+Math.random()*(strong?.38:.12);mesh.scale.set(size,size*.7,size);mesh.position.set(x+(Math.random()-.5)*1.2,.5+Math.random()*1.5,z);this.scene.add(mesh);this.effects.push({kind:'debris',mesh,owned:false,life:strong?1.1:.65,total:strong?1.1:.65,velocity:new T.Vector3((Math.random()-.5)*8,2+Math.random()*5,1+Math.random()*5)});}
   }
   collect(e,run){
-    if(this.effects.length>80)return;
     const mesh=new T.Mesh(this.geos.gem,e.type==='flame'?this.mat.cyan:this.mat.gem);mesh.position.set((e.lane-1)*LANE,e.height,-(e.z-run.distance));mesh.scale.setScalar(e.type==='relic'?2.1:e.type==='flame'?1.3:1);this.scene.add(mesh);
     this.effects.push({kind:'pickup',mesh,owned:false,life:.27,total:.27,start:mesh.position.clone(),recovery:e.type!=='coin'});
   }
@@ -165,10 +163,7 @@ export class World {
     const sh=this.reduced?0:this.shake;this.camera.position.set((run?.x||0)*.27+Math.sin(time*73)*sh,4.65+Math.cos(time*61)*sh-(this.reduced?0:land*.07),9.2+this.kick);this.camera.lookAt((run?.x||0)*.16,1.65,-22);
   }
   bend(z){return (Math.sin((this.travel+z)/100)-Math.sin(this.travel/100)-Math.cos(this.travel/100)*z/100)*6;}
-  setQuality(q){this.quality=q;this.performanceLow=false;this.low=q==='low';this.syncShadows();this.resize();}
-  setPerformanceLow(enabled){this.performanceLow=!!enabled;if(this.quality!=='auto')return;this.low=this.performanceLow;this.syncShadows();this.resize();}
-  syncShadows(){this.renderer.shadowMap.enabled=!this.low;this.renderer.shadowMap.autoUpdate=true;this.renderer.shadowMap.needsUpdate=true;}
-  resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight;this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,this.low?1:this.quality==='high'?2:1.5));this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.fov=w>h?65:59;this.camera.updateProjectionMatrix();}
+  resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight;this.renderer.setPixelRatio(devicePixelRatio||1);this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.fov=w>h?65:59;this.camera.updateProjectionMatrix();}
   update(run,dt,active){
     this.clock+=dt;this.travel=run?run.distance:this.clock*3;const time=this.clock;
     const gaps=run?run.objects.filter(o=>o.type==='gap'):[];
@@ -185,10 +180,10 @@ export class World {
     }
     this.riskPath.count=riskCount;this.riskPath.instanceMatrix.needsUpdate=true;
     this.road.instanceMatrix.needsUpdate=true;this.edges.instanceMatrix.needsUpdate=true;this.inlays.instanceMatrix.needsUpdate=true;
-    for(const g of this.pillars){const z=((g.userData.index*20-this.travel)%140+140)%140-10;g.position.set(this.bend(z)+g.userData.side*4.35,0,-z);g.visible=!this.low||z<85;}
+    for(const g of this.pillars){const z=((g.userData.index*20-this.travel)%140+140)%140-10;g.position.set(this.bend(z)+g.userData.side*4.35,0,-z);}
     for(let i=0;i<this.arches.length;i++){const z=((i*44-this.travel)%176+176)%176-12;const g=this.arches[i];g.position.set(this.bend(z),0,-z);g.visible=z<125;}
-    for(const g of this.rocks){const z=((g.userData.index*14-this.travel*.87)%182+182)%182-18;g.position.set(this.bend(z)+g.userData.side*g.userData.offset,-3,-z);g.visible=!this.low||(g.userData.index%2===0&&z<100);}
-    for(const g of this.torches){const z=((g.userData.index*23-this.travel)%138+138)%138-10;g.position.set(this.bend(z)+g.userData.side*3.95,0,-z);g.visible=!this.low||z<85;g.userData.flame.rotation.y=time;g.userData.flame.scale.y=1.1+Math.sin(time*6)*.14;}
+    for(const g of this.rocks){const z=((g.userData.index*14-this.travel*.87)%182+182)%182-18;g.position.set(this.bend(z)+g.userData.side*g.userData.offset,-3,-z);}
+    for(const g of this.torches){const z=((g.userData.index*23-this.travel)%138+138)%138-10;g.position.set(this.bend(z)+g.userData.side*3.95,0,-z);g.userData.flame.rotation.y=time;g.userData.flame.scale.y=1.1+Math.sin(time*6)*.14;}
     const live=new Set();
     if(run)for(const o of run.objects){
       const dz=o.z-run.distance;if(dz>125||dz< -10||o.broken||o.done&&PICKUPS.has(o.type))continue;

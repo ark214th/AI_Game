@@ -1,4 +1,4 @@
-import {COURSES,TYPES,phraseRows} from './courses.mjs?v=3';
+import {COURSES,TYPES,phraseRows} from './courses.mjs?v=4';
 export const SAVE_KEY = 'aurelia.save.v1';
 export const GATES = [650, 1450, 2500];
 export const ZONES = ['翠緑の参道', '水鏡の神殿', '暁の聖域'];
@@ -17,7 +17,7 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const integer=(v,max=1e8)=>Number.isFinite(v)?clamp(Math.floor(v),0,max):0;
 export function normalizeSave(raw={}) {
   if(!raw||typeof raw!=='object'||Array.isArray(raw))raw={};
-  const s={version:1,wallet:integer(raw.wallet),best:integer(raw.best),runs:integer(raw.runs),clears:integer(raw.clears),tutorial:raw.tutorial===true,levels:{},settings:{sound:raw.settings?.sound!==false,quality:['auto','high','low'].includes(raw.settings?.quality)?raw.settings.quality:'auto',buttons:raw.settings?.buttons===true}};
+  const s={version:1,wallet:integer(raw.wallet),best:integer(raw.best),runs:integer(raw.runs),clears:integer(raw.clears),tutorial:raw.tutorial===true,levels:{},settings:{sound:raw.settings?.sound!==false,buttons:raw.settings?.buttons===true}};
   for(const u of UPGRADE_DEFS)s.levels[u.id]=integer(raw.levels?.[u.id],12);
   return s;
 }
