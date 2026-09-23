@@ -1,13 +1,13 @@
 import * as T from './vendor/three.module.min.js';
-import {rng,PICKUPS} from './core.mjs?v=2';
+import {rng,PICKUPS} from './core.mjs?v=3';
 const LANE=2.3;
 const lerp=T.MathUtils.lerp;
 export class World {
   constructor(canvas,quality='auto',renderer=null){
-    this.canvas=canvas;this.quality=quality;this.low=quality==='low';this.clock=0;this.travel=0;this.shake=0;this.kick=0;this.objectViews=new Map();this.pool={};this.particles=[];this.effects=[];this.lastTravel=0;this.effectTick=0;this.reaction={hit:0,land:0,near:0,collect:0,surge:0,slide:0,death:0,ending:false,side:1,gap:false};this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.canvas=canvas;this.quality=quality;this.performanceLow=false;this.low=quality==='low';this.clock=0;this.travel=0;this.shake=0;this.kick=0;this.objectViews=new Map();this.pool={};this.particles=[];this.effects=[];this.lastTravel=0;this.effectTick=0;this.reaction={hit:0,land:0,near:0,collect:0,surge:0,slide:0,death:0,ending:false,side:1,gap:false};this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.renderer=renderer||new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
     this.renderer.setClearColor(0x000000,0);this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.22;
-    this.renderer.shadowMap.enabled=!this.low;this.renderer.shadowMap.type=T.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled=!this.low;this.renderer.shadowMap.type=T.PCFSoftShadowMap;this.syncShadows();
     this.scene=new T.Scene();this.scene.fog=new T.FogExp2(0x32534e,.021);
     this.camera=new T.PerspectiveCamera(59,1,.1,190);this.camera.position.set(0,4.7,9.2);
     this.scene.add(new T.HemisphereLight(0xffe6b2,0x173e3e,2.1));
@@ -165,7 +165,9 @@ export class World {
     const sh=this.reduced?0:this.shake;this.camera.position.set((run?.x||0)*.27+Math.sin(time*73)*sh,4.65+Math.cos(time*61)*sh-(this.reduced?0:land*.07),9.2+this.kick);this.camera.lookAt((run?.x||0)*.16,1.65,-22);
   }
   bend(z){return (Math.sin((this.travel+z)/100)-Math.sin(this.travel/100)-Math.cos(this.travel/100)*z/100)*6;}
-  setQuality(q){this.quality=q;this.low=q==='low';this.renderer.shadowMap.enabled=!this.low;this.resize();}
+  setQuality(q){this.quality=q;this.performanceLow=false;this.low=q==='low';this.syncShadows();this.resize();}
+  setPerformanceLow(enabled){this.performanceLow=!!enabled;if(this.quality!=='auto')return;this.low=this.performanceLow;this.syncShadows();this.resize();}
+  syncShadows(){this.renderer.shadowMap.enabled=!this.low;this.renderer.shadowMap.autoUpdate=true;this.renderer.shadowMap.needsUpdate=true;}
   resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight;this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,this.low?1:this.quality==='high'?2:1.5));this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.fov=w>h?65:59;this.camera.updateProjectionMatrix();}
   update(run,dt,active){
     this.clock+=dt;this.travel=run?run.distance:this.clock*3;const time=this.clock;

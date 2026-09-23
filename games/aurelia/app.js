@@ -1,12 +1,12 @@
-import {Run,SAVE_KEY,normalizeSave,stats,purchase,upgradeCost,UPGRADE_DEFS,BOONS,ZONES,TRAINING_END} from './core.mjs?v=2';
-import {World} from './view.js?v=2';
-import {Sound} from './audio.js?v=2';
+import {Run,SAVE_KEY,normalizeSave,stats,purchase,upgradeCost,UPGRADE_DEFS,BOONS,ZONES,TRAINING_END} from './core.mjs?v=3';
+import {World} from './view.js?v=3';
+import {Sound} from './audio.js?v=3';
 const $=id=>document.getElementById(id);
 let save,storageOK=true;
 try{save=normalizeSave(JSON.parse(localStorage.getItem(SAVE_KEY)||'{}'));}catch{save=normalizeSave();storageOK=false;}
 const persist=()=>{try{localStorage.setItem(SAVE_KEY,JSON.stringify(save));storageOK=true;}catch{storageOK=false;}$('save-warning').classList.toggle('hidden',storageOK);};
 const sound=new Sound(save.settings.sound);
-let world,run=null,screen='home',returnScreen='home',paused=false,calloutUntil=0,uiTime=0,frameTime=0,slowFrames=0,last=performance.now(),raf=0;
+let world,run=null,screen='home',returnScreen='home',paused=false,calloutUntil=0,uiTime=0,frameTime=0,slowFrames=0,fastWindows=0,last=performance.now(),raf=0;
 let pointer=null,pendingReward=null,endingTime=0;
 const screens=['home','workshop','result','help','settings','paused','blessing'];
 function show(name){screen=name;for(const s of screens)$(s).classList.toggle('hidden',s!==name);const running=name==='running';$('hud').classList.toggle('hidden',!running&&name!=='paused');$('run-controls').classList.toggle('hidden',!running);if(!running)$('training').classList.add('hidden');if(name==='home')home();if(name==='workshop')workshop();if(name==='settings')settings();pointer=null;}
@@ -39,7 +39,7 @@ function processEvents(){
     }
   }
 }
-function frame(now){raf=requestAnimationFrame(frame);const realDt=Math.min(.1,(now-last)/1000);last=now;if(document.hidden)return;const active=screen==='running'&&!paused&&run?.state==='running';if(active){let remaining=realDt;while(remaining>0&&run.state==='running'){const step=Math.min(remaining,1/60);run.step(step);remaining-=step;}processEvents();}if(run&&!active&&run.events.length)processEvents();const visualRun=['home','help','settings','workshop'].includes(screen)?null:run;world.update(visualRun,screen==='paused'?0:Math.min(realDt,.05),active);sound.update(active,run?.boost>0);sound.motion(run,active);if(screen==='ending'){endingTime-=realDt;if(endingTime<=0)finish();}uiTime+=realDt;if(uiTime>.08){uiTime=0;if(run)updateHUD();}if(now>calloutUntil)$('callout').classList.remove('visible');const opacity=parseFloat($('flash').style.opacity)||0;if(opacity>0)$('flash').style.opacity=Math.max(0,opacity-realDt*1.5);if(save.settings.quality==='auto'&&!world.low&&active){frameTime+=realDt;if(realDt>.030)slowFrames++;if(frameTime>4){if(slowFrames>55){world.low=true;world.renderer.shadowMap.enabled=false;world.resize();}frameTime=0;slowFrames=0;}}}
+function frame(now){raf=requestAnimationFrame(frame);const realDt=Math.min(.1,(now-last)/1000);last=now;if(document.hidden)return;const active=screen==='running'&&!paused&&run?.state==='running';if(active){let remaining=realDt;while(remaining>0&&run.state==='running'){const step=Math.min(remaining,1/60);run.step(step);remaining-=step;}processEvents();}if(run&&!active&&run.events.length)processEvents();const visualRun=['home','help','settings','workshop'].includes(screen)?null:run;world.update(visualRun,screen==='paused'?0:Math.min(realDt,.05),active);sound.update(active,run?.boost>0);sound.motion(run,active);if(screen==='ending'){endingTime-=realDt;if(endingTime<=0)finish();}uiTime+=realDt;if(uiTime>.08){uiTime=0;if(run)updateHUD();}if(now>calloutUntil)$('callout').classList.remove('visible');const opacity=parseFloat($('flash').style.opacity)||0;if(opacity>0)$('flash').style.opacity=Math.max(0,opacity-realDt*1.5);if(save.settings.quality==='auto'&&active){frameTime+=realDt;if(realDt>.030)slowFrames++;if(frameTime>=4){if(slowFrames>55){world.setPerformanceLow(true);fastWindows=0;}else if(world.low&&slowFrames<8){fastWindows++;if(fastWindows>=1){world.setPerformanceLow(false);fastWindows=0;}}else if(slowFrames>=8)fastWindows=0;frameTime=0;slowFrames=0;}}}
 $('start').onclick=start;$('shop-start').onclick=start;$('retry').onclick=start;
 $('workshop-open').onclick=()=>{returnScreen='home';show('workshop');};$('result-upgrade').onclick=()=>{returnScreen='result';show('workshop');};$('result-home').onclick=()=>show('home');$('help-open').onclick=()=>{returnScreen='home';show('help');};$('settings-open').onclick=()=>{returnScreen='home';show('settings');};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>show(returnScreen));
 $('pause').onclick=pause;$('resume').onclick=resume;$('retire').onclick=()=>{paused=false;run.end('結晶を携えて帰還した');processEvents();};$('boost').onclick=()=>action('boost');

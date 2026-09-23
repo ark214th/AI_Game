@@ -1,4 +1,4 @@
-import {COURSES,TYPES,phraseRows} from './courses.mjs?v=2';
+import {COURSES,TYPES,phraseRows} from './courses.mjs?v=3';
 export const SAVE_KEY = 'aurelia.save.v1';
 export const GATES = [650, 1450, 2500];
 export const ZONES = ['翠緑の参道', '水鏡の神殿', '暁の聖域'];

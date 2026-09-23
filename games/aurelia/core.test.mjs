@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import {Run,SAVE_KEY,normalizeSave,purchase,stats,upgradeCost,GATES,TRAINING_END} from './core.mjs?v=2';
-import {COURSES,phraseRows} from './courses.mjs?v=2';
+import {Run,SAVE_KEY,normalizeSave,purchase,stats,upgradeCost,GATES,TRAINING_END} from './core.mjs?v=3';
+import {COURSES,phraseRows} from './courses.mjs?v=3';
 const fresh=()=>normalizeSave({tutorial:true});
 assert.equal(SAVE_KEY,'aurelia.save.v1');
 const old=normalizeSave({version:1,wallet:423,best:912,runs:6,tutorial:true,levels:{flame:4,guard:3,magnet:2,fortune:1},settings:{sound:false,buttons:true,quality:'low'}});

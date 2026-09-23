@@ -9,7 +9,7 @@
   <meta name="description" content="天空遺跡を駆け抜ける3Dランゲーム。結晶を集め、装備を育て、暁の秘宝へ。スマートフォン・iPad縦持ち対応。">
   <title>AURELIA — 暁の遺跡</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=2">
+  <link rel="stylesheet" href="./style.css?v=3">
 </head>
 <body>
 <main id="game" aria-label="Aurelia 暁の遺跡">
@@ -42,6 +42,6 @@
   <div id="loading"><div class="loader-ring"></div><span>遺跡への道をひらいています</span><small id="load-detail">AURELIA</small></div>
   <div id="error" class="screen sheet hidden"><div class="sheet-inner compact"><h2>遺跡を表示できませんでした</h2><p id="error-detail" class="muted"></p><button class="primary" onclick="location.reload()">もう一度読み込む</button></div></div>
 </main>
-<script type="module" src="./app.js?v=2"></script>
+<script type="module" src="./app.js?v=3"></script>
 <script>window.addEventListener('error',function(e){if(!window.aureliaReady){document.getElementById('loading').classList.add('hidden');document.getElementById('error').classList.remove('hidden');document.getElementById('error-detail').textContent='読み込みに失敗しました。通信状態を確認して、Safariで開き直してください。';}});</script>
 </body></html>
