@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#63ccdc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="潮風を追い越せ。海辺の街をスワイプで駆け抜ける3Dランゲーム。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>COAST RUSH — 潮風を追い越せ。</title>
+</head>
+<body>
+<main id="game" aria-label="COAST RUSH">
+  <canvas id="world" aria-label="海辺のランコース"></canvas>
+  <div id="speedLines" aria-hidden="true"></div><div id="hitFlash" aria-hidden="true"></div>
+  <header id="hud" hidden>
+    <div class="topline"><div class="scorebox"><span class="eyebrow">DISTANCE</span><div><b id="distance">0</b><span class="unit">m</span></div></div><div class="topright"><div class="coinbox"><span class="coin-icon">✦</span><b id="coins">0</b></div><button id="pause" class="iconbutton" aria-label="一時停止">Ⅱ</button></div></div>
+    <div class="subline"><div id="hearts" aria-label="ライフ3">♥ ♥ ♥</div><span id="bestMarker"></span></div>
+    <div class="flowbox"><div class="flowlabels"><b id="flowLabel">FLOW</b><span id="flowHelp">コインと回避でラッシュへ</span></div><div class="meter"><div id="flowFill"></div></div></div>
+  </header>
+  <div id="zone" hidden><span class="zone-line"></span><span id="zoneText">SEASIDE AVENUE</span></div>
+  <div id="callout" aria-live="polite"><b></b><span></span></div>
+  <div id="combo" hidden><b>0</b><span>CHAIN</span></div><div id="power" hidden>✦ MAGNET <b>10</b>s</div>
+  <div id="tutorial" hidden><div class="swipe"><span id="hintArrow">→</span></div><b id="hintText"></b><span id="hintSub"></span><button id="skipTutorial">練習をスキップ</button></div>
+  <section id="title" class="screen">
+    <div class="brand"><span class="kicker">SALT AIR. FULL SPEED.</span><h1>COAST<br><em>RUSH<span>✦</span></em></h1><p>潮風を、追い越せ。</p></div>
+    <div class="title-bottom"><div class="best"><span>BEST RUN</span><b id="titleBest">0 m</b></div><button class="primary" id="start">走りだす <span>↗</span></button><p class="gesture-info">← → レーン移動 <i>·</i> ↑ ジャンプ <i>·</i> ↓ スライド</p><div class="small-actions"><button id="practice">操作を練習</button><button id="sound">♫ サウンド ON</button><a href="../../">ゲーム一覧</a></div></div>
+  </section>
+  <section id="pauseScreen" class="screen shade" hidden><div class="panel"><span class="kicker">TAKE A BREATH</span><h2>ひと休み。</h2><button class="primary" id="resume">つづきを走る ↗</button><button class="secondary" id="restart">はじめから</button><button class="textbutton" id="home">タイトルへ</button></div></section>
+  <section id="result" class="screen shade" hidden><div class="panel"><span class="kicker" id="resultLabel">NICE RUN!</span><h2 id="resultDistance">0<small>m</small></h2><p id="resultMessage"></p><div class="result-grid"><div><span>コイン</span><b id="resultCoins"></b></div><div><span>最長チェイン</span><b id="resultChain"></b></div><div><span>ラッシュ</span><b id="resultRush"></b></div></div><div class="result-score">SCORE <b id="resultScore"></b></div><button class="primary" id="again">もう一度、走る ↗</button><button class="textbutton" id="resultHome">タイトルへ</button></div></section>
+  <div id="loading">海風を準備しています…</div>
+  <div id="error" hidden><p>ゲームを読み込めませんでした。</p><p id="errorDetail"></p><button onclick="location.reload()">再読み込み</button></div>
+</main>
+<script type="module">
+import('./app.mjs').catch(e => {document.getElementById('loading').hidden=true;document.getElementById('error').hidden=false;document.getElementById('errorDetail').textContent='ページを再読み込みしてください。'+e.message;});
+</script>
+</body>
+</html>
