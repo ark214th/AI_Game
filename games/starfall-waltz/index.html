@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0a1f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="歯車の庭、薔薇窓の聖堂、大天球儀。3人のボスと踊る、星と光の弾幕シューティング。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>STARFALL WALTZ — 星降る円舞曲</title>
+</head>
+<body class="landscape">
+<main id="app">
+  <div id="controls" aria-label="タッチ操作">
+    <button id="focusBtn" aria-pressed="false"><b>◎</b><span>FOCUS</span><small>低速・精密</small></button>
+    <button id="bombBtn"><b>✦</b><span>NOVA</span><small>ボム</small></button>
+  </div>
+  <div id="fieldBox">
+    <canvas id="field" aria-label="弾幕のフィールド"></canvas>
+    <button id="skipBtn" hidden>SKIP ▸▸</button>
+  </div>
+  <aside id="hud" aria-live="off">
+    <div class="hud-logo">STARFALL<em>WALTZ</em></div>
+    <dl>
+      <div><dt>HI SCORE</dt><dd id="hudHi">0</dd></div>
+      <div><dt>SCORE</dt><dd id="hudScore">0</dd></div>
+      <div><dt>PLAYER</dt><dd id="hudLives" class="stars"></dd></div>
+      <div><dt>NOVA</dt><dd id="hudBombs" class="bombs"></dd></div>
+      <div><dt>POWER</dt><dd id="hudPower">1.00</dd></div>
+      <div><dt>GRAZE</dt><dd id="hudGraze">0</dd></div>
+      <div><dt>POINT</dt><dd id="hudPoint">10,000</dd></div>
+    </dl>
+    <div class="hud-foot"><span id="hudDiff">ALLEGRO</span><button id="pauseBtn" aria-label="一時停止">Ⅱ</button></div>
+  </aside>
+</main>
+
+<section id="title" class="screen">
+  <div class="panel title-panel">
+    <div class="logo">
+      <span class="kicker">A CELESTIAL BULLET WALTZ</span>
+      <h1>STARFALL<em>WALTZ</em></h1>
+      <p class="ja">星降る円舞曲</p>
+    </div>
+    <nav class="menu">
+      <button data-act="start">はじめる<small>GAME START</small></button>
+      <button data-act="practice">アリア・プラクティス<small>SPELL PRACTICE</small></button>
+      <button data-act="help">あそびかた<small>HOW TO PLAY</small></button>
+      <button data-act="settings">設定<small>OPTION</small></button>
+    </nav>
+    <div class="difficulty" role="radiogroup" aria-label="難易度"></div>
+    <p class="hi">HI SCORE <b id="titleHi">0</b></p>
+    <a class="back" href="../../">ゲーム一覧へ</a>
+  </div>
+</section>
+
+<section id="practice" class="screen" hidden>
+  <div class="panel wide">
+    <h2>ARIA PRACTICE<small>一度出会ったスペルアリアを、何度でも練習できます</small></h2>
+    <div class="difficulty" role="radiogroup" aria-label="難易度"></div>
+    <div id="practiceList" class="plist"></div>
+    <button class="text" data-act="title">もどる</button>
+  </div>
+</section>
+
+<section id="help" class="screen" hidden>
+  <div class="panel wide help">
+    <h2>HOW TO PLAY<small>あそびかた</small></h2>
+    <div class="cols">
+      <div>
+        <h3>操作</h3>
+        <table>
+          <tr><th>移動</th><td>矢印キー / WASD<br><span>タッチ：画面のどこでもドラッグ</span></td></tr>
+          <tr><th>低速移動</th><td>Shift（押している間）<br><span>タッチ：FOCUSボタン（切り替え）</span></td></tr>
+          <tr><th>ボム</th><td>X / K<br><span>タッチ：NOVAボタン</span></td></tr>
+          <tr><th>ショット</th><td>自動で撃ち続けます</td></tr>
+          <tr><th>会話送り</th><td>Z / Enter / タップ（Ctrlでスキップ）</td></tr>
+          <tr><th>一時停止</th><td>Esc / P / Ⅱボタン</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>当たり判定は、小さな白い点だけ</h3>
+        <p>自機の中心の白い点に弾が触れたときだけ被弾します。見た目より遥かに小さいので、弾と弾のすき間をすり抜けられます。低速移動中は点がはっきり見えます。</p>
+        <h3>GRAZE（かすり）</h3>
+        <p>弾をすれすれで避けるとスコアが入り、得点アイテム（✦）の価値も上がります。</p>
+        <h3>SUPERNOVA（ボム）と喰らいボム</h3>
+        <p>ボムは画面の弾を星に変えて消し、しばらく無敵になります。<b>被弾した直後の約1/6秒（10フレーム）はまだ間に合います</b>。自機の周りの赤い輪が縮みきる前にボムを押せば、被弾は帳消し。ミスするとボムは3発に戻ります。</p>
+        <h3>スペルアリア</h3>
+        <p>ボスの必殺技。被弾もボムもせずに倒すと大きなボーナス。時間切れまで耐えるだけのアリアもあります。</p>
+        <h3>アイテム</h3>
+        <p><b class="p">P</b> パワー（最大4.00でショット強化）　<b class="pt">✦</b> 得点（一定数で残機が増える）。画面上部まで上がると、画面内のアイテムをすべて回収します。</p>
+      </div>
+    </div>
+    <button class="text" data-act="title">もどる</button>
+  </div>
+</section>
+
+<section id="settings" class="screen" hidden>
+  <div class="panel">
+    <h2>OPTION<small>設定</small></h2>
+    <div class="settings">
+      <button id="soundToggle" class="row">サウンド<b>ON</b></button>
+      <label class="row">音楽<input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
+      <label class="row">効果音<input id="sfxVol" type="range" min="0" max="1" step="0.05"></label>
+      <label class="row">タッチ感度<input id="sens" type="range" min="0.6" max="2" step="0.1"><output id="sensOut">1.0</output></label>
+      <button id="resetData" class="row danger">記録を消去</button>
+    </div>
+    <button class="text" data-act="title">もどる</button>
+  </div>
+</section>
+
+<section id="pause" class="screen shade" hidden>
+  <div class="panel small">
+    <h2>PAUSE<small>ひと休み</small></h2>
+    <nav class="menu">
+      <button data-act="resume">つづける<small>RESUME</small></button>
+      <button data-act="retry">はじめから<small>RETRY</small></button>
+      <button data-act="title">タイトルへ<small>QUIT</small></button>
+    </nav>
+  </div>
+</section>
+
+<section id="gameover" class="screen shade" hidden>
+  <div class="panel small">
+    <h2>GAME OVER<small id="goSub">ステップを踏み外してしまった</small></h2>
+    <p class="stat" id="goScore"></p>
+    <nav class="menu">
+      <button data-act="continue" id="continueBtn">コンティニュー<small id="continueInfo">CONTINUE</small></button>
+      <button data-act="retry">はじめから<small>RETRY</small></button>
+      <button data-act="title">タイトルへ<small>QUIT</small></button>
+    </nav>
+  </div>
+</section>
+
+<section id="practiceResult" class="screen shade" hidden>
+  <div class="panel small">
+    <h2 id="prTitle">SPELL CAPTURED!<small></small></h2>
+    <p class="stat" id="prName"></p>
+    <p class="stat" id="prHist"></p>
+    <nav class="menu">
+      <button data-act="retry">もう一度<small>RETRY</small></button>
+      <button data-act="practice">アリアを選ぶ<small>SELECT</small></button>
+      <button data-act="title">タイトルへ<small>QUIT</small></button>
+    </nav>
+  </div>
+</section>
+
+<section id="ending" class="screen shade" hidden>
+  <div class="panel wide ending">
+    <span class="kicker">FINE</span>
+    <h2>終曲<small>The orrery turns again</small></h2>
+    <p>調律を取り戻した大天球儀は、ふたたび静かに廻りはじめた。<br>街に降り注いでいた星々はひとつ残らず夜空へ還り、<br>歯車の庭には正確な拍子が、薔薇窓には七色の朝が戻ってくる。</p>
+    <p>「楽しかったわ。次の夜も、踊ってくれる？」<br>──セレネの声は、遠い天球の音楽にまぎれて消えた。</p>
+    <div class="result-grid" id="endStats"></div>
+    <nav class="menu"><button data-act="title">タイトルへ<small>THANK YOU FOR PLAYING</small></button></nav>
+  </div>
+</section>
+
+<div id="loading">天球を調律しています…</div>
+<div id="error" hidden><p>ゲームを読み込めませんでした。</p><p id="errorDetail"></p><button onclick="location.reload()">再読み込み</button></div>
+<script type="module">
+import('./app.mjs').catch(e => {document.getElementById('loading').hidden = true; document.getElementById('error').hidden = false; document.getElementById('errorDetail').textContent = 'ページを再読み込みしてください。' + e.message;});
+</script>
+</body>
+</html>
