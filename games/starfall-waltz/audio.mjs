@@ -9,9 +9,10 @@ export class Sound {
     this.ctx = null; this.track = null; this.seq = null; this.last = {};
   }
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended' && !this.paused) this.ctx.resume().catch(() => {}); return; }
+    if (this.ctx) { this.unlock(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const c = this.ctx = new AC();
+    this.unlock();
     this.master = c.createGain(); this.master.gain.value = this.enabled ? .8 : 0;
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp); comp.connect(c.destination);
@@ -27,6 +28,16 @@ export class Sound {
     const nd = this.noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     this.timer = setInterval(() => this.pump(), 25);
     if (this.track) { const id = this.track; this.track = null; this.play(id); }
+  }
+  // iOS Safari は 'suspended' のほか 'interrupted' にもなり、タップの操作中に鳴らさないと解除されない。
+  // 操作のたびに running 以外なら再開し、無音を1つ鳴らして確実に解除する
+  unlock() {
+    const c = this.ctx; if (!c || this.paused) return;
+    if (c.state !== 'running') c.resume().catch(() => {});
+    if (!this.unlocked) {
+      this.unlocked = true;
+      const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, c.sampleRate); s.connect(c.destination); s.start(0);
+    }
   }
   setEnabled(on) { this.enabled = on; if (this.ctx) this.master.gain.setTargetAtTime(on ? .8 : 0, this.ctx.currentTime, .05); }
   setMusic(v) { this.musicVol = v; if (this.ctx) this.musicBus.gain.setTargetAtTime(v * .55, this.ctx.currentTime, .05); }

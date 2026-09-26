@@ -223,6 +223,8 @@ function menuKey(e) {
   }
 }
 
+// 音声の解除は touchend / click / keydown でも試みる（iOS は pointerdown では解除されない）
+for (const type of ['touchend', 'click', 'keydown']) addEventListener(type, () => sound.init(), {capture: true, passive: true});
 document.addEventListener('pointerdown', e => {
   sound.init();
   if (e.pointerType === 'touch') markTouch();

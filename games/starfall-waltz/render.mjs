@@ -321,7 +321,8 @@ export class Renderer {
       const age = BOMB_FRAMES - g.bombT, r = Math.min(520, age * 7);
       for (let i = 0; i < 4; i++) { const a = Math.random() * TAU; this.spark(g.bombX + Math.cos(a) * r, g.bombY + Math.sin(a) * r, i % 2 ? COLORS.gold : '#ffffff', 1, 2, 24, 1.8); }
     }
-    if (g.boss) { const b = g.boss, want = b.hp / b.maxHp; this.hpShown += (want - this.hpShown) * (want > this.hpShown ? .06 : .3); }
+    // 攻撃の合間はゲージを空にし、次の攻撃の開始時に満タンまで伸ばす
+    if (g.boss) { const b = g.boss, want = g.phase === 'attack' ? Math.max(0, b.hp / b.maxHp) : g.phase === 'between' ? 0 : 1; this.hpShown += (want - this.hpShown) * (want > this.hpShown ? .06 : .3); }
   }
 
   // ================= 描画 =================
@@ -761,7 +762,7 @@ export class Renderer {
     if (b && (g.phase === 'attack' || g.phase === 'between' || g.phase === 'dialogue')) {
       const survival = a?.def.survival, x0 = 46, x1 = W - 52;
       c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(x0, 4, x1 - x0, 4);
-      const k = survival ? a.timer / a.total : g.phase === 'attack' ? Math.max(0, this.hpShown) : 1;
+      const k = survival ? a.timer / a.total : Math.max(0, this.hpShown);
       const gr = c.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, survival ? '#8fe6ff' : b.def.color);
       c.fillStyle = gr; c.fillRect(x0, 4, (x1 - x0) * k, 4);
       const remaining = b.def.attacks.slice(b.idx + 1).filter(id => ATTACKS[id].spell).length;
