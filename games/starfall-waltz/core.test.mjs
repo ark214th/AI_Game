@@ -237,3 +237,18 @@ test('会話中はボムを使わない', () => {
   g.step({bomb: true});
   assert.equal(g.bombs, 3);
 });
+
+test('最後の攻撃を倒した瞬間にボス撃破になり、体力が戻って見える間がない', () => {
+  const g = new Game({mode: 'story', seed: 1});
+  g.stageT = g.stage.roadLen; g.waveCursor = g.stage.waves.length;
+  for (let i = 0; i < 300 && g.phase !== 'attack'; i++) { if (g.dialogue) g.skipDialogue(); g.step({}); }
+  g.player.invuln = 1e9;
+  while (g.boss.idx < g.boss.def.attacks.length - 1) {
+    g.boss.hp = 0; g.atk.t = 100; g.step({});
+    assert.equal(g.phase, 'between');
+    for (let i = 0; i < 80 && g.phase !== 'attack'; i++) g.step({});
+  }
+  g.events.length = 0; g.boss.hp = 0; g.atk.t = 100; g.step({});
+  assert.equal(g.phase, 'clear'); assert.equal(g.boss, null);
+  assert.ok(g.events.some(e => e.type === 'bossDown'));
+});

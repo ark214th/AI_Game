@@ -193,6 +193,8 @@ export class Game {
       this.emit('practiceDone', {captured, id: def.id});
       return;
     }
+    // 最後の攻撃が終わったら間を置かずに撃破演出へ
+    if (b.idx >= b.def.attacks.length - 1) return this.bossDefeated();
     this.phase = 'between'; this.phaseT = 0; this.moveBoss(W / 2, 104, 50);
   }
   bossDefeated() {
