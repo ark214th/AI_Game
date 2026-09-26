@@ -103,7 +103,7 @@ function orbit(b, g) {
     const dx = d.cx - b.x, dy = d.cy - b.y, d2 = dx * dx + dy * dy + 120, a = d.GM / d2, inv = 1 / Math.sqrt(d2);
     b.vx += dx * inv * a; b.vy += dy * inv * a;
   } else {
-    const sp = Math.hypot(b.vx, b.vy) || 1, ns = clamp(sp, 1.2, g.dv(2.2, 2.6, 3));
+    const sp = Math.hypot(b.vx, b.vy) || 1, ns = clamp(sp, 1.2, g.dv(2.2, 2.6, 3)) * g.speedMul;
     b.vx *= ns / sp; b.vy *= ns / sp; b.fn = null; g.emit('release', {x: b.x, y: b.y});
   }
 }
@@ -116,7 +116,7 @@ function sphere(b) {
   b.x = d.cx + Math.cos(d.th) * d.r; b.y = d.cy + Math.sin(d.th) * d.r;
 }
 function galaxy(b, g) {
-  if (b.age === b.d.at) { b.accel = .018; b.max = g.dv(2, 2.3, 2.6); b.min = -99; b.curve = b.d.c; }
+  if (b.age === b.d.at) { b.accel = .018 * g.speedMul; b.max = g.dv(2, 2.3, 2.6) * g.speedMul; b.min = -99; b.curve = b.d.c * g.speedMul; }
   if (b.age === b.d.at + 90) b.curve = 0;
 }
 function meteors(g, n, dir, speed) {
@@ -151,7 +151,7 @@ export const ATTACKS = {
         for (const s of [-1, 1]) {
           const cx = b.x + s * 56, cy = b.y + 14, ang = g.aim(cx, cy) + s * .25, v = .75;
           const vx = Math.cos(ang) * v, vy = Math.sin(ang) * v, w = s * .055, rel = g.dv(100, 95, 90);
-          const n = g.dv(10, 13, 16), sp = g.dv(1.4, 1.6, 1.8);
+          const n = g.thin(g.dv(10, 13, 16)), sp = g.dv(1.4, 1.6, 1.8) * g.speedMul;
           for (let i = 0; i < n; i++) g.shot(cx, cy, 0, 0, 'gear', 'gold', {fn: gearTooth, d: {cx, cy, vx, vy, th: i * TAU / n, R: 34, w, rel, sp}});
           const m = g.dv(0, 5, 7);
           for (let i = 0; i < m; i++) g.shot(cx, cy, 0, 0, 'pellet', 'cyan', {fn: gearTooth, d: {cx, cy, vx, vy, th: i * TAU / m, R: 15, w: -w * 1.6, rel: rel + 10, sp: sp * .85}});
@@ -206,7 +206,7 @@ export const ATTACKS = {
     update(g, b, t) {
       const P = g.dv(120, 100, 85);
       if (t % P === 15) {
-        const w = Math.floor(t / P), p = [5, 7, 6, 8][w % 4], N = g.dv(100, 140, 176), rot = g.rand() * TAU, dir = w % 2 ? 1 : -1;
+        const w = Math.floor(t / P), p = [5, 7, 6, 8][w % 4], N = g.thin(g.dv(100, 140, 176)), rot = g.rand() * TAU, dir = w % 2 ? 1 : -1;
         for (let i = 0; i < N; i++) {
           const th = i / N * TAU, r = Math.abs(Math.cos(p * th / 2)), petal = Math.round(th * p / TAU) % p;
           g.shot(b.x, b.y, .85 + 1.75 * r, th + rot, r > .55 ? 'rice' : 'orb', RAINBOW[petal % 7], {curve: dir * .0022});
@@ -260,7 +260,7 @@ export const ATTACKS = {
     update(g, b, t) {
       const P = g.dv(105, 90, 76);
       if (t % P === 10) {
-        const w = Math.floor(t / P), dir = w % 2 ? 1 : -1, N = g.dv(15, 21, 27), r0 = 38, GM = 300, cx = b.x, cy = b.y, off = g.rand() * TAU;
+        const w = Math.floor(t / P), dir = w % 2 ? 1 : -1, N = g.thin(g.dv(15, 21, 27)), r0 = 38, GM = 300, cx = b.x, cy = b.y, off = g.rand() * TAU;
         for (let i = 0; i < N; i++) {
           const th = off + i * TAU / N, v0 = Math.sqrt(GM / r0) * (.66 + .12 * (i % 3));
           const s = g.shot(cx + Math.cos(th) * r0, cy + Math.sin(th) * r0, 0, 0, 'orb', dir > 0 ? (i % 3 ? 'blue' : 'white') : (i % 3 ? 'violet' : 'white'),
@@ -277,7 +277,7 @@ export const ATTACKS = {
     update(g, b, t) {
       const P = g.dv(64, 52, 44);
       if (t % P === 20) {
-        const w = Math.floor(t / P), rot = g.rand() * TAU, m = g.dv(5, 6, 8), sp = g.dv(1.9, 2.2, 2.5), col = w % 2 ? 'gold' : 'blue', dir = w % 2 ? 1 : -1;
+        const w = Math.floor(t / P), rot = g.rand() * TAU, m = g.thin(g.dv(5, 6, 8)), sp = g.dv(1.9, 2.2, 2.5), col = w % 2 ? 'gold' : 'blue', dir = w % 2 ? 1 : -1;
         const pts = [];
         for (let i = 0; i < 10; i++) { const R = i % 2 ? .382 : 1, a = rot + i * TAU / 10; pts.push([Math.cos(a) * R, Math.sin(a) * R]); }
         for (let i = 0; i < 10; i++) {
@@ -308,12 +308,12 @@ export const ATTACKS = {
     update(g, b, t) {
       const P = g.dv(78, 66, 56);
       if (t % P === 10) {
-        const w = Math.floor(t / P), N = g.dv(60, 76, 92), gap = g.dv(7, 6, 6), g1 = Math.floor(g.rand() * N), dir = w % 2 ? 1 : -1;
+        const w = Math.floor(t / P), N = g.dv(60, 76, 92), gap = g.density < 1 ? 11 : g.dv(7, 6, 6), g1 = Math.floor(g.rand() * N), dir = w % 2 ? 1 : -1;
         const vr = w % 3 === 2 ? 1.55 : 1.25, col = dir > 0 ? 'cyan' : 'gold';
         for (let i = 0; i < N; i++) {
           const d1 = (i - g1 + N) % N, d2 = (i - g1 - Math.floor(N / 2) + N) % N;
           if (d1 < gap || d2 < gap) continue;
-          g.shot(b.x, b.y, 0, 0, 'orb', col, {fn: sphere, d: {cx: b.x, cy: b.y, r: 6, th: i * TAU / N, vr, w: dir * g.dv(.0035, .0042, .005)}});
+          g.shot(b.x, b.y, 0, 0, 'orb', col, {fn: sphere, d: {cx: b.x, cy: b.y, r: 6, th: i * TAU / N, vr: vr * g.speedMul, w: dir * g.dv(.0035, .0042, .005) * g.speedMul}});
         }
         g.sfx('orbit');
       }

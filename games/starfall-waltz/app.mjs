@@ -1,5 +1,5 @@
 // 画面遷移・入力・保存・固定フレームのループ
-import {Game, W, H, DIFFICULTIES, MAX_POWER, clamp} from './core.mjs';
+import {Game, W, H, DIFFICULTIES, DEFAULT_LEVEL, MAX_POWER, clamp} from './core.mjs';
 import {ATTACKS, BOSSES} from './content.mjs';
 import {Renderer} from './render.mjs';
 import {Sound} from './audio.mjs';
@@ -10,17 +10,23 @@ const num = (v, d, lo, hi) => Number.isFinite(v) ? clamp(v, lo, hi) : d;
 const fmt = n => Math.floor(n).toLocaleString('en-US');
 
 // ---------- 保存 ----------
-function fresh() { return {hi: [0, 0, 0], history: {}, seen: {}, cleared: [false, false, false], diff: 1, sound: true, music: .7, sfx: .7, sens: 1}; }
+// 難易度は DIFFICULTIES の番号で保存する。v1 は LARGO 追加前の3段階なので1つずらして読み込む
+const LEVELS = DIFFICULTIES.map((_, i) => i);
+function fresh() { return {v: 2, hi: LEVELS.map(() => 0), history: {}, seen: {}, cleared: LEVELS.map(() => false), diff: DEFAULT_LEVEL, sound: true, music: .7, sfx: .7, sens: 1}; }
 function load() {
   const s = fresh();
   try {
     const v = JSON.parse(localStorage.getItem(STORE) || 'null');
     if (!v || typeof v !== 'object') return s;
-    if (Array.isArray(v.hi)) s.hi = [0, 1, 2].map(i => num(v.hi[i], 0, 0, 1e12));
-    if (Array.isArray(v.cleared)) s.cleared = [0, 1, 2].map(i => v.cleared[i] === true);
-    if (v.history && typeof v.history === 'object') for (const [k, h] of Object.entries(v.history)) if (h && Number.isFinite(h.a) && Number.isFinite(h.c)) s.history[k] = {a: h.a, c: Math.min(h.c, h.a)};
+    const shift = v.v === 2 ? 0 : 1, lv = i => i - shift;
+    if (Array.isArray(v.hi)) s.hi = LEVELS.map(i => num(v.hi[lv(i)], 0, 0, 1e12));
+    if (Array.isArray(v.cleared)) s.cleared = LEVELS.map(i => v.cleared[lv(i)] === true);
+    if (v.history && typeof v.history === 'object') for (const [k, h] of Object.entries(v.history)) {
+      const m = /^(\w+):(\d+)$/.exec(k);
+      if (m && ATTACKS[m[1]] && h && Number.isFinite(h.a) && Number.isFinite(h.c)) s.history[`${m[1]}:${Number(m[2]) + shift}`] = {a: h.a, c: Math.min(h.c, h.a)};
+    }
     if (v.seen && typeof v.seen === 'object') for (const k of Object.keys(v.seen)) if (ATTACKS[k]) s.seen[k] = true;
-    s.diff = [0, 1, 2].includes(v.diff) ? v.diff : 1; s.sound = v.sound !== false;
+    s.diff = Number.isInteger(v.diff) && LEVELS.includes(v.diff + shift) ? v.diff + shift : DEFAULT_LEVEL; s.sound = v.sound !== false;
     s.music = num(v.music, .7, 0, 1); s.sfx = num(v.sfx, .7, 0, 1); s.sens = num(v.sens, 1, .6, 2);
   } catch {}
   return s;
@@ -37,7 +43,8 @@ let game = null, demo = new Game({mode: 'demo', seed: 20260925}), screen = 'titl
 let acc = 0, last = performance.now(), endTimer = 0, endScreen = null;
 const keys = new Set();
 let bombQueued = false, touchFocus = false, drag = null, moveX = 0, moveY = 0;
-renderer.history = id => game && game.mode !== 'demo' ? hist(id, game.diff) : null;
+const touches = new Map(); // フィールド上で触れている指（2本目が触れた瞬間にボム）
+renderer.history = id => game && game.mode !== 'demo' ? hist(id, game.level) : null;
 
 // ---------- 画面 ----------
 const SCREENS = ['title', 'practice', 'help', 'settings', 'pause', 'gameover', 'practiceResult', 'ending'];
@@ -46,7 +53,7 @@ function show(name) {
   for (const s of SCREENS) $(s).hidden = s !== name;
   document.body.dataset.screen = name;
   $('skipBtn').hidden = true;
-  if (name !== 'playing') { drag = null; moveX = moveY = 0; }
+  if (name !== 'playing') { drag = null; touches.clear(); moveX = moveY = 0; }
   const first = name !== 'playing' && $(name)?.querySelector('.menu button:not([disabled]), .plist button:not([disabled]), button');
   if (first && !matchMedia('(pointer:coarse)').matches) first.focus({preventScroll: true});
 }
@@ -88,7 +95,7 @@ function refreshSettings() {
 // ---------- 進行 ----------
 function beginGame(g) {
   sound.init(); game = g; renderer.reset(); endTimer = 0; acc = 0; bombQueued = false; moveX = moveY = 0;
-  $('hudDiff').textContent = DIFFICULTIES[g.diff].name;
+  $('hudDiff').textContent = DIFFICULTIES[g.level].name;
   show('playing'); sound.sfx('confirm');
 }
 function startStory() { beginGame(new Game({mode: 'story', difficulty: save.diff, seed: (Date.now() & 0x7fffffff) || 1})); }
@@ -103,25 +110,26 @@ function pause() {
 }
 function resume() { sound.resume(); show('playing'); }
 function retry() { sound.resume(); if (game?.mode === 'practice') startPractice(game.practiceId); else startStory(); }
+const continuesLeft = g => (g.rules.continues ?? MAX_CONTINUES) - g.continues;
 function continueGame() {
-  if (!game || game.continues >= MAX_CONTINUES) return;
+  if (!game || continuesLeft(game) <= 0) return;
   game.continueGame(); sound.resume(); show('playing');
 }
 function finishTo(name) {
   persist();
   if (name === 'gameover') {
-    const left = MAX_CONTINUES - game.continues;
+    const left = continuesLeft(game);
     $('continueBtn').disabled = left <= 0;
-    $('continueInfo').textContent = left > 0 ? `あと${left}回` : 'CONTINUE';
+    $('continueInfo').textContent = left === Infinity ? '何度でも' : left > 0 ? `あと${left}回` : 'CONTINUE';
     $('goSub').textContent = left > 0 ? 'コンティニューするとスコアは0から' : 'ステップを踏み外してしまった';
     $('goScore').textContent = `SCORE ${fmt(game.score)}`;
   } else if (name === 'practiceResult') {
-    const r = game.result || {}, a = ATTACKS[game.practiceId], h = hist(a.id, game.diff);
+    const r = game.result || {}, a = ATTACKS[game.practiceId], h = hist(a.id, game.level);
     $('prTitle').innerHTML = `${r.captured ? 'SPELL CAPTURED!' : 'FAILED…'}<small>${r.captured ? 'お見事！' : r.died ? '被弾してしまった' : 'ボーナスを逃した'}</small>`;
     $('prName').textContent = `${a.name}　${a.ja}`;
-    $('prHist').textContent = `History ${h.c} / ${h.a}　（${DIFFICULTIES[game.diff].name}）`;
+    $('prHist').textContent = `History ${h.c} / ${h.a}　（${DIFFICULTIES[game.level].name}）`;
   } else if (name === 'ending') {
-    $('endStats').innerHTML = [['SCORE', fmt(game.score)], ['DIFFICULTY', DIFFICULTIES[game.diff].name], ['CAPTURED', `${game.captures} / 8`],
+    $('endStats').innerHTML = [['SCORE', fmt(game.score)], ['DIFFICULTY', DIFFICULTIES[game.level].name], ['CAPTURED', `${game.captures} / 8`],
       ['MISS', game.misses], ['NOVA', game.bombsUsed], ['GRAZE', fmt(game.graze)], ['CONTINUE', game.continues]]
       .map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     sound.play('ending');
@@ -140,9 +148,9 @@ function processEvents(g) {
       case 'bomb': sound.sfx('bomb'); if (e.death) sound.sfx('deathbomb'); break;
       case 'spell':
         sound.sfx('spell'); save.seen[e.id] = true;
-        { const k = histKey(e.id, g.diff), h = save.history[k] || {a: 0, c: 0}; h.a++; save.history[k] = h; }
+        { const k = histKey(e.id, g.level), h = save.history[k] || {a: 0, c: 0}; h.a++; save.history[k] = h; }
         persist(); break;
-      case 'capture': sound.sfx('capture'); { const h = save.history[histKey(e.id, g.diff)]; if (h) h.c = Math.min(h.a, h.c + 1); } persist(); break;
+      case 'capture': sound.sfx('capture'); { const h = save.history[histKey(e.id, g.level)]; if (h) h.c = Math.min(h.a, h.c + 1); } persist(); break;
       case 'spellFail': sound.sfx('fail'); break;
       case 'extend': sound.sfx('extend'); break;
       case 'bombGet': case 'powerUp': case 'fullPower': sound.sfx('powerUp'); break;
@@ -152,11 +160,11 @@ function processEvents(g) {
       case 'countdown': sound.sfx(e.s <= 3 ? 'countdownLast' : 'countdown'); break;
       case 'gameover': endTimer = 80; endScreen = 'gameover'; break;
       case 'practiceDone': endTimer = e.died ? 80 : 100; endScreen = 'practiceResult'; break;
-      case 'ending': endTimer = 150; endScreen = 'ending'; save.cleared[g.diff] = true; persist(); break;
+      case 'ending': endTimer = 150; endScreen = 'ending'; save.cleared[g.level] = true; persist(); break;
     }
   }
   g.events.length = 0;
-  if (g.mode === 'story' && g.score > save.hi[g.diff]) { save.hi[g.diff] = g.score; }
+  if (g.mode === 'story' && g.score > save.hi[g.level]) { save.hi[g.level] = g.score; }
 }
 
 // ---------- 入力 ----------
@@ -202,7 +210,7 @@ function menuKey(e) {
     const next = i < 0 ? 0 : (i + (e.code === 'ArrowDown' ? 1 : -1) + n) % n;
     items[next].focus(); sound.sfx('select');
   } else if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && root.querySelector('.difficulty') && document.activeElement?.type !== 'range') {
-    save.diff = clamp(save.diff + (e.code === 'ArrowRight' ? 1 : -1), 0, 2); persist(); refreshDifficulty(); refreshTitle();
+    save.diff = clamp(save.diff + (e.code === 'ArrowRight' ? 1 : -1), 0, DIFFICULTIES.length - 1); persist(); refreshDifficulty(); refreshTitle();
     if (screen === 'practice') buildPractice();
     sound.sfx('select');
   } else if (['KeyZ', 'Enter', 'Space'].includes(e.code)) {
@@ -219,17 +227,28 @@ document.addEventListener('pointerdown', e => {
   sound.init();
   if (e.pointerType === 'touch') markTouch();
   if (screen !== 'playing' || e.target.closest('button, a, input')) return;
+  e.preventDefault();
+  touches.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  // 2本目の指が触れた瞬間（2本同時タップも含む）にボム。移動は1本目の指のまま
+  if (e.pointerType === 'touch' && touches.size === 2) { if (!game?.dialogue) bombQueued = true; return; }
+  if (touches.size > 2) return;
   if (game?.dialogue) game.advanceDialogue();
   drag = {id: e.pointerId, x: e.clientX, y: e.clientY};
-  e.preventDefault();
 }, {passive: false});
 document.addEventListener('pointermove', e => {
+  const t = touches.get(e.pointerId); if (t) { t.x = e.clientX; t.y = e.clientY; }
   if (!drag || e.pointerId !== drag.id || screen !== 'playing') return;
   const k = W / fieldCssW * save.sens * (isFocus() ? .55 : 1);
   moveX += (e.clientX - drag.x) * k; moveY += (e.clientY - drag.y) * k;
   drag.x = e.clientX; drag.y = e.clientY;
 });
-const endDrag = e => { if (drag && e.pointerId === drag.id) drag = null; };
+const endDrag = e => {
+  touches.delete(e.pointerId);
+  if (!drag || e.pointerId !== drag.id) return;
+  // 移動していた指を離しても、残っている指でそのまま動かせる
+  const [id, t] = touches.entries().next().value || [];
+  drag = id === undefined ? null : {id, x: t.x, y: t.y};
+};
 document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
 document.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -284,7 +303,7 @@ const hudCache = {};
 function setHud(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
 function updateHud() {
   const g = activeGame(), real = g !== demo;
-  setHud('hudHi', fmt(Math.max(save.hi[real ? g.diff : save.diff], real && g.mode === 'story' ? g.score : 0)));
+  setHud('hudHi', fmt(Math.max(save.hi[real ? g.level : save.diff], real && g.mode === 'story' ? g.score : 0)));
   setHud('hudScore', real ? fmt(g.score) : '0');
   setHud('hudLives', real ? (g.lives > 0 ? '★'.repeat(g.lives) : '—') : '');
   setHud('hudBombs', real ? (g.bombs > 0 ? '✦'.repeat(g.bombs) : '—') : '');

@@ -9,11 +9,15 @@ export const BOMB_FRAMES = 150, BOMB_INVULN = 220, RESPAWN_INVULN = 240;
 export const EXTENDS = [60, 150, 260, 400, 600, 850, 1150];
 export const MAX_LIVES = 8, MAX_POWER = 4;
 
+// tier: 弾幕パターンの段階（dv の選択肢）。LARGO は ANDANTE の弾幕をさらに遅く、薄くしたもの
 export const DIFFICULTIES = [
-  {id: 'andante', name: 'ANDANTE', ja: 'やさしい', note: '歩くような速さで', lives: 3},
-  {id: 'allegro', name: 'ALLEGRO', ja: 'ふつう', note: '快活に、速く', lives: 2},
-  {id: 'presto', name: 'PRESTO', ja: 'むずかしい', note: 'きわめて急速に', lives: 2},
+  {id: 'largo', name: 'LARGO', ja: 'はじめて', note: 'ゆったりと', tier: 0, lives: 4, bombs: 4, deathbomb: 24,
+    bulletSpeed: .75, density: .6, bossHp: .65, continues: Infinity},
+  {id: 'andante', name: 'ANDANTE', ja: 'やさしい', note: '歩くような速さで', tier: 0, lives: 3},
+  {id: 'allegro', name: 'ALLEGRO', ja: 'ふつう', note: '快活に、速く', tier: 1, lives: 2},
+  {id: 'presto', name: 'PRESTO', ja: 'むずかしい', note: 'きわめて急速に', tier: 2, lives: 2},
 ];
+export const DEFAULT_LEVEL = 2;
 
 export const COLORS = {
   red: '#ff4a6e', orange: '#ff8c3a', yellow: '#ffe25a', gold: '#ffc35a', green: '#5ef08f',
