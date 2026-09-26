@@ -1,7 +1,7 @@
 // 弾幕のシミュレーション。1ステップ＝1フレーム（60fps固定）。DOMに依存しない。
 import {
   W, H, TAU, PLAYER_R, GRAZE_R, POC_Y, DEATHBOMB_FRAMES, SPEED_FAST, SPEED_SLOW,
-  BOMB_FRAMES, BOMB_INVULN, RESPAWN_INVULN, EXTENDS, MAX_LIVES, MAX_POWER, DIFFICULTIES, BULLET_TYPES, clamp,
+  BOMB_FRAMES, BOMB_INVULN, RESPAWN_INVULN, EXTENDS, MAX_LIVES, MAX_POWER, DIFFICULTIES, DEFAULT_LEVEL, BULLET_TYPES, clamp,
 } from './consts.mjs';
 import {STAGES, BOSSES, ATTACKS, DEMO_ATTACKS, WAVES} from './content.mjs';
 
@@ -19,16 +19,20 @@ export function optionOffsets(power, fk) {
 }
 
 export class Game {
-  constructor({mode = 'story', difficulty = 1, seed = 0x5eed, stage = 0, attack = null} = {}) {
-    this.mode = mode; this.diff = clamp(difficulty | 0, 0, 2); this.seed = (seed >>> 0) || 1;
+  // difficulty は DIFFICULTIES の番号（0: LARGO … 3: PRESTO）。diff は弾幕パターンの段階（0〜2）
+  constructor({mode = 'story', difficulty = DEFAULT_LEVEL, seed = 0x5eed, stage = 0, attack = null} = {}) {
+    this.mode = mode; this.level = clamp(difficulty | 0, 0, DIFFICULTIES.length - 1); this.seed = (seed >>> 0) || 1;
+    const d = this.rules = DIFFICULTIES[this.level];
+    this.diff = d.tier; this.speedMul = d.bulletSpeed || 1; this.density = d.density || 1;
+    this.bombStock = d.bombs || 3; this.deathbombFrames = d.deathbomb || DEATHBOMB_FRAMES;
     this.frame = 0; this.events = []; this.sfxSeen = new Set();
     this.bullets = []; this.lasers = []; this.shots = []; this.enemies = []; this.items = []; this.timers = [];
     this.boss = null; this.atk = null; this.dialogue = null; this.stage = null;
     this.stageIndex = stage; this.stageT = 0; this.phase = 'init'; this.phaseT = 0;
     this.score = 0; this.graze = 0; this.pointItems = 0; this.extendIndex = 0;
     this.continues = 0; this.captures = 0; this.misses = 0; this.bombsUsed = 0; this.deathbombs = 0;
-    this.lives = mode === 'practice' ? 0 : DIFFICULTIES[this.diff].lives;
-    this.bombs = 3; this.power = mode === 'story' ? 1 : MAX_POWER;
+    this.lives = mode === 'practice' ? 0 : d.lives;
+    this.bombs = this.bombStock; this.power = mode === 'story' ? 1 : MAX_POWER;
     this.bombT = 0; this.bombX = 0; this.bombY = 0;
     this.gameOver = false; this.result = null; this.demoIndex = 0;
     this.player = {x: W / 2, y: H - 52, px: W / 2, py: H - 52, state: mode === 'demo' ? 'ghost' : 'alive',
@@ -42,6 +46,8 @@ export class Game {
   rand() { let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 4294967296; }
   rr(a, b) { return a + (b - a) * this.rand(); }
   dv(a, b, c) { return this.diff === 0 ? a : this.diff === 1 ? b : c; }
+  // LARGO では弾の数を減らす（形は保つ）
+  thin(n) { return this.density < 1 ? Math.max(3, Math.round(n * this.density)) : n; }
   emit(type, data = {}) { this.events.push({type, ...data}); }
   sfx(name) { if (!this.sfxSeen.has(name)) { this.sfxSeen.add(name); this.events.push({type: 'sfx', name}); } }
   aim(x, y) { const p = this.player; return Math.atan2(p.y - y, p.x - x); }
@@ -55,19 +61,20 @@ export class Game {
   // ---- 弾の生成 ----
   shot(x, y, speed, angle, type = 'orb', color = 'white', o = {}) {
     if (this.bullets.length >= MAX_BULLETS) return null;
-    const t = BULLET_TYPES[type], scale = o.scale || 1;
-    const b = {x, y, px: x, py: y, speed, angle, dir: angle, accel: o.accel || 0, curve: o.curve || 0,
-      min: o.min ?? -99, max: o.max ?? 99, type, color, r: t.r * scale, scale, age: 0, grazed: false,
+    const t = BULLET_TYPES[type], scale = o.scale || 1, k = this.speedMul;
+    const b = {x, y, px: x, py: y, speed: speed * k, angle, dir: angle, accel: (o.accel || 0) * k, curve: (o.curve || 0) * k,
+      min: o.min === undefined ? -99 : o.min * k, max: o.max === undefined ? 99 : o.max * k, type, color, r: t.r * scale, scale, age: 0, grazed: false,
       fn: o.fn || null, d: o.d ? {...o.d} : null, keep: o.keep || 0, vx: 0, vy: 0, cart: false, manual: false,
       rot: this.rand() * TAU, dead: false};
     this.bullets.push(b); return b;
   }
   ring(x, y, n, speed, a0, type, color, o) {
-    const out = [];
+    const out = []; n = this.thin(n);
     for (let i = 0; i < n; i++) out.push(this.shot(x, y, speed, a0 + i * TAU / n, type, color, o));
     return out;
   }
   fan(x, y, n, spread, speed, angle, type, color, o) {
+    if (this.density < 1 && n > 1) n = Math.max(1, Math.round(n * this.density));
     if (n <= 1) return [this.shot(x, y, speed, angle, type, color, o)];
     const out = [];
     for (let i = 0; i < n; i++) out.push(this.shot(x, y, speed, angle + (i / (n - 1) - .5) * spread, type, color, o));
@@ -158,7 +165,7 @@ export class Game {
     const b = this.boss, total = def.time * 60;
     const base = (1 + this.stageIndex) * 1000000 + this.diff * 500000 + (def.last ? 2000000 : 0);
     this.atk = {def, t: 0, timer: total, total, spell: def.spell ? {base, bonus: base, failed: false} : null};
-    b.hp = b.maxHp = def.hp; b.familiars = []; this.phase = 'attack'; this.phaseT = 0; this.timers = [];
+    b.hp = b.maxHp = Math.round(def.hp * (this.rules.bossHp || 1)); b.familiars = []; this.phase = 'attack'; this.phaseT = 0; this.timers = [];
     if (def.spell) this.emit('spell', {id: def.id, boss: b.index});
     else this.emit('nonspell', {id: def.id});
     def.init?.(this, b);
@@ -199,7 +206,7 @@ export class Game {
   continueGame() {
     if (!this.gameOver) return;
     this.continues++; this.score = this.continues; this.gameOver = false;
-    this.lives = DIFFICULTIES[this.diff].lives; this.bombs = 3; this.respawn();
+    this.lives = this.rules.lives; this.bombs = this.bombStock; this.respawn();
   }
 
   // ---- 1フレーム ----
@@ -273,7 +280,7 @@ export class Game {
     if (p.invuln > 0) p.invuln--;
     if (p.state === 'dead') { if (--p.respawnT <= 0) this.respawn(); return; }
     if (p.state === 'hit') {
-      // 喰らいボム：被弾から DEATHBOMB_FRAMES フレーム以内のボム入力で被弾を取り消す
+      // 喰らいボム：被弾から deathbombFrames フレーム以内のボム入力で被弾を取り消す
       if (input.bomb && this.bombs > 0) { p.state = 'alive'; this.deathbombs++; this.bomb(true); this.emit('deathbomb', {x: p.x, y: p.y}); }
       else if (--p.hitT <= 0) this.die();
       return;
@@ -284,7 +291,7 @@ export class Game {
     p.x += dx * sp + clamp(input.mx || 0, -14, 14);
     p.y += dy * sp + clamp(input.my || 0, -14, 14);
     p.x = clamp(p.x, 8, W - 8); p.y = clamp(p.y, 16, H - 14);
-    if (input.bomb && this.bombs > 0 && this.bombT <= 0) this.bomb(false);
+    if (input.bomb && this.bombs > 0 && this.bombT <= 0 && this.phase !== 'dialogue') this.bomb(false);
     if (this.phase !== 'dialogue' && this.phase !== 'bossIntro') this.fire();
   }
   fire() {
@@ -311,7 +318,7 @@ export class Game {
   }
   playerHit() {
     const p = this.player;
-    p.state = 'hit'; p.hitT = DEATHBOMB_FRAMES; this.failSpell();
+    p.state = 'hit'; p.hitT = this.deathbombFrames; this.failSpell();
     this.emit('hit', {x: p.x, y: p.y});
   }
   die() {
@@ -324,7 +331,7 @@ export class Game {
       this.power = Math.max(1, this.power - .6);
       for (let i = 0; i < Math.round(lost / .05 * .6); i++) this.item('power', p.x + this.rr(-40, 40), Math.min(p.y, H - 80) + this.rr(-20, 10));
     }
-    this.bombs = 3;
+    this.bombs = this.bombStock;
     if (this.lives < 0) {
       this.lives = 0;
       if (this.mode === 'practice') { this.phase = 'practiceDone'; this.result = {captured: false, died: true}; this.emit('practiceDone', {captured: false, died: true, id: this.practiceId}); }

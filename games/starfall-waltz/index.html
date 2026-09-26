@@ -16,7 +16,7 @@
 <main id="app">
   <div id="controls" aria-label="タッチ操作">
     <button id="focusBtn" aria-pressed="false"><b>◎</b><span>FOCUS</span><small>低速・精密</small></button>
-    <button id="bombBtn"><b>✦</b><span>NOVA</span><small>ボム</small></button>
+    <button id="bombBtn"><b>✦</b><span>NOVA</span><small>2本指タップでも</small></button>
   </div>
   <div id="fieldBox">
     <canvas id="field" aria-label="弾幕のフィールド"></canvas>
@@ -74,7 +74,7 @@
         <table>
           <tr><th>移動</th><td>矢印キー / WASD<br><span>タッチ：画面のどこでもドラッグ</span></td></tr>
           <tr><th>低速移動</th><td>Shift（押している間）<br><span>タッチ：FOCUSボタン（切り替え）</span></td></tr>
-          <tr><th>ボム</th><td>X / K<br><span>タッチ：NOVAボタン</span></td></tr>
+          <tr><th>ボム</th><td>X / K<br><span>タッチ：2本目の指でタップ（移動しながらでもOK）、またはNOVAボタン</span></td></tr>
           <tr><th>ショット</th><td>自動で撃ち続けます</td></tr>
           <tr><th>会話送り</th><td>Z / Enter / タップ（Ctrlでスキップ）</td></tr>
           <tr><th>一時停止</th><td>Esc / P / Ⅱボタン</td></tr>
@@ -87,6 +87,8 @@
         <p>弾をすれすれで避けるとスコアが入り、得点アイテム（✦）の価値も上がります。</p>
         <h3>SUPERNOVA（ボム）と喰らいボム</h3>
         <p>ボムは画面の弾を星に変えて消し、しばらく無敵になります。<b>被弾した直後の約1/6秒（10フレーム）はまだ間に合います</b>。自機の周りの赤い輪が縮みきる前にボムを押せば、被弾は帳消し。ミスするとボムは3発に戻ります。</p>
+        <h3>難易度</h3>
+        <p><b>LARGO（はじめて）</b>は、弾がゆっくりで数も少なく、ボスも早く倒れます。残機4・ボム4発、被弾後の猶予も約0.4秒と長め。コンティニューは何度でもできます。</p>
         <h3>スペルアリア</h3>
         <p>ボスの必殺技。被弾もボムもせずに倒すと大きなボーナス。時間切れまで耐えるだけのアリアもあります。</p>
         <h3>アイテム</h3>

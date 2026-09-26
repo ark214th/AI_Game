@@ -362,7 +362,7 @@ export class Renderer {
       if (g.dialogue) this.drawDialogue(g, t);
     }
     if (g.player.state === 'hit') {
-      const k = g.player.hitT / DEATHBOMB_FRAMES;
+      const k = g.player.hitT / g.deathbombFrames;
       const vg = c.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .75);
       vg.addColorStop(0, 'rgba(255,0,60,0)'); vg.addColorStop(1, `rgba(255,20,70,${.25 + .3 * k})`);
       c.fillStyle = vg; c.fillRect(0, 0, W, H);
@@ -622,7 +622,7 @@ export class Renderer {
     c.beginPath(); c.arc(p.x, p.y, 3.3, 0, TAU); c.fill(); c.stroke();
     c.globalAlpha = 1;
     if (p.state === 'hit') {
-      const k = p.hitT / DEATHBOMB_FRAMES;
+      const k = p.hitT / g.deathbombFrames;
       c.strokeStyle = '#ff2d55'; c.lineWidth = 3; c.beginPath(); c.arc(p.x, p.y, 6 + 46 * k, 0, TAU); c.stroke();
       c.strokeStyle = '#ffffff'; c.lineWidth = 1; c.stroke();
     }

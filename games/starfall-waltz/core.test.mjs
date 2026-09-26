@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Game, W, H, PLAYER_R, GRAZE_R, POC_Y, DEATHBOMB_FRAMES, EXTENDS, ATTACKS, BOSSES} from './core.mjs';
+import {Game, W, H, PLAYER_R, GRAZE_R, POC_Y, DEATHBOMB_FRAMES, EXTENDS, ATTACKS, BOSSES, DIFFICULTIES} from './core.mjs';
 import {TRACKS, midi, chord} from './music.mjs';
 
 // ボスの攻撃中、弾以外の要素を排除した検証用の状況
 function arena(id = 'c_n1', o = {}) {
-  const g = new Game({mode: 'practice', attack: id, difficulty: 1, seed: 5, ...o});
+  const g = new Game({mode: 'practice', attack: id, difficulty: 2, seed: 5, ...o});
   for (let i = 0; i < 70 && g.phase !== 'attack'; i++) g.step({});
   g.atk.def = {...g.atk.def, update() {}}; // 攻撃パターンを止める
   g.bullets.length = 0; g.player.invuln = 0; g.events.length = 0;
@@ -57,7 +57,7 @@ test(`被弾後${DEATHBOMB_FRAMES}フレーム以内のボムで被弾を取り�
 });
 
 test('被弾中は動けず、ボムがなければ猶予後にミスになる', () => {
-  const g = new Game({mode: 'story', difficulty: 1, seed: 2});
+  const g = new Game({mode: 'story', difficulty: 2, seed: 2});
   g.bombs = 0; g.player.invuln = 0; g.power = 3;
   const x = g.player.x;
   g.playerHit();
@@ -147,7 +147,7 @@ test('残機がなくなるとゲームオーバー、コンティニューで�
 });
 
 test('全ての攻撃が全難易度で最後まで動き、弾数が上限に届かない', () => {
-  for (const id of Object.keys(ATTACKS)) for (const difficulty of [0, 1, 2]) {
+  for (const id of Object.keys(ATTACKS)) for (const difficulty of [0, 1, 2, 3]) {
     const g = new Game({mode: 'practice', attack: id, difficulty, seed: 11});
     let max = 0;
     for (let i = 0; i < 70 * 60 && g.phase !== 'practiceDone'; i++) {
@@ -168,7 +168,7 @@ test('同じシードなら同じ弾幕になる', () => {
 });
 
 test('本編：道中→会話→ボス4連戦を3ステージ通してエンディングまで進む', () => {
-  const g = new Game({mode: 'story', difficulty: 1, seed: 7});
+  const g = new Game({mode: 'story', difficulty: 2, seed: 7});
   const seen = new Set(); let ended = false, dialogues = 0;
   for (let i = 0; i < 60 * 60 * 12 && !ended; i++) {
     if (g.dialogue) { dialogues++; g.advanceDialogue(); }
@@ -202,4 +202,38 @@ test('楽曲データは3/4拍子で、音名とコードが解釈できる', ()
       assert.notEqual(tokens[0], '-', `${id}: 小節頭はのばさない`);
     }
   }
+});
+
+test('LARGO（はじめて）は同じ弾幕を遅く・少なくし、ボスも早く倒れる', () => {
+  const [largo, andante] = [0, 1].map(difficulty => new Game({mode: 'practice', attack: 'c_n1', difficulty, seed: 4}));
+  assert.equal(DIFFICULTIES[0].id, 'largo'); assert.equal(largo.diff, andante.diff, '弾幕の型はANDANTEと同じ');
+  const a = largo.ring(100, 100, 20, 2, 0, 'orb', 'red'), b = andante.ring(100, 100, 20, 2, 0, 'orb', 'red');
+  assert.ok(a.length < b.length && a.length >= 3);
+  assert.ok(a[0].speed < b[0].speed);
+  assert.equal(largo.fan(0, 0, 5, 1, 2, 0, 'orb', 'red').length, 3);
+  const hp = g => { for (let i = 0; i < 70 && g.phase !== 'attack'; i++) g.step({}); return g.boss.maxHp; };
+  assert.ok(hp(largo) < hp(andante));
+  const story = new Game({mode: 'story', difficulty: 0, seed: 1});
+  assert.equal(story.lives, 4); assert.equal(story.bombs, 4);
+});
+
+test('LARGO は喰らいボムの猶予が長く、ミス後もボムは4発に戻る', () => {
+  const g = new Game({mode: 'story', difficulty: 0, seed: 1});
+  g.player.invuln = 0; g.playerHit();
+  run(g, 20);
+  assert.equal(g.player.state, 'hit', '20フレーム後もまだ間に合う');
+  g.step({bomb: true});
+  assert.equal(g.player.state, 'alive'); assert.equal(g.bombs, 3);
+  const miss = new Game({mode: 'story', difficulty: 0, seed: 1});
+  miss.bombs = 1; miss.player.invuln = 0; miss.playerHit(); run(miss, 30);
+  assert.equal(miss.player.state, 'dead'); assert.equal(miss.bombs, 4);
+});
+
+test('会話中はボムを使わない', () => {
+  const g = new Game({mode: 'story', seed: 1});
+  g.stageT = g.stage.roadLen; g.waveCursor = g.stage.waves.length;
+  for (let i = 0; i < 200 && !g.dialogue; i++) g.step({});
+  assert.ok(g.dialogue);
+  g.step({bomb: true});
+  assert.equal(g.bombs, 3);
 });
