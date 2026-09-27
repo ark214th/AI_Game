@@ -23,7 +23,7 @@ const stageSave = id => (save.stages[id] ||= { clear: false, medals: [false, fal
 
 const view = new View($('world'));
 const sound = new Sound(save.sound);
-let game = null, stage = null, mode = 'title', acc = 0, last = performance.now(), clearT = 0, calloutT = 0;
+let game = null, stage = null, mode = 'title', last = performance.now(), clearT = 0, calloutT = 0;
 const debug = { invincible: false, hitbox: false };
 
 // ---------- 画面の切りかえ ----------
@@ -43,7 +43,7 @@ function startStage(s) {
   const had = stageSave(s.id).medals;
   game = new Game(s, { autoRun: save.autoRun, invincible: debug.invincible, medalsHad: had });
   view.build(game);
-  acc = 0; clearT = 0;
+  clearT = 0;
   show('play');
   hud(true);
   callout('よーい、スタート！', 1.4);
@@ -162,6 +162,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && mod
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault());
 addEventListener('resize', () => view.resize());
+window.visualViewport?.addEventListener('resize', () => view.resize());
+addEventListener('orientationchange', () => view.resize());
 
 // ---------- テスト用 ----------
 function buildDebug() {
@@ -183,9 +185,11 @@ function frame(now) {
   let dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   if (mode === 'play' || mode === 'clear') {
-    acc += dt;
     const inp = { left: input.left || keys.left, right: input.right || keys.right, jump: input.jump || keys.jump };
-    while (acc >= DT) { game.step(DT, inp); acc -= DT; }
+    // 画面の更新1回ぶんの時間を等分して計算する。
+    // 決まった刻みで計算すると、更新ごとに計算回数が1回・2回・3回とばらつき、動きがガタつくため
+    const n = Math.max(1, Math.ceil(dt / DT - 0.01));
+    for (let i = 0; i < n; i++) game.step(dt / n, inp);
     for (const e of game.drainEvents()) {
       view.onEvent(e);
       sound.play(e.type, e);
@@ -197,7 +201,7 @@ function frame(now) {
     }
     hud();
     if (mode === 'clear') { clearT += dt; if (clearT > 2) finishStage(); }
-    if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
+    if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}  最長 ${view.worstShown ? (view.worstShown * 1000).toFixed(0) : '-'}ms  ${view.renderInfo}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
   } else dt = mode === 'pause' ? 0 : dt;
   if (calloutT > 0) { calloutT -= dt; if (calloutT <= 0) $('callout').classList.remove('show'); }
   if (game) view.update(dt);
@@ -208,7 +212,8 @@ function frame(now) {
 let demo = null;
 function titleScene(dt) {
   if (!demo) { demo = new Game(STAGES[0], { autoRun: true, invincible: true }); view.build(demo); }
-  for (let t = 0; t < Math.min(dt, 0.05); t += DT) demo.step(DT, { jump: demo.p.grounded && demo.t.floorAt(demo.p.x + 1.4, demo.p.y + 0.4, 0).h === null });
+  const n = Math.max(1, Math.ceil(Math.min(dt, 0.05) / DT - 0.01));
+  for (let i = 0; i < n; i++) demo.step(Math.min(dt, 0.05) / n, { jump: demo.p.grounded && demo.t.floorAt(demo.p.x + 1.4, demo.p.y + 0.4, 0).h === null });
   demo.drainEvents();
   if (demo.p.x > 40) {
     Object.assign(demo.p, { x: demo.stage.start.x, y: demo.stage.start.y, vx: 0, vy: 0 });

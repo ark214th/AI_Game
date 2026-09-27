@@ -73,11 +73,13 @@ export class View {
   constructor(canvas) {
     this.canvas = canvas;
     this.renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    this.renderer.setPixelRatio(this.pixelRatio);
+    this.quality = 1; // 重いときだけ下げる（上げ直さない）
+    this.applied = { w: 0, h: 0, ratio: 0 };
+    this.needResize = true;
+    this.slowSince = 0;
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.scene = new T.Scene();
-    this.camera = new T.PerspectiveCamera(30, 1, 0.5, 200);
+    this.camera = new T.PerspectiveCamera(30, 1, 2, 160);
     this.cam = { x: 0, y: 2, look: 2.5 };
     this.clock = 0;
     this.frameTimes = [];
@@ -85,7 +87,10 @@ export class View {
     this.setupSky();
     this.setupLights();
     this.shared();
-    this.resize();
+    this.sparkMats = new Map();
+    this.sparkPool = [];
+    // iOS はメモリが足りないと WebGL を一時的に止めることがある
+    canvas.addEventListener('webglcontextlost', e => e.preventDefault());
   }
 
   setupSky() {
@@ -122,8 +127,20 @@ export class View {
     };
   }
 
-  resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+  // 画面サイズの変化は印だけ付け、実際の変更は描画の直前に行う。
+  // 描画と描画のあいだにキャンバスの大きさを変えると、中身が消えて画面がちらつくため。
+  resize() { this.needResize = true; }
+
+  applySize() {
+    const w = Math.max(1, this.canvas.clientWidth || window.innerWidth), h = Math.max(1, this.canvas.clientHeight || window.innerHeight);
+    // 描く画素数に上限をつける（大きな iPad で重くなりすぎないように）
+    const MAX_PIXELS = 2.2e6;
+    let ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(MAX_PIXELS / (w * h))) * this.quality;
+    ratio = Math.max(0.75, Math.round(ratio * 20) / 20);
+    const a = this.applied;
+    if (a.w === w && a.h === h && a.ratio === ratio) return;
+    a.w = w; a.h = h; a.ratio = ratio;
+    this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -131,6 +148,7 @@ export class View {
 
   // ---------- ステージを組み立てる ----------
   build(game) {
+    if (this.pGroup) { for (const q of this.particles) this.sparkPool.push(q.m); this.pGroup.clear(); this.pGroup.removeFromParent(); }
     if (this.world) { this.scene.remove(this.world); this.dispose(this.world); }
     this.game = game;
     this.world = new T.Group();
@@ -167,7 +185,7 @@ export class View {
   }
 
   dispose(obj) {
-    const keepG = new Set(Object.values(this.geo)), keepM = new Set(Object.values(this.mat));
+    const keepG = new Set(Object.values(this.geo)), keepM = new Set([...Object.values(this.mat), ...this.sparkMats.values()]);
     obj.traverse(o => {
       if (o.geometry && !keepG.has(o.geometry)) o.geometry.dispose();
       for (const m of [].concat(o.material || [])) if (!keepM.has(m)) { m.map?.dispose(); m.dispose(); }
@@ -426,14 +444,17 @@ export class View {
   }
 
   // ---------- 演出 ----------
+  // 粒は作り直さずに使い回す（途中で材質や形を作るとカクつくため）
   burst(x, y, color, n = 8, speed = 3.5, geo = this.geo.spark) {
-    const mat = new T.MeshBasicMaterial({ color, transparent: true });
-    for (let i = 0; i < n; i++) {
-      const m = new T.Mesh(geo, mat);
+    let mat = this.sparkMats.get(color);
+    if (!mat) { mat = new T.MeshBasicMaterial({ color }); this.sparkMats.set(color, mat); }
+    for (let i = 0; i < n && this.particles.length < 140; i++) {
+      const m = this.sparkPool.pop() || new T.Mesh(geo, mat);
+      m.geometry = geo; m.material = mat; m.visible = true;
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
-      m.position.set(x, y, 0.3);
+      m.position.set(x, y, 0.3); m.scale.setScalar(1);
       this.pGroup.add(m);
-      this.particles.push({ m, vx: Math.cos(a) * speed * (0.6 + Math.random() * 0.5), vy: Math.sin(a) * speed * (0.6 + Math.random() * 0.5) + 1, life: 0.6 + Math.random() * 0.3, max: 0.9, mat });
+      this.particles.push({ m, vx: Math.cos(a) * speed * (0.6 + Math.random() * 0.5), vy: Math.sin(a) * speed * (0.6 + Math.random() * 0.5) + 1, life: 0.6 + Math.random() * 0.3 });
     }
   }
 
@@ -505,16 +526,17 @@ export class View {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const q = this.particles[i];
       q.life -= dt;
-      if (q.life <= 0) { this.pGroup.remove(q.m); this.particles.splice(i, 1); continue; }
+      if (q.life <= 0) { this.pGroup.remove(q.m); this.sparkPool.push(q.m); this.particles[i] = this.particles[this.particles.length - 1]; this.particles.pop(); continue; }
       q.vy -= 6 * dt; q.m.position.x += q.vx * dt; q.m.position.y += q.vy * dt;
       q.m.rotation.z += dt * 6;
-      q.m.material.opacity = Math.min(1, q.life / 0.3);
+      q.m.scale.setScalar(Math.min(1, q.life / 0.3));
     }
 
     this.updateCamera(dt);
     if (this.debugHitbox) this.drawHitboxes(); else if (this.hitboxes) { this.world.remove(this.hitboxes); this.hitboxes = null; }
-    this.renderer.render(this.scene, this.camera);
     this.adapt(dt);
+    this.applySize();
+    this.renderer.render(this.scene, this.camera);
   }
 
   updateCamera(dt) {
@@ -549,13 +571,19 @@ export class View {
     this.hitboxes = grp; this.world.add(grp);
   }
 
-  // 重いときは解像度を少し下げる
+  // 重い状態が続くときだけ解像度を少し下げる。一時的な引っかかりでは下げない
   adapt(dt) {
+    if (dt <= 0) return;
     this.frameTimes.push(dt);
-    if (this.frameTimes.length < 90) return;
-    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    this.worst = Math.max(this.worst || 0, dt);
+    if (this.frameTimes.length < 120) return;
+    const sorted = [...this.frameTimes].sort((a, b) => a - b);
+    const typical = sorted[Math.floor(sorted.length * 0.5)];
+    this.fps = 1 / typical;
+    this.worstShown = this.worst; this.worst = 0;
     this.frameTimes.length = 0;
-    this.fps = 1 / avg;
-    if (avg > 1 / 45 && this.pixelRatio > 1) { this.pixelRatio = Math.max(1, this.pixelRatio - 0.25); this.renderer.setPixelRatio(this.pixelRatio); this.resize(); }
+    if (typical > 1 / 45) this.slowSince++; else this.slowSince = 0;
+    if (this.slowSince >= 2 && this.quality > 0.6) { this.quality = Math.max(0.6, this.quality - 0.15); this.slowSince = 0; }
   }
+  get renderInfo() { return `${this.applied.w}x${this.applied.h}@${this.applied.ratio}`; }
 }
