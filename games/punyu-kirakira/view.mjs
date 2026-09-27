@@ -212,7 +212,7 @@ export class View {
       const pts = piece.pts;
       const s = new T.Shape();
       s.moveTo(pts[0][0], bottom);
-      for (const [x, y] of pts) s.lineTo(x, y - 0.05);
+      for (const [x, y] of pts) s.lineTo(x, y - 0.25); // ふちの丸み(0.2)を足しても草より下
       s.lineTo(pts[pts.length - 1][0], bottom);
       s.closePath();
       const body = new T.Mesh(new T.ExtrudeGeometry(s, { depth: 4, bevelEnabled: true, bevelThickness: 0.2, bevelSize: 0.2, bevelSegments: 2, curveSegments: 1 }), soil);
@@ -221,7 +221,7 @@ export class View {
       // 草の層（上面にそって少し厚く）
       const g = new T.Shape();
       g.moveTo(pts[0][0] - 0.1, pts[0][1] + 0.08);
-      for (const [x, y] of pts) g.lineTo(x, y + 0.08);
+      for (const [x, y] of pts) g.lineTo(x, y - 0.04); // ふちの丸み(0.12)を足した草の表面が、足もとの高さとほぼ同じになる
       g.lineTo(pts[pts.length - 1][0] + 0.1, pts[pts.length - 1][1] + 0.08);
       for (let i = pts.length - 1; i >= 0; i--) g.lineTo(pts[i][0] + (i === pts.length - 1 ? 0.1 : i === 0 ? -0.1 : 0), pts[i][1] - 0.45);
       g.closePath();
@@ -365,15 +365,22 @@ export class View {
     return g;
   }
 
+  // ダッシュパネル：地面の上の光る板と、奥に立つ大きな矢印。遠くからでも見えるように
   makeDash() {
     const g = new T.Group();
-    const pad = new T.Mesh(new T.BoxGeometry(2, 0.08, 1.6), toon(0xfff2a8)); pad.position.y = 0.04; g.add(pad);
+    const rim = new T.Mesh(new T.BoxGeometry(2.3, 0.1, 1.9), toon(0xff9a3d)); rim.position.y = 0.06; g.add(rim);
+    const pad = new T.Mesh(new T.BoxGeometry(2.1, 0.12, 1.7), toon(0xfff2a8, { emissive: 0xffc94d, emissiveIntensity: 0.5 })); pad.position.y = 0.09; g.add(pad);
+    const chevron = () => { const s = new T.Shape(); s.moveTo(0, 0.35); s.lineTo(0.3, 0); s.lineTo(0, -0.35); s.lineTo(-0.18, -0.35); s.lineTo(0.12, 0); s.lineTo(-0.18, 0.35); s.closePath(); return s; };
+    const flatGeo = new T.ShapeGeometry(chevron());
+    const standGeo = new T.ExtrudeGeometry(chevron(), { depth: 0.12, bevelEnabled: false });
     const arrows = [];
     for (let i = 0; i < 3; i++) {
-      const s = new T.Shape(); s.moveTo(0, 0.35); s.lineTo(0.3, 0); s.lineTo(0, -0.35); s.lineTo(-0.15, -0.35); s.lineTo(0.12, 0); s.lineTo(-0.15, 0.35); s.closePath();
-      const m = new T.Mesh(new T.ShapeGeometry(s), new T.MeshBasicMaterial({ color: 0xff7a3d }));
-      m.rotation.x = -Math.PI / 2; m.position.set(-0.55 + i * 0.5, 0.09, 0);
+      const m = new T.Mesh(flatGeo, new T.MeshBasicMaterial({ color: 0xff7a3d }));
+      m.rotation.x = -Math.PI / 2; m.position.set(-0.55 + i * 0.5, 0.16, 0);
       g.add(m); arrows.push(m);
+      const up = new T.Mesh(standGeo, new T.MeshBasicMaterial({ color: 0xff7a3d }));
+      up.scale.setScalar(1.3); up.position.set(-0.7 + i * 0.6, 0.9, -1.1);
+      g.add(up); arrows.push(up);
     }
     g.userData = { arrows };
     return g;
@@ -524,7 +531,7 @@ export class View {
     g.stars.forEach((s, i) => { const m = this.starMeshes[i]; m.visible = !s.taken; if (!s.taken) { m.rotation.y = Math.sin(c * 2.4 + s.x * 0.7) * 0.7; m.position.y = s.y + Math.sin(c * 3 + s.x) * 0.06; } });
     g.medals.forEach((md, i) => { const m = this.medalMeshes[i]; m.visible = !md.taken; m.rotation.y = c * 1.6; m.position.y = md.y + Math.sin(c * 2.5) * 0.1; });
     g.springs.forEach((s, i) => { const u = this.springMeshes[i].userData, k = s.anim > 0 ? Math.sin((s.anim / 0.35) * Math.PI * 2) * 0.35 * (s.anim / 0.35) : 0; u.coil.scale.y = 1 + k; u.top.position.y = 0.72 + k * 0.4; });
-    g.dashes.forEach((d, i) => { const a = this.dashMeshes[i].userData.arrows; a.forEach((m, j) => m.material.color.setHSL(0.06 + 0.05 * ((Math.sin(c * 8 - j) + 1) / 2), 1, 0.6)); });
+    g.dashes.forEach((d, i) => { const a = this.dashMeshes[i].userData.arrows; a.forEach((m, j) => { const k = (Math.sin(c * 8 - (j >> 1)) + 1) / 2; m.material.color.setHSL(0.06 + 0.06 * k, 1, 0.5 + 0.15 * k); }); });
     g.checkpoints.forEach((cp, i) => { const fl = this.flagMeshes[i].userData.flag; if (cp.taken) fl.material.color.setHex(0xff8fb5); fl.rotation.y = Math.sin(c * 3 + i) * 0.25; });
     g.enemies.forEach((e, i) => {
       const m = this.enemyMeshes[i], u = m.userData;
