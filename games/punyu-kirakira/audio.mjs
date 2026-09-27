@@ -47,12 +47,25 @@ export class Sound {
       case 'faint': [523, 440, 392, 330].forEach((f, i) => this.tone(f, 0.25, { type: 'triangle', vol: 0.18, at: i * 0.14 })); break;
       case 'goal': [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, i === 6 ? 0.8 : 0.2, { type: 'triangle', vol: 0.24, at: i * 0.11 })); break;
       case 'tap': this.tone(660, 0.07, { type: 'sine', vol: 0.15 }); break;
+      case 'boing': this.tone(180, 0.3, { type: 'sine', vol: 0.3, slide: 3 }); this.tone(360, 0.2, { type: 'triangle', vol: 0.1, slide: 2, at: 0.04 }); break;
+      case 'loop': [523, 784, 1047, 1568].forEach((f, i) => this.tone(f, 0.15, { type: 'triangle', vol: 0.16, at: i * 0.09 })); break;
+      case 'crumble': this.tone(160, 0.25, { type: 'square', vol: 0.06, slide: 0.5 }); break;
+      case 'restore': this.tone(600, 0.12, { type: 'sine', vol: 0.08, slide: 1.5 }); break;
+      case 'switch': [392, 523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.2, { type: 'triangle', vol: 0.2, at: i * 0.06 })); break;
+      case 'ride': this.tone(500, 0.3, { type: 'sine', vol: 0.18, slide: 1.8 }); break;
+      case 'thud': this.tone(90, 0.25, { type: 'sine', vol: 0.35, slide: 0.5 }); break;
+      case 'splash': this.tone(1200, 0.08, { type: 'sine', vol: 0.05, slide: 0.5 }); break;
+      case 'bossStart': [392, 330, 392, 523].forEach((f, i) => this.tone(f, 0.18, { type: 'square', vol: 0.08, at: i * 0.14 })); break;
+      case 'bossHit': this.tone(700, 0.12, { type: 'square', vol: 0.12, slide: 0.6 }); [880, 1175].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', vol: 0.2, at: 0.1 + i * 0.08 })); break;
+      case 'bossDown': [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.3, { type: 'triangle', vol: 0.22, at: i * 0.1 })); break;
+      case 'goalAppear': [1047, 1319, 1568, 2093].forEach((f, i) => this.tone(f, 0.25, { type: 'sine', vol: 0.15, at: i * 0.1 })); break;
     }
   }
 
-  // ---------- BGM：ゆったりした明るいループ ----------
-  startBgm() {
+  // ---------- BGM：ワールドごとに少しずつ雰囲気を変える ----------
+  startBgm(track = 'nohara') {
     if (!this.ctx) return;
+    this.track = SONGS[track] || SONGS.nohara;
     this.bgmOn = true;
     this.nextNote = this.ctx.currentTime + 0.1; this.step = 0;
     if (!this.timer) this.timer = setInterval(() => this.schedule(), 50);
@@ -61,25 +74,51 @@ export class Sound {
 
   schedule() {
     if (!this.bgmOn || !this.ctx || this.ctx.state !== 'running') return;
-    const spb = 60 / 132 / 2; // 8分音符
-    // C  G  Am  F の進行
-    const chords = [[48, 55, 64], [43, 55, 62], [45, 52, 60], [41, 53, 60]];
-    const melody = [
-      76, 0, 79, 0, 81, 79, 76, 0, 74, 0, 76, 79, 74, 0, 0, 0,
-      72, 0, 76, 0, 79, 0, 81, 79, 77, 0, 76, 0, 74, 0, 0, 0,
-      76, 0, 79, 0, 84, 0, 83, 81, 79, 0, 76, 0, 77, 79, 81, 0,
-      79, 0, 76, 0, 74, 0, 72, 74, 72, 0, 0, 0, 0, 0, 0, 0,
-    ];
+    const S = this.track;
+    const spb = 60 / S.bpm / 2; // 8分音符
     const mtof = n => 440 * Math.pow(2, (n - 69) / 12);
+    const len = S.melody.length;
     while (this.nextNote < this.ctx.currentTime + 0.25) {
       const at = this.nextNote - this.ctx.currentTime;
-      const i = this.step % 64, bar = Math.floor(i / 16) % 4, chord = chords[bar];
-      const m = melody[i];
-      if (m) this.tone(mtof(m), spb * 1.6, { type: 'triangle', vol: 0.22, at, dest: this.music, attack: 0.01 });
-      if (i % 4 === 0) this.tone(mtof(chord[0] - 12 + 12), spb * 3, { type: 'sine', vol: 0.3, at, dest: this.music });
-      if (i % 4 === 2) chord.slice(1).forEach(n => this.tone(mtof(n), spb * 1.2, { type: 'sine', vol: 0.07, at, dest: this.music }));
-      if (i % 2 === 1) this.tone(4000, 0.03, { type: 'square', vol: 0.012, at, dest: this.music });
+      const i = this.step % len, bar = Math.floor(i / 16) % S.chords.length, chord = S.chords[bar];
+      const m = S.melody[i];
+      if (m) this.tone(mtof(m + S.shift), spb * 1.6, { type: S.lead, vol: 0.2, at, dest: this.music, attack: 0.01 });
+      if (i % 4 === 0) this.tone(mtof(chord[0] + S.shift), spb * 3, { type: 'sine', vol: 0.3, at, dest: this.music });
+      if (i % 4 === 2) chord.slice(1).forEach(n => this.tone(mtof(n + S.shift), spb * 1.2, { type: 'sine', vol: 0.07, at, dest: this.music }));
+      if (S.hat && i % 2 === 1) this.tone(4000, 0.03, { type: 'square', vol: 0.012, at, dest: this.music });
       this.nextNote += spb; this.step++;
     }
   }
 }
+
+const MEL_A = [
+  76, 0, 79, 0, 81, 79, 76, 0, 74, 0, 76, 79, 74, 0, 0, 0,
+  72, 0, 76, 0, 79, 0, 81, 79, 77, 0, 76, 0, 74, 0, 0, 0,
+  76, 0, 79, 0, 84, 0, 83, 81, 79, 0, 76, 0, 77, 79, 81, 0,
+  79, 0, 76, 0, 74, 0, 72, 74, 72, 0, 0, 0, 0, 0, 0, 0,
+];
+const MEL_B = [
+  72, 74, 76, 0, 79, 0, 76, 0, 77, 76, 74, 0, 72, 0, 0, 0,
+  74, 76, 77, 0, 81, 0, 77, 0, 79, 77, 76, 0, 74, 0, 0, 0,
+  76, 77, 79, 0, 84, 0, 79, 0, 81, 79, 77, 0, 76, 0, 74, 0,
+  72, 0, 76, 0, 79, 0, 76, 74, 72, 0, 0, 0, 0, 0, 0, 0,
+];
+const MEL_C = [
+  79, 0, 0, 76, 0, 0, 72, 0, 74, 0, 76, 0, 79, 0, 0, 0,
+  81, 0, 0, 79, 0, 0, 76, 0, 77, 0, 79, 0, 76, 0, 0, 0,
+  79, 0, 0, 84, 0, 0, 83, 0, 81, 0, 79, 0, 77, 0, 76, 0,
+  74, 0, 0, 72, 0, 0, 74, 0, 72, 0, 0, 0, 0, 0, 0, 0,
+];
+const MEL_BOSS = [
+  72, 0, 72, 76, 0, 72, 77, 0, 76, 0, 72, 0, 71, 0, 72, 0,
+  72, 0, 72, 76, 0, 72, 79, 0, 77, 0, 76, 0, 74, 0, 0, 0,
+];
+const I_V_vi_IV = [[48, 55, 64], [43, 55, 62], [45, 52, 60], [41, 53, 60]];
+const SONGS = {
+  nohara: { bpm: 132, shift: 0, lead: 'triangle', melody: MEL_A, chords: I_V_vi_IV, hat: true },
+  okashi: { bpm: 140, shift: 2, lead: 'square', melody: MEL_B, chords: [[48, 55, 64], [45, 52, 60], [41, 53, 60], [43, 55, 62]], hat: true },
+  kumo: { bpm: 112, shift: 5, lead: 'sine', melody: MEL_C, chords: [[41, 53, 60], [43, 55, 62], [48, 55, 64], [45, 52, 60]], hat: false },
+  umi: { bpm: 124, shift: -3, lead: 'triangle', melody: MEL_B, chords: I_V_vi_IV, hat: true },
+  hoshi: { bpm: 104, shift: -5, lead: 'sine', melody: MEL_C, chords: [[45, 52, 60], [41, 53, 60], [48, 55, 64], [43, 55, 62]], hat: false },
+  boss: { bpm: 150, shift: 0, lead: 'square', melody: MEL_BOSS, chords: [[48, 55, 64], [43, 55, 62]], hat: true },
+};

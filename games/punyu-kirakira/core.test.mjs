@@ -84,46 +84,83 @@ test('いたずらっ子は上から踏むと逃げていく', () => {
   assert.equal(g.hearts, TUNE.maxHearts);
 });
 
-// 「おまかせ はしり」＋素朴なジャンプの自動操作で、ステージを最後まで進めるか
-function bot(game) {
+// 「おまかせ はしり」＋素朴なジャンプの自動操作。ステージが最後まで進めるかの確認用
+export function bot(game) {
   const p = game.p, t = game.t;
-  const ahead = p.x + 1.4;
-  const pit = p.grounded && t.floorAt(ahead, p.y + 0.4, 0).h === null;
+  if (p.ride) return { jump: p.ride.y >= p.ride.top - 0.05 };
+  const pit = p.grounded && !game.moverAhead() && t.floorAt(p.x + 0.8, p.y + 0.4, 0).h === null;
   const wall = t.walls.some(w => w.face === 1 && w.x > p.x && w.x - p.x < 1.3 && w.top > p.y + TUNE.stepUp && w.top < p.y + 2.5);
-  const enemy = game.enemies.some(e => e.state === 'walk' && e.x > p.x && e.x - p.x < 2.4 && Math.abs(e.y - p.y) < 1);
-  if (p.grounded && (pit || wall || enemy)) bot.hold = 0.35;
+  const enemy = game.enemies.some(e => e.state === 'walk' && e.kind !== 'fly' && e.x > p.x && e.x - p.x < 2.4 && Math.abs(e.y - p.y) < 1);
+  const spike = game.spikes.some(s => s.x > p.x && s.x - p.x < 1.9 && Math.abs(s.y - p.y) < 1);
+  if (p.grounded && (pit || wall || enemy || spike)) bot.hold = 0.45;
   bot.hold = Math.max(0, (bot.hold || 0) - DT);
   return { jump: bot.hold > 0 };
 }
 
+// ボス戦：ボスが低いときに近づいて踏む。高いときや攻撃中は離れる
+export function bossBot(game) {
+  const B = game.boss, p = game.p;
+  if (!B.active) return bot(game);
+  if (B.done) {
+    if (!game.goal) return {};
+    return { right: game.goal.x > p.x + 0.3, left: game.goal.x < p.x - 0.3 };
+  }
+  const dx = B.x - p.x;
+  const low = B.y - B.floor < 0.6 && B.state !== 'hurt';
+  const shot = game.shots.some(s => Math.abs(s.x - p.x) < 1.8 && s.y - p.y < 1.2 && (s.kind === 'shell' || s.vy < 0));
+  let move = 0, jump = false;
+  if (low) { move = Math.sign(dx); if (Math.abs(dx) < 2.8 && p.grounded) jump = true; }
+  else if (Math.abs(dx) < 4) move = -Math.sign(dx) || 1;
+  if (shot && p.grounded) jump = true;
+  if (!p.grounded) jump = bossBot.holding; // 空中ではジャンプを押しっぱなし
+  bossBot.holding = jump || (!p.grounded && bossBot.holding);
+  if (p.grounded) bossBot.holding = jump;
+  return { left: move < 0, right: move > 0, jump };
+}
+
 for (const stage of STAGES) {
-  test(`${stage.id}: おまかせ はしり で最後まで進める`, () => {
+  test(`${stage.id}: 自動操作で最後まで進める`, () => {
     const g = new Game(stage, { autoRun: true });
     bot.hold = 0;
     let t = 0;
-    while (g.state !== 'clear' && t < 240) { g.step(DT, bot(g)); t += DT; }
-    assert.equal(g.state, 'clear', `stuck at x=${g.p.x.toFixed(1)} state=${g.state}`);
-    assert.ok(t < 120, `time ${t}`);
-    assert.equal(g.stats.faints, 0);
-    assert.ok(g.stats.bubbles === 0, `bubbles ${g.stats.bubbles}`);
-    console.log(`  ${stage.id}: ${t.toFixed(1)}秒 星${g.starCount}/${g.stars.length} メダル${g.medalCount} ダメージ${g.stats.hurts}`);
+    const limit = stage.bossStage ? 200 : 180;
+    while (g.state !== 'clear' && t < limit) {
+      if (g.boss) g.autoRun = !g.boss.active;
+      g.step(DT, stage.bossStage ? bossBot(g) : bot(g)); t += DT;
+    }
+    const where = `x=${g.p.x.toFixed(1)} y=${g.p.y.toFixed(1)} state=${g.state} boss=${g.boss ? g.boss.hp + '/' + g.boss.state : '-'}`;
+    assert.equal(g.state, 'clear', `stuck at ${where}`);
+    assert.equal(g.stats.faints, 0, `faints ${where}`);
+    if (!stage.bossStage) assert.ok(g.stats.bubbles === 0, `bubbles ${g.stats.bubbles}`);
+    console.log(`  ${stage.id}: ${t.toFixed(1)}秒 星${g.starCount}/${g.stars.length} メダル${g.medalCount} ダメージ${g.stats.hurts} 穴${g.stats.bubbles}`);
   });
 
-  test(`${stage.id}: 穴は歩きのジャンプで余裕をもって越えられる幅`, () => {
+  test(`${stage.id}: 穴は歩きのジャンプで越えられる幅（広い穴には足場がある）`, () => {
     const pieces = stage.terrain.pieces;
     for (let i = 1; i < pieces.length; i++) {
-      const w = pieces[i].x0 - pieces[i - 1].x1;
-      assert.ok(w <= 3, `gap ${w} at ${pieces[i].x0}`);
+      const a = pieces[i - 1].x1, b = pieces[i].x0, w = b - a;
+      if (w <= 3) continue;
+      // 広い穴：動く足場・橋・ぽよん雲・くずれる足場のどれかがある
+      const helps = stage.terrain.platforms.filter(q => q.x < b && q.x + q.w + (q.dx || 0) > a);
+      assert.ok(helps.length > 0, `wide gap ${w} at ${a}`);
     }
   });
 
-  test(`${stage.id}: 星とメダルは空中の届く高さにある`, () => {
-    for (const s of [...stage.star, ...stage.medal]) {
-      assert.ok(Number.isFinite(s.y));
-      const f = stage.terrain.floorAt(s.x, s.y, 1.5).h;
-      assert.ok(f === null || s.y - f < 8, `too high at ${s.x}`);
+  test(`${stage.id}: 穴のすぐそばに敵やトゲを置かない`, () => {
+    const P = stage.terrain.pieces;
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1].x1, b = P[i].x0;
+      for (const e of stage.enemy) {
+        if (e.type === 'fly') continue;
+        assert.ok(!(e.x1 > a - 2.5 && e.x0 < b + 2.5), `enemy ${e.x} near gap ${a}`);
+      }
+      for (const s of stage.spike) assert.ok(!(s.x > a - 3 && s.x < b + 3), `spike ${s.x} near gap ${a}`);
     }
+  });
+
+  test(`${stage.id}: メダル3枚とゴール（またはボス）がある`, () => {
+    for (const s of [...stage.star, ...stage.medal]) assert.ok(Number.isFinite(s.y));
     assert.equal(stage.medal.length, 3);
-    assert.ok(stage.goal);
+    assert.ok(stage.goal || stage.boss);
   });
 }

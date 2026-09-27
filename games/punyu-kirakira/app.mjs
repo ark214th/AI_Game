@@ -1,5 +1,5 @@
 import { Game, TUNE } from './core.mjs';
-import { STAGES, STAGE_SLOTS } from './stages.mjs';
+import { STAGES, WORLDS } from './stages.mjs';
 import { View } from './view.mjs';
 import { Sound } from './audio.mjs';
 
@@ -21,16 +21,21 @@ try {
 const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { /* noop */ } };
 const stageSave = id => (save.stages[id] ||= { clear: false, medals: [false, false, false] });
 
+// ステージは順番にあそべるようになる（テスト用の ?debug では全部あそべる）
+const stageIndex = id => STAGES.findIndex(s => s.id === id);
+const unlocked = i => DEBUG || i === 0 || !!save.stages[STAGES[i - 1].id]?.clear;
+const worldUnlocked = w => unlocked(STAGES.findIndex(s => s.world === w));
+
 const view = new View($('world'));
-if (DEBUG) window.__view = view;
+if (DEBUG) { window.__view = view; window.__start = id => startStage(STAGES.find(s => s.id === id)); window.__game = () => game; }
 const sound = new Sound(save.sound);
-let game = null, stage = null, mode = 'title', last = performance.now(), clearT = 0, calloutT = 0;
+let game = null, stage = null, mode = 'title', last = performance.now(), clearT = 0, calloutT = 0, selWorld = 1;
 const debug = { invincible: false, hitbox: false };
 
 // ---------- 画面の切りかえ ----------
 function show(next) {
   mode = next;
-  for (const id of ['title', 'select', 'settings', 'pause', 'result']) $(id).hidden = id !== next;
+  for (const id of ['title', 'select', 'settings', 'pause', 'result', 'ending']) $(id).hidden = id !== next;
   const playing = next === 'play' || next === 'pause' || next === 'clear';
   $('hud').hidden = !playing;
   $('touch').hidden = next !== 'play';
@@ -47,8 +52,9 @@ function startStage(s) {
   clearT = 0;
   show('play');
   hud(true);
-  callout('よーい、スタート！', 1.4);
-  sound.startBgm();
+  callout(s.bossStage ? 'この さきに だれか いるよ…' : 'よーい、スタート！', 1.6);
+  sound.startBgm(s.theme);
+  $('bossBar').hidden = true; lastBoss = '';
   buildDebug();
 }
 
@@ -67,6 +73,16 @@ function hud(force) {
   $('starCount').textContent = game.starCount;
   [...$('medals').children].forEach((el, i) => { const m = game.medals[i]; el.className = m?.taken ? 'on' : m?.had ? 'had' : ''; });
 }
+let lastBoss = '';
+function bossHud() {
+  const B = game.boss;
+  const show = !!(B && B.active && !B.done);
+  const key = show ? `${B.hp}/${B.maxHp}` : '';
+  if (key === lastBoss) return;
+  lastBoss = key;
+  $('bossBar').hidden = !show;
+  if (show) $('bossHearts').innerHTML = Array.from({ length: B.maxHp }, (_, i) => `<span class="${i < B.hp ? '' : 'off'}">●</span>`).join('');
+}
 
 function finishStage() {
   const s = stageSave(stage.id);
@@ -77,25 +93,53 @@ function finishStage() {
   $('resultStars').textContent = `${game.starCount} / ${game.stars.length}`;
   $('resultDebug').hidden = !DEBUG;
   if (DEBUG) $('resultDebug').textContent = `じかん ${game.time.toFixed(1)}びょう / ダメージ ${game.stats.hurts} / あな ${game.stats.bubbles} / 旗から ${game.stats.faints} / ジャンプ ${game.stats.jumps}`;
+  const i = stageIndex(stage.id);
+  $('nextBtn').hidden = !(i + 1 < STAGES.length);
+  $('resultTitle').textContent = stage.bossStage ? 'なかよしに なったよ！' : 'クリア！';
+  if (stage.final) { show('ending'); sound.play('goal'); return; }
   show('result');
 }
 
 // ---------- タイトル・メニュー ----------
 function renderSelect() {
-  $('stageList').innerHTML = '';
-  STAGE_SLOTS.forEach((slot, i) => {
-    const s = save.stages[slot.id];
+  // ワールドのタブ
+  const tabs = $('worldTabs');
+  tabs.innerHTML = '';
+  for (const w of WORLDS) {
+    const open = worldUnlocked(w.id);
     const b = document.createElement('button');
-    b.className = 'stage' + (slot.ready ? '' : ' locked');
-    b.innerHTML = `<span class="num">${i + 1}</span><span>${slot.ready ? (s?.clear ? 'クリア！' : 'あそべるよ') : 'もうすぐ'}</span>` +
+    b.className = 'wtab' + (w.id === selWorld ? ' on' : '') + (open ? '' : ' locked');
+    b.innerHTML = `<span class="wicon">${open ? w.icon : '🔒'}</span><span>${w.id}</span>`;
+    b.onclick = () => { sound.play('tap'); if (!open) return; selWorld = w.id; renderSelect(); };
+    tabs.append(b);
+  }
+  const world = WORLDS.find(w => w.id === selWorld);
+  $('worldName').textContent = world.name;
+  $('select').dataset.theme = world.theme;
+  $('stageList').innerHTML = '';
+  STAGES.forEach((st, i) => {
+    if (st.world !== selWorld) return;
+    const s = save.stages[st.id];
+    const open = unlocked(i);
+    const b = document.createElement('button');
+    b.className = 'stage' + (open ? '' : ' locked') + (st.bossStage ? ' boss' : '');
+    const label = !open ? 'まだだよ' : s?.clear ? 'クリア！' : st.bossStage ? 'ボス！' : 'あそべるよ';
+    b.innerHTML = `<span class="num">${st.bossStage ? '★' : st.id.split('-')[1]}</span><span>${label}</span>` +
       `<span class="medals">${[0, 1, 2].map(k => `<i class="${s?.medals?.[k] ? 'on' : ''}"></i>`).join('')}</span>`;
     b.onclick = () => {
-      if (!slot.ready) { sound.play('tap'); return; }
       sound.play('tap');
-      startStage(STAGES.find(st => st.id === slot.id));
+      if (open) startStage(st);
     };
     $('stageList').append(b);
   });
+  const got = Object.values(save.stages).reduce((n, s) => n + (s.medals || []).filter(Boolean).length, 0);
+  $('medalTotal').textContent = `${got} / ${STAGES.length * 3}`;
+}
+// いちばん新しくあそべるワールドを選んでおく
+function pickWorld() {
+  let w = 1;
+  STAGES.forEach((st, i) => { if (unlocked(i)) w = st.world; });
+  selWorld = w;
 }
 function renderSettings() {
   $('autoBtn').textContent = `おまかせ はしり：${save.autoRun ? 'オン' : 'オフ'}`;
@@ -104,7 +148,7 @@ function renderSettings() {
   $('soundBtn').classList.toggle('on', save.sound);
 }
 
-$('playBtn').onclick = () => { sound.unlock(); sound.play('tap'); renderSelect(); show('select'); };
+$('playBtn').onclick = () => { sound.unlock(); sound.play('tap'); pickWorld(); renderSelect(); show('select'); };
 $('settingsBtn').onclick = () => { sound.unlock(); sound.play('tap'); renderSettings(); show('settings'); };
 document.querySelectorAll('.back').forEach(b => (b.onclick = () => { sound.play('tap'); show('title'); }));
 $('autoBtn').onclick = () => { save.autoRun = !save.autoRun; persist(); renderSettings(); sound.play('tap'); };
@@ -115,6 +159,15 @@ $('retryBtn').onclick = () => { sound.play('tap'); startStage(stage); };
 $('quitBtn').onclick = () => { sound.play('tap'); sound.stopBgm(); renderSelect(); show('select'); };
 $('againBtn').onclick = () => { sound.play('tap'); startStage(stage); };
 $('homeBtn').onclick = () => { sound.play('tap'); sound.stopBgm(); game = null; demo = null; show('title'); };
+$('nextBtn').onclick = () => {
+  sound.play('tap');
+  const next = STAGES[stageIndex(stage.id) + 1];
+  if (next) { selWorld = next.world; startStage(next); }
+};
+$('selectBtn').onclick = () => { sound.play('tap'); sound.stopBgm(); selWorld = stage.world; renderSelect(); show('select'); };
+$('endingBtn').onclick = () => { sound.play('tap'); sound.stopBgm(); game = null; demo = null; show('title'); };
+
+const BOSS_NAMES = { blob: 'でかもやもや', jelly: 'ぷるるんゼリー', cloud: 'くもくもさん', crab: 'おおきなカニ', wind: 'いたずらかぜ' };
 
 // ---------- 入力 ----------
 const input = { left: false, right: false, jump: false };
@@ -175,7 +228,8 @@ function buildDebug() {
   btn('むてき', debug.invincible, b => { debug.invincible = !debug.invincible; game.invincible = debug.invincible; b.classList.toggle('on', debug.invincible); });
   btn('あたり', debug.hitbox, b => { debug.hitbox = !debug.hitbox; view.debugHitbox = debug.hitbox; b.classList.toggle('on', debug.hitbox); });
   game.checkpoints.forEach((c, i) => btn(`旗${i + 1}`, null, () => warp(c.x, c.y)));
-  btn('ゴール前', null, () => { const x = game.goal.x - 8; warp(x, game.t.groundAt(x) ?? game.goal.y); });
+  if (game.goal) btn('ゴール前', null, () => { const x = game.goal.x - 8; warp(x, game.t.groundAt(x) ?? game.goal.y); });
+  if (game.boss) btn('ボス前', null, () => { const x = game.boss.x0 - 2; warp(x, game.t.groundAt(x) ?? game.boss.floor); });
   btn(`fps:${fpsMode === 'auto' ? '自動' : fpsMode}`, null, b => {
     fpsMode = fpsMode === 'auto' ? '60' : fpsMode === '60' ? '30' : 'auto';
     try { fpsMode === 'auto' ? localStorage.removeItem(FPS_KEY) : localStorage.setItem(FPS_KEY, fpsMode); } catch { /* noop */ }
@@ -218,8 +272,13 @@ function frame(now) {
       if (e.type === 'heart') callout('ハート ふえた！');
       if (e.type === 'faint') callout('はたから もういちど！', 1.6);
       if (e.type === 'goal') { callout('やったー！', 2); mode = 'clear'; sound.stopBgm(); $('touch').hidden = true; }
+      if (e.type === 'switch') callout('はしが でたよ！');
+      if (e.type === 'bossStart') { callout(BOSS_NAMES[game.boss.type] + ' が あらわれた！', 2); sound.startBgm('boss'); }
+      if (e.type === 'bossHit') callout(e.hp === 1 ? 'あと 1かい！' : 'いいね！', 1);
+      if (e.type === 'bossDown') { callout('なかよしに なったよ！', 2.2); sound.stopBgm(); }
+      if (e.type === 'goalAppear') callout('ほしのかけらだ！', 1.4);
     }
-    hud();
+    hud(); bossHud();
     if (mode === 'clear') { clearT += dt; if (clearT > 2) finishStage(); }
     if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}/${targetFps}${fpsMode === 'auto' ? '自動' : '固定'}  最長 ${view.worstShown ? (view.worstShown * 1000).toFixed(0) : '-'}ms  cpu ${cpuMs.toFixed(1)}ms  △${(view.renderer.info.render.triangles / 1000).toFixed(0)}k  ${view.renderInfo}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
   } else dt = mode === 'pause' ? 0 : dt;
