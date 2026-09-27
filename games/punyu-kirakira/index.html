@@ -27,6 +27,7 @@
     <div id="medals" class="pill medals" aria-label="メダル"><i></i><i></i><i></i></div>
     <button id="pauseBtn" class="round" aria-label="ひとやすみ">❚❚</button>
   </header>
+  <div id="bossBar" hidden><span class="boss-label">ボス</span><span id="bossHearts"></span></div>
   <div id="callout" aria-live="polite"></div>
 
   <div id="touch" hidden>
@@ -48,14 +49,15 @@
       <button id="playBtn" class="big">あそぶ</button>
       <button id="settingsBtn" class="small">せってい</button>
     </div>
-    <p class="version">しさくばん</p>
+    
   </section>
 
   <section id="select" class="screen shade" hidden>
     <div class="panel wide">
-      <h2>おはなの のはら</h2>
+      <div id="worldTabs" class="wtabs"></div>
+      <h2 id="worldName">おはなの のはら</h2>
       <div id="stageList" class="stages"></div>
-      <button class="small back">もどる</button>
+      <div class="select-foot"><button class="small back">もどる</button><span class="medal-total"><i class="on"></i> <b id="medalTotal">0</b></span></div>
     </div>
   </section>
 
@@ -80,12 +82,22 @@
 
   <section id="result" class="screen shade" hidden>
     <div class="panel">
-      <h2 class="yay">クリア！</h2>
+      <h2 class="yay" id="resultTitle">クリア！</h2>
       <div id="resultMedals" class="medals big-medals"><i></i><i></i><i></i></div>
       <p class="result-stars"><span class="star-icon">★</span> <b id="resultStars">0</b></p>
       <p id="resultDebug" class="debug-line" hidden></p>
-      <button id="againBtn" class="big">もういちど</button>
-      <button id="homeBtn" class="small">タイトルへ</button>
+      <button id="nextBtn" class="big">つぎへ</button>
+      <div class="row"><button id="againBtn" class="small">もういちど</button><button id="selectBtn" class="small">えらぶ</button><button id="homeBtn" class="small">タイトル</button></div>
+    </div>
+  </section>
+
+  <section id="ending" class="screen" hidden>
+    <div class="ending-sky"></div>
+    <div class="panel ending-panel">
+      <h2 class="yay">ほしぞらが もどったよ！</h2>
+      <p class="ending-text">いたずらかぜも なかよしになって、<br>きらきらランドに ほしが ぜんぶ もどったよ。<br>ぷにゅ、ありがとう！</p>
+      <p class="result-stars">🌟 おしまい 🌟</p>
+      <button id="endingBtn" class="big">タイトルへ</button>
     </div>
   </section>
 
