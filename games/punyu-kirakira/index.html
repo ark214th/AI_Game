@@ -47,7 +47,11 @@
     </div>
     <div class="title-actions">
       <button id="playBtn" class="big">あそぶ</button>
-      <button id="settingsBtn" class="small">せってい</button>
+      <div class="row">
+        <button id="dressBtn" class="small badge">👗 きせかえ</button>
+        <button id="bookBtn" class="small badge">📒 シールちょう</button>
+        <button id="settingsBtn" class="small">せってい</button>
+      </div>
     </div>
     
   </section>
@@ -85,9 +89,28 @@
       <h2 class="yay" id="resultTitle">クリア！</h2>
       <div id="resultMedals" class="medals big-medals"><i></i><i></i><i></i></div>
       <p class="result-stars"><span class="star-icon">★</span> <b id="resultStars">0</b></p>
+      <div id="resultNew" class="new-line" hidden></div>
       <p id="resultDebug" class="debug-line" hidden></p>
       <button id="nextBtn" class="big">つぎへ</button>
       <div class="row"><button id="againBtn" class="small">もういちど</button><button id="selectBtn" class="small">えらぶ</button><button id="homeBtn" class="small">タイトル</button></div>
+    </div>
+  </section>
+
+  <section id="dress" class="screen" hidden>
+    <div class="panel dress-panel">
+      <h2>きせかえ</h2>
+      <div id="dressTabs" class="dtabs"></div>
+      <div id="dressItems" class="ditems"></div>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="book" class="screen shade" hidden>
+    <div class="panel wide book-panel">
+      <h2>シールちょう <span id="stickerCount" class="sticker-count"></span></h2>
+      <div id="stickerGrid" class="sticker-grid"></div>
+      <p id="stickerInfo" class="sticker-info"></p>
+      <button class="small back">もどる</button>
     </div>
   </section>
 
@@ -96,6 +119,7 @@
     <div class="panel ending-panel">
       <h2 class="yay">ほしぞらが もどったよ！</h2>
       <p class="ending-text">いたずらかぜも なかよしになって、<br>きらきらランドに ほしが ぜんぶ もどったよ。<br>ぷにゅ、ありがとう！</p>
+      <div id="endingNew" class="new-line"></div>
       <p class="result-stars">🌟 おしまい 🌟</p>
       <button id="endingBtn" class="big">タイトルへ</button>
     </div>
