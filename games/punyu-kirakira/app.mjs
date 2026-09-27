@@ -2,6 +2,7 @@ import { Game, TUNE } from './core.mjs';
 import { STAGES, WORLDS } from './stages.mjs';
 import { View } from './view.mjs';
 import { Sound } from './audio.mjs';
+import { ITEMS, STICKERS, DEFAULT_OUTFIT, unlockedItems, unlockedStickers, normalizeProgress } from './rewards.mjs';
 
 const $ = id => document.getElementById(id);
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -9,13 +10,18 @@ const STORE = 'punyu-kirakira-v1';
 const DT = 1 / 120;
 
 // ---------- 保存 ----------
-let save = { stages: {}, autoRun: false, sound: true };
+let save = { stages: {}, autoRun: false, sound: true, starsTotal: 0, flags: {}, stomps: 0, outfit: { ...DEFAULT_OUTFIT }, seenItems: [], seenStickers: [] };
 try {
   const v = JSON.parse(localStorage.getItem(STORE) || 'null');
   if (v && typeof v === 'object') {
     save.stages = v.stages && typeof v.stages === 'object' ? v.stages : {};
     save.autoRun = v.autoRun === true;
     save.sound = v.sound !== false;
+    Object.assign(save, normalizeProgress(v));
+    const ids = new Set(ITEMS.map(i => i.id));
+    if (v.outfit && typeof v.outfit === 'object') for (const k of ['head', 'face', 'color']) if (ids.has(v.outfit[k])) save.outfit[k] = v.outfit[k];
+    save.seenItems = Array.isArray(v.seenItems) ? v.seenItems : [];
+    save.seenStickers = Array.isArray(v.seenStickers) ? v.seenStickers : [];
   }
 } catch { /* 保存できない環境でも遊べる */ }
 const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { /* noop */ } };
@@ -27,6 +33,7 @@ const unlocked = i => DEBUG || i === 0 || !!save.stages[STAGES[i - 1].id]?.clear
 const worldUnlocked = w => unlocked(STAGES.findIndex(s => s.world === w));
 
 const view = new View($('world'));
+view.setOutfit(save.outfit);
 if (DEBUG) { window.__view = view; window.__start = id => startStage(STAGES.find(s => s.id === id)); window.__game = () => game; }
 const sound = new Sound(save.sound);
 let game = null, stage = null, mode = 'title', last = performance.now(), clearT = 0, calloutT = 0, selWorld = 1;
@@ -35,7 +42,8 @@ const debug = { invincible: false, hitbox: false };
 // ---------- 画面の切りかえ ----------
 function show(next) {
   mode = next;
-  for (const id of ['title', 'select', 'settings', 'pause', 'result', 'ending']) $(id).hidden = id !== next;
+  for (const id of ['title', 'select', 'settings', 'pause', 'result', 'ending', 'dress', 'book']) $(id).hidden = id !== next;
+  view.closeUp = next === 'dress';
   const playing = next === 'play' || next === 'pause' || next === 'clear';
   $('hud').hidden = !playing;
   $('touch').hidden = next !== 'play';
@@ -48,6 +56,7 @@ function startStage(s) {
   stage = s;
   const had = stageSave(s.id).medals;
   game = new Game(s, { autoRun: save.autoRun, invincible: debug.invincible, medalsHad: had });
+  runFlags = {}; runStomps = 0;
   view.build(game);
   clearT = 0;
   show('play');
@@ -84,11 +93,28 @@ function bossHud() {
   if (show) $('bossHearts').innerHTML = Array.from({ length: B.maxHp }, (_, i) => `<span class="${i < B.hp ? '' : 'off'}">●</span>`).join('');
 }
 
+let runFlags = {}, runStomps = 0;
+const progress = () => normalizeProgress(save);
+
 function finishStage() {
+  const beforeItems = unlockedItems(progress()), beforeStickers = unlockedStickers(progress());
   const s = stageSave(stage.id);
   s.clear = true;
   game.medals.forEach(m => { if (m.taken) s.medals[m.id] = true; });
+  if (game.stats.hurts === 0 && game.stats.bubbles === 0 && game.stats.faints === 0) s.noDamage = true;
+  save.starsTotal += game.starCount;
+  save.stomps += runStomps;
+  Object.assign(save.flags, runFlags);
   persist();
+  // あたらしく もらえた シールと きせかえ
+  const newStickers = [...unlockedStickers(progress())].filter(id => !beforeStickers.has(id));
+  const newItems = [...unlockedItems(progress())].filter(id => !beforeItems.has(id));
+  const box = $('resultNew');
+  box.innerHTML = '';
+  if (newStickers.length) box.innerHTML += `<div>あたらしい シール！ <span class="new-icons">${newStickers.map(id => STICKERS.find(x => x.id === id).icon).join('')}</span></div>`;
+  if (newItems.length) box.innerHTML += `<div>きせかえが ふえたよ！ <span class="new-icons">${newItems.map(id => ITEMS.find(x => x.id === id).icon).join('')}</span></div>`;
+  box.hidden = !box.innerHTML;
+  refreshBadges();
   [...$('resultMedals').children].forEach((el, i) => { el.className = game.medals[i]?.taken ? 'on' : s.medals[i] ? 'had' : ''; });
   $('resultStars').textContent = `${game.starCount} / ${game.stars.length}`;
   $('resultDebug').hidden = !DEBUG;
@@ -96,8 +122,70 @@ function finishStage() {
   const i = stageIndex(stage.id);
   $('nextBtn').hidden = !(i + 1 < STAGES.length);
   $('resultTitle').textContent = stage.bossStage ? 'なかよしに なったよ！' : 'クリア！';
-  if (stage.final) { show('ending'); sound.play('goal'); return; }
+  if (stage.final) { $('endingNew').innerHTML = box.innerHTML; show('ending'); sound.play('goal'); return; }
   show('result');
+}
+
+// ---------- きせかえ ----------
+const SLOTS = [['head', 'あたま'], ['face', 'かお'], ['color', 'いろ']];
+let dressSlot = 'head';
+function renderDress() {
+  const have = unlockedItems(progress());
+  $('dressTabs').innerHTML = '';
+  for (const [slot, label] of SLOTS) {
+    const b = document.createElement('button');
+    b.className = 'dtab' + (slot === dressSlot ? ' on' : '');
+    b.textContent = label;
+    b.onclick = () => { sound.play('tap'); dressSlot = slot; renderDress(); };
+    $('dressTabs').append(b);
+  }
+  $('dressItems').innerHTML = '';
+  for (const it of ITEMS.filter(i => i.slot === dressSlot)) {
+    const open = have.has(it.id);
+    const b = document.createElement('button');
+    const isNew = open && !save.seenItems.includes(it.id) && it.hint;
+    b.className = 'ditem' + (save.outfit[it.slot] === it.id ? ' on' : '') + (open ? '' : ' locked') + (isNew ? ' new' : '');
+    b.innerHTML = `<span class="dicon">${open ? it.icon : '？'}</span><span class="dname">${open ? it.name : it.hint}</span>`;
+    b.onclick = () => {
+      if (!open) { sound.play('tap'); return; }
+      sound.play('switch');
+      save.outfit[it.slot] = it.id;
+      view.setOutfit(save.outfit);
+      view.burstPlayer();
+      persist(); renderDress();
+    };
+    $('dressItems').append(b);
+  }
+  // 見たものは NEW を消す
+  save.seenItems = [...new Set([...save.seenItems, ...ITEMS.filter(i => i.slot === dressSlot && have.has(i.id)).map(i => i.id)])];
+  persist(); refreshBadges();
+}
+
+// ---------- シール帳 ----------
+function renderBook() {
+  const have = unlockedStickers(progress());
+  const grid = $('stickerGrid');
+  grid.innerHTML = '';
+  for (const st of STICKERS) {
+    const open = have.has(st.id);
+    const b = document.createElement('button');
+    b.className = 'sticker' + (open ? '' : ' locked') + (open && !save.seenStickers.includes(st.id) ? ' new' : '');
+    b.textContent = open ? st.icon : '？';
+    b.onclick = () => { sound.play(open ? 'star' : 'tap'); $('stickerInfo').textContent = open ? st.name : 'ヒント：' + st.hint; };
+    grid.append(b);
+  }
+  $('stickerCount').textContent = `${have.size} / ${STICKERS.length}`;
+  $('stickerInfo').textContent = 'シールを さわってみてね';
+  save.seenStickers = [...have];
+  persist(); refreshBadges();
+}
+
+function refreshBadges() {
+  const p = progress();
+  const newItems = [...unlockedItems(p)].some(id => !save.seenItems.includes(id) && ITEMS.find(i => i.id === id).hint);
+  const newStickers = [...unlockedStickers(p)].some(id => !save.seenStickers.includes(id));
+  $('dressBtn').classList.toggle('new', newItems);
+  $('bookBtn').classList.toggle('new', newStickers);
 }
 
 // ---------- タイトル・メニュー ----------
@@ -150,7 +238,9 @@ function renderSettings() {
 
 $('playBtn').onclick = () => { sound.unlock(); sound.play('tap'); pickWorld(); renderSelect(); show('select'); };
 $('settingsBtn').onclick = () => { sound.unlock(); sound.play('tap'); renderSettings(); show('settings'); };
-document.querySelectorAll('.back').forEach(b => (b.onclick = () => { sound.play('tap'); show('title'); }));
+$('dressBtn').onclick = () => { sound.unlock(); sound.play('tap'); dressSlot = 'head'; show('dress'); renderDress(); };
+$('bookBtn').onclick = () => { sound.unlock(); sound.play('tap'); show('book'); renderBook(); };
+document.querySelectorAll('.back').forEach(b => (b.onclick = () => { sound.play('tap'); if (game) { game = null; demo = null; sound.stopBgm(); } show('title'); }));
 $('autoBtn').onclick = () => { save.autoRun = !save.autoRun; persist(); renderSettings(); sound.play('tap'); };
 $('soundBtn').onclick = () => { save.sound = !save.sound; sound.setOn(save.sound); persist(); renderSettings(); sound.play('tap'); };
 $('pauseBtn').addEventListener('pointerdown', e => { e.stopPropagation(); if (mode === 'play') { sound.play('tap'); show('pause'); } });
@@ -268,6 +358,8 @@ function frame(now) {
       view.onEvent(e);
       sound.play(e.type, e);
       if (e.type === 'medal') callout('メダル ゲット！');
+      if (e.type === 'loop' || e.type === 'ride' || e.type === 'switch' || e.type === 'boing') runFlags[e.type] = true;
+      if (e.type === 'stomp') runStomps++;
       if (e.type === 'checkpoint') callout('はた ゲット！', 1);
       if (e.type === 'heart') callout('ハート ふえた！');
       if (e.type === 'faint') callout('はたから もういちど！', 1.6);
@@ -294,7 +386,7 @@ let cpuMs = 0;
 let demo = null;
 function titleScene(dt) {
   if (!demo) { demo = new Game(STAGES[0], { autoRun: true, invincible: true }); view.build(demo); }
-  const n = Math.max(1, Math.ceil(Math.min(dt, 0.05) / DT - 0.01));
+  const n = mode === 'dress' ? 0 : Math.max(1, Math.ceil(Math.min(dt, 0.05) / DT - 0.01));
   for (let i = 0; i < n; i++) demo.step(Math.min(dt, 0.05) / n, { jump: demo.p.grounded && demo.t.floorAt(demo.p.x + 1.4, demo.p.y + 0.4, 0).h === null });
   demo.drainEvents();
   if (demo.p.x > 40) {
@@ -306,5 +398,6 @@ function titleScene(dt) {
 }
 
 $('loading').hidden = true;
+refreshBadges();
 show('title');
 requestAnimationFrame(frame);

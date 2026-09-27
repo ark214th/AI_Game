@@ -1,6 +1,7 @@
 // 3D表示。ゲームの計算は2D（core.mjs）で、見た目だけ立体にする
 import * as T from './vendor/three.module.min.js';
 import { TUNE, clamp } from './core.mjs';
+import { ITEMS } from './rewards.mjs';
 
 const COLORS = {
   punyu: 0xfff4f7, cheek: 0xff9fb8, eye: 0x3a2a3a,
@@ -112,6 +113,7 @@ function mergeStatic(group) {
   return out;
 }
 
+const lerp = (a, b, t) => a + (b - a) * t;
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 export class View {
@@ -625,25 +627,123 @@ export class View {
     return g;
   }
 
+  // きせかえ：あたま・かお・いろ
+  setOutfit(outfit) {
+    this.outfit = { ...outfit };
+    if (this.player) this.applyOutfit(this.player);
+  }
+
+  burstPlayer() {
+    if (!this.player) return;
+    const p = this.player.position;
+    this.burst(p.x, p.y + 0.3, 0xffe066, 12, 3, this.geo.star);
+    this.burst(p.x, p.y + 0.3, 0xff8fb5, 10, 3);
+  }
+
+  applyOutfit(root) {
+    const u = root.userData, o = this.outfit || {};
+    const item = ITEMS.find(i => i.id === o.color);
+    u.rainbow = o.color === 'rainbow';
+    u.skin.color.setHex(item && item.color ? item.color : COLORS.punyu);
+    if (u.acc) { u.body.remove(u.acc); this.dispose(u.acc); }
+    const acc = new T.Group();
+    u.acc = acc; u.body.add(acc);
+    const r = TUNE.radius;
+    const M = c => toon(c);
+    const put = (geo, mat, [x, y, z], [sx, sy, sz], rot) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); if (rot) m.rotation.set(...rot); acc.add(m); return m; };
+    switch (o.head) {
+      case 'ribbon': {
+        const red = M(0xff5d86);
+        put(this.geo.low, red, [0.2, r * 0.95, 0.05], [0.14, 0.09, 0.07], [0, 0, 0.5]);
+        put(this.geo.low, red, [0.36, r * 0.82, 0.05], [0.14, 0.09, 0.07], [0, 0, -0.4]);
+        put(this.geo.low, M(0xff3d6e), [0.28, r * 0.9, 0.08], [0.06, 0.06, 0.06]);
+        break;
+      }
+      case 'flower': {
+        const cols = [0xff8fb5, 0xffe066, 0xffffff, 0xb79cff, 0x7fd4ff];
+        for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; put(this.geo.low, M(cols[i % 5]), [Math.cos(a) * 0.3, r * 0.78, Math.sin(a) * 0.3], [0.08, 0.08, 0.08]); }
+        break;
+      }
+      case 'strawberry': {
+        put(this.geo.cone, M(0xff3d6e), [0, r + 0.2, 0], [0.3, 0.42, 0.3]);
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; put(this.geo.low, M(0x5bb34a), [Math.cos(a) * 0.18, r + 0.02, Math.sin(a) * 0.18], [0.12, 0.04, 0.06], [0, -a, 0]); }
+        for (let i = 0; i < 4; i++) put(this.geo.low, M(0xfff3a8), [(i - 1.5) * 0.08, r + 0.12 + (i % 2) * 0.1, 0.22 - (i % 2) * 0.04], [0.02, 0.03, 0.02]);
+        break;
+      }
+      case 'cloud': {
+        const w = M(0xffffff);
+        for (const [x, y, sc] of [[0, 0.2, 0.2], [-0.18, 0.12, 0.15], [0.18, 0.12, 0.15], [0.08, 0.3, 0.13]]) put(this.geo.low, w, [x, r + y, 0], [sc, sc * 0.8, sc]);
+        break;
+      }
+      case 'straw': {
+        const straw = M(0xf2d38a);
+        put(this.geo.cyl, straw, [0, r * 0.88, 0], [0.5, 0.03, 0.5]);
+        put(this.geo.low, straw, [0, r * 0.95, 0], [0.26, 0.2, 0.26]);
+        put(this.geo.cyl, M(0xff6f91), [0, r * 0.95, 0], [0.265, 0.05, 0.265]);
+        break;
+      }
+      case 'crown': {
+        const gold = toon(0xffd84a, { emissive: 0x6b4a00, emissiveIntensity: 0.3 });
+        put(this.geo.cyl, gold, [0, r * 0.95, 0], [0.22, 0.08, 0.22]);
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; put(this.geo.cone, gold, [Math.cos(a) * 0.18, r * 0.95 + 0.12, Math.sin(a) * 0.18], [0.06, 0.16, 0.06]); }
+        put(this.geo.low, M(0xff5d86), [0, r * 0.95, 0.22], [0.05, 0.05, 0.03]);
+        break;
+      }
+      case 'starpin': put(this.geo.star, this.mat.star, [0.26, r * 0.72, 0.18], [0.45, 0.45, 0.45], [0, 0, 0.3]); break;
+      case 'bunny': {
+        const w = toon(0xffffff), pink = this.mat.cheek;
+        for (const sx of [-1, 1]) {
+          put(this.geo.low, w, [sx * 0.14, r + 0.3, -0.02], [0.08, 0.28, 0.06], [0, 0, -sx * 0.15]);
+          put(this.geo.low, pink, [sx * 0.14, r + 0.3, 0.03], [0.04, 0.2, 0.03], [0, 0, -sx * 0.15]);
+        }
+        break;
+      }
+    }
+    // 耳はぼうし系のときは隠す
+    u.ears.forEach(e => (e.visible = !['strawberry', 'straw', 'cloud', 'bunny'].includes(o.head)));
+    switch (o.face) {
+      case 'glasses': {
+        const frame = toon(0xff6f91), lens = toon(0xffffff, { transparent: true, opacity: 0.35 });
+        for (const sx of [-1, 1]) {
+          put(new T.TorusGeometry(0.09, 0.018, 6, 20), frame, [sx * 0.15, 0.07, r * 1.0], [1, 1, 1]);
+          put(new T.CircleGeometry(0.085, 16), lens, [sx * 0.15, 0.07, r * 1.0], [1, 1, 1]);
+        }
+        put(this.geo.cyl, frame, [0, 0.09, r * 1.01], [0.014, 0.06, 0.014], [0, 0, Math.PI / 2]);
+        break;
+      }
+      case 'hearts': {
+        const pink = toon(0xff5d86, { transparent: true, opacity: 0.85 });
+        for (const sx of [-1, 1]) put(this.geo.heart, pink, [sx * 0.15, 0.07, r * 1.0], [0.28, 0.28, 0.2]);
+        break;
+      }
+      case 'starcheek': for (const sx of [-1, 1]) put(this.geo.star, this.mat.star, [sx * 0.27, -0.07, r * 0.9], [0.22, 0.22, 0.15]); break;
+    }
+    u.cheeks.forEach(ch => (ch.visible = o.face !== 'starcheek'));
+  }
+
   makePunyu() {
     const root = new T.Group();
     const body = new T.Group();
     root.add(body);
     const r = TUNE.radius;
     const skin = toon(COLORS.punyu);
+    const ears = [], cheeks = [];
     const ball = new T.Mesh(this.geo.ball, skin); ball.scale.set(r * 1.05, r, r); body.add(ball);
     for (const s of [-1, 1]) {
       const ear = new T.Mesh(this.geo.ball, skin); ear.scale.set(0.14, 0.2, 0.12); ear.position.set(s * 0.25, r * 0.85, -0.05); ear.rotation.z = -s * 0.4; body.add(ear);
       const inner = new T.Mesh(this.geo.ball, this.mat.cheek); inner.scale.set(0.07, 0.11, 0.05); inner.position.set(s * 0.25, r * 0.86, 0.06); inner.rotation.z = -s * 0.4; body.add(inner);
+      ears.push(ear, inner);
       const eye = new T.Mesh(this.geo.ball, this.mat.eye); eye.scale.set(0.065, 0.09, 0.05); eye.position.set(s * 0.15, 0.06, r * 0.93); body.add(eye);
       const hl = new T.Mesh(this.geo.ball, new T.MeshBasicMaterial({ color: 0xffffff })); hl.scale.setScalar(0.025); hl.position.set(s * 0.15 + 0.02, 0.1, r * 0.99); body.add(hl);
       const ch = new T.Mesh(this.geo.ball, this.mat.cheek); ch.scale.set(0.09, 0.055, 0.04); ch.position.set(s * 0.27, -0.07, r * 0.84); body.add(ch);
+      cheeks.push(ch);
       const foot = new T.Mesh(this.geo.ball, toon(0xffd6e2)); foot.scale.set(0.13, 0.08, 0.14); foot.position.set(s * 0.18, -r * 0.92, 0.05); body.add(foot);
       body.userData['foot' + s] = foot;
     }
     const mouth = new T.Mesh(new T.TorusGeometry(0.05, 0.015, 6, 12, Math.PI), this.mat.eye); mouth.position.set(0, -0.06, r * 0.97); mouth.rotation.z = Math.PI; body.add(mouth);
     const tail = new T.Mesh(this.geo.ball, skin); tail.scale.setScalar(0.1); tail.position.set(0, -0.1, -r * 0.95); body.add(tail);
-    root.userData = { body };
+    root.userData = { body, skin, ears, cheeks };
+    this.applyOutfit(root);
     return root;
   }
 
@@ -909,6 +1009,8 @@ export class View {
     if (p.loop) body.rotation.z = -p.loop.th; // ループでは くるっと回る
     if (g.state === 'faint') body.rotation.z = Math.sin(c * 14) * 0.3;
     pl.visible = !(p.invuln > 0 && g.state === 'play' && !p.ride && Math.floor(c * 12) % 2 === 0);
+    if (pl.userData.rainbow) pl.userData.skin.color.setHSL((c * 0.15) % 1, 0.75, 0.86);
+    if (this.closeUp) { body.rotation.y = Math.sin(c * 1.2) * 0.5; body.rotation.z = 0; body.scale.set(1, 1, 1); body.position.y = Math.abs(Math.sin(c * 3)) * 0.05; }
     this.bubble.visible = g.state === 'bubble' || !!p.ride;
     if (this.bubble.visible) { this.bubble.position.copy(pl.position); const w = 1 + Math.sin(c * 8) * 0.05; this.bubble.scale.set(0.85 * w, 0.85 / w, 0.85); }
     // 影
@@ -1082,8 +1184,12 @@ export class View {
     let sx = 0, sy = 0;
     if (this.shake > 0) { this.shake -= dt; sx = (Math.random() - 0.5) * 0.25; sy = (Math.random() - 0.5) * 0.25; }
     const cx = this.cam.x + this.cam.look;
-    this.camera.position.set(cx + sx, this.cam.y + 2.2 + sy, dist);
-    this.camera.lookAt(cx + sx, this.cam.y + sy, 0);
+    // きせかえ画面：ぷにゅに近づく（画面の右がわに大きく）
+    const z = this.zoom = (this.zoom ?? 0) + ((this.closeUp ? 1 : 0) - (this.zoom ?? 0)) * (1 - Math.exp(-dt * 5));
+    const zd = 4.3, zvh = 2 * zd * Math.tan((this.camera.fov * Math.PI) / 360);
+    const zx = p.x - zvh * this.camera.aspect * 0.24, zy = p.y + 0.62;
+    this.camera.position.set(lerp(cx, zx, z) + sx, lerp(this.cam.y + 2.2, zy + 0.35, z) + sy, lerp(dist, zd, z));
+    this.camera.lookAt(lerp(cx, zx, z) + sx, lerp(this.cam.y, zy, z) + sy, 0);
   }
 
   drawHitboxes() {
