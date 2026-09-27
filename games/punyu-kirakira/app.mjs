@@ -22,6 +22,7 @@ const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save));
 const stageSave = id => (save.stages[id] ||= { clear: false, medals: [false, false, false] });
 
 const view = new View($('world'));
+if (DEBUG) window.__view = view;
 const sound = new Sound(save.sound);
 let game = null, stage = null, mode = 'title', last = performance.now(), clearT = 0, calloutT = 0;
 const debug = { invincible: false, hitbox: false };
@@ -220,12 +221,15 @@ function frame(now) {
     }
     hud();
     if (mode === 'clear') { clearT += dt; if (clearT > 2) finishStage(); }
-    if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}/${targetFps}${fpsMode === 'auto' ? '自動' : '固定'}  最長 ${view.worstShown ? (view.worstShown * 1000).toFixed(0) : '-'}ms  ${view.renderInfo}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
+    if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}/${targetFps}${fpsMode === 'auto' ? '自動' : '固定'}  最長 ${view.worstShown ? (view.worstShown * 1000).toFixed(0) : '-'}ms  cpu ${cpuMs.toFixed(1)}ms  △${(view.renderer.info.render.triangles / 1000).toFixed(0)}k  ${view.renderInfo}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
   } else dt = mode === 'pause' ? 0 : dt;
   if (calloutT > 0) { calloutT -= dt; if (calloutT <= 0) $('callout').classList.remove('show'); }
   if (game) view.update(dt);
   else titleScene(dt);
+  // テスト用：1コマの計算と描画命令にかかった時間（端末の処理が重いのか、描画が重いのかの切り分け用）
+  cpuMs = cpuMs * 0.95 + (performance.now() - now) * 0.05;
 }
+let cpuMs = 0;
 
 // タイトルの背景：ステージを借りて、ぷにゅがのんびり歩く
 let demo = null;

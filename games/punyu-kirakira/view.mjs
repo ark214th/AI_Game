@@ -32,37 +32,46 @@ function starShape(outer = 0.42, inner = 0.2) {
   return s;
 }
 
-// 動かない飾りを材質ごとに1つの形へまとめて、描画の回数を減らす（iPhone向け）
+// 動かない飾りを「材質ごと・横40マスの区画ごと」に1つの形へまとめる（iPhone向け）。
+// 区画に分けておくと、画面の外の区画は丸ごと描かずに済む
+const CHUNK = 40;
 function mergeStatic(group) {
   group.updateMatrixWorld(true);
   const buckets = new Map();
   const out = new T.Group();
+  const center = new T.Vector3();
   group.traverse(o => {
     if (!o.isMesh) return;
     if (Array.isArray(o.material) || o.material.map) { const c = o.clone(); o.matrixWorld.decompose(c.position, c.quaternion, c.scale); out.add(c); return; }
-    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const g = o.geometry.clone();
     g.applyMatrix4(o.matrixWorld);
-    if (!buckets.has(o.material)) buckets.set(o.material, []);
-    buckets.get(o.material).push(g);
+    g.computeBoundingBox();
+    g.boundingBox.getCenter(center);
+    const key = o.material.uuid + '|' + Math.floor(center.x / CHUNK);
+    if (!buckets.has(key)) buckets.set(key, { mat: o.material, list: [] });
+    buckets.get(key).list.push(g);
   });
-  for (const [mat, list] of buckets) {
-    let n = 0;
-    for (const g of list) n += g.attributes.position.count;
-    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
-    let off = 0;
+  for (const { mat, list } of buckets.values()) {
+    let nv = 0, ni = 0;
+    for (const g of list) { nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3);
+    const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+    let vo = 0, io = 0;
     for (const g of list) {
-      pos.set(g.attributes.position.array, off * 3);
-      if (g.attributes.normal) nor.set(g.attributes.normal.array, off * 3);
-      off += g.attributes.position.count;
+      const n = g.attributes.position.count;
+      pos.set(g.attributes.position.array, vo * 3);
+      if (g.attributes.normal) nor.set(g.attributes.normal.array, vo * 3);
+      if (g.index) { const a = g.index.array; for (let i = 0; i < a.length; i++) idx[io + i] = a[i] + vo; io += a.length; }
+      else { for (let i = 0; i < n; i++) idx[io + i] = vo + i; io += n; }
+      vo += n;
       g.dispose();
     }
     const geo = new T.BufferGeometry();
     geo.setAttribute('position', new T.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new T.BufferAttribute(nor, 3));
+    geo.setIndex(new T.BufferAttribute(idx, 1));
     geo.computeBoundingSphere();
-    const m = new T.Mesh(geo, mat);
-    m.frustumCulled = false;
-    out.add(m);
+    out.add(new T.Mesh(geo, mat));
   }
   return out;
 }
@@ -119,6 +128,8 @@ export class View {
       star: new T.ExtrudeGeometry(starShape(), { depth: 0.14, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2 }),
       bigStar: new T.ExtrudeGeometry(starShape(1.3, 0.6), { depth: 0.4, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.14, bevelSegments: 3 }),
       ball: new T.SphereGeometry(1, 20, 14),
+      mid: new T.SphereGeometry(1, 14, 9),
+      low: new T.SphereGeometry(1, 8, 6),
       spark: new T.OctahedronGeometry(0.12),
     };
     this.geo.star.center(); this.geo.bigStar.center();
@@ -223,7 +234,7 @@ export class View {
       for (let x = piece.x0 + 1; x < piece.x1 - 1; x += 1.6 + r() * 2) {
         const gy = t.groundAt(x);
         if (gy === null) continue;
-        const m = new T.Mesh(this.geo.ball, dot);
+        const m = new T.Mesh(this.geo.low, dot);
         m.scale.set(0.22 + r() * 0.12, 0.16 + r() * 0.08, 0.05);
         m.position.set(x, gy - 1 - r() * 3, 0.92);
         this.stat.add(m);
@@ -235,7 +246,7 @@ export class View {
     const r = rng(42);
     const hillMats = [toon(0xa8e58f), toon(0x97dc86), toon(0xb9ecb0)];
     for (let x = t.x0 - 30; x < t.x1 + 40; x += 14 + r() * 10) {
-      const m = new T.Mesh(this.geo.ball, hillMats[Math.floor(r() * 3)]);
+      const m = new T.Mesh(this.geo.mid, hillMats[Math.floor(r() * 3)]);
       const s = 9 + r() * 8;
       m.scale.set(s * 1.4, s, s * 0.6);
       m.position.set(x, t.lowest - s * 0.45, -34 - r() * 10);
@@ -243,7 +254,7 @@ export class View {
     }
     const far = toon(0xc6e8f7);
     for (let x = t.x0 - 40; x < t.x1 + 60; x += 30 + r() * 20) {
-      const m = new T.Mesh(this.geo.ball, far);
+      const m = new T.Mesh(this.geo.mid, far);
       const s = 18 + r() * 10;
       m.scale.set(s * 1.6, s, 4);
       m.position.set(x, t.lowest - s * 0.3, -70);
@@ -253,7 +264,7 @@ export class View {
     for (let x = t.x0 - 20; x < t.x1 + 40; x += 12 + r() * 14) {
       const c = new T.Group();
       for (let i = 0; i < 4; i++) {
-        const m = new T.Mesh(this.geo.ball, cloud);
+        const m = new T.Mesh(this.geo.low, cloud);
         const s = 1 + r() * 0.9;
         m.scale.set(s, s * 0.8, s * 0.7);
         m.position.set(i * 1.1 - 1.6, (i === 1 || i === 2) ? 0.5 : 0, 0);
@@ -269,10 +280,11 @@ export class View {
     const petals = [0xff8fb5, 0xffc94d, 0xffffff, 0xb79cff, 0x7fd4ff].map(c => toon(c));
     const center = toon(0xffcf3f), stem = toon(0x5bb34a);
     const bush = toon(0x74c95e), trunk = toon(0xc98f5e), leaf = [toon(0x7ed56a), toon(0x9be07f)];
-    const flowerGeo = new T.SphereGeometry(1, 10, 8);
+    const flowerGeo = this.geo.low;
+    this.stemGeo = new T.CylinderGeometry(0.03, 0.03, 0.5, 4, 1, true);
     const addFlower = (x, y, z, s = 1) => {
       const f = new T.Group();
-      const st = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.5, 5), stem);
+      const st = new T.Mesh(this.stemGeo, stem);
       st.position.y = 0.25; f.add(st);
       const pm = petals[Math.floor(r() * petals.length)];
       for (let i = 0; i < 5; i++) {
@@ -297,13 +309,13 @@ export class View {
         if (y === null) continue;
         if (r() < 0.5) {
           const g = new T.Group();
-          for (let i = 0; i < 3; i++) { const m = new T.Mesh(this.geo.ball, bush); const s = 0.7 + r() * 0.4; m.scale.set(s, s * 0.8, s * 0.7); m.position.set(i * 0.8 - 0.8, i === 1 ? 0.3 : 0, 0); g.add(m); }
+          for (let i = 0; i < 3; i++) { const m = new T.Mesh(this.geo.mid, bush); const s = 0.7 + r() * 0.4; m.scale.set(s, s * 0.8, s * 0.7); m.position.set(i * 0.8 - 0.8, i === 1 ? 0.3 : 0, 0); g.add(m); }
           g.position.set(x, y + 0.2, -2.6); this.stat.add(g);
         } else {
           const g = new T.Group();
           const tr = new T.Mesh(new T.CylinderGeometry(0.22, 0.3, 2.4, 8), trunk); tr.position.y = 1.2; g.add(tr);
           const lm = leaf[Math.floor(r() * 2)];
-          for (let i = 0; i < 3; i++) { const m = new T.Mesh(this.geo.ball, lm); const s = 1.1 + r() * 0.4; m.scale.set(s, s * 0.9, s * 0.8); m.position.set(i * 0.9 - 0.9, 2.8 + (i === 1 ? 0.6 : 0), 0); g.add(m); }
+          for (let i = 0; i < 3; i++) { const m = new T.Mesh(this.geo.mid, lm); const s = 1.1 + r() * 0.4; m.scale.set(s, s * 0.9, s * 0.8); m.position.set(i * 0.9 - 0.9, 2.8 + (i === 1 ? 0.6 : 0), 0); g.add(m); }
           g.position.set(x, y, -4.8 - r() * 2); this.stat.add(g);
         }
       }
@@ -319,7 +331,7 @@ export class View {
     g.add(body, top);
     // ふちのたれ（クリームのような飾り）
     for (let x = 0.3; x < p.w; x += 0.6) {
-      const d = new T.Mesh(this.geo.ball, toon(COLORS.platformTop));
+      const d = new T.Mesh(this.geo.low, toon(COLORS.platformTop));
       d.scale.set(0.2, 0.18, 0.1); d.position.set(x, -0.14, 1.15); g.add(d);
     }
     g.position.set(p.x, p.y, 0);
