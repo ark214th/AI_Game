@@ -77,6 +77,8 @@ export class View {
     this.applied = { w: 0, h: 0, ratio: 0 };
     this.needResize = true;
     this.slowSince = 0;
+    this.targetInterval = 1 / 60;
+    this.cannotKeepUp = false;
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.scene = new T.Scene();
     this.camera = new T.PerspectiveCamera(30, 1, 2, 160);
@@ -576,14 +578,21 @@ export class View {
     if (dt <= 0) return;
     this.frameTimes.push(dt);
     this.worst = Math.max(this.worst || 0, dt);
-    if (this.frameTimes.length < 120) return;
+    this.windowTime = (this.windowTime || 0) + dt;
+    if (this.windowTime < 1.5) return; // 1.5秒ごとに判定
+    this.windowTime = 0;
     const sorted = [...this.frameTimes].sort((a, b) => a - b);
     const typical = sorted[Math.floor(sorted.length * 0.5)];
     this.fps = 1 / typical;
     this.worstShown = this.worst; this.worst = 0;
     this.frameTimes.length = 0;
-    if (typical > 1 / 45) this.slowSince++; else this.slowSince = 0;
-    if (this.slowSince >= 2 && this.quality > 0.6) { this.quality = Math.max(0.6, this.quality - 0.15); this.slowSince = 0; }
+    // 目標の間隔（60fps なら 1/60 秒）を保てていなければ「重い」
+    if (typical > this.targetInterval * 1.25) this.slowSince++; else this.slowSince = 0;
+    if (this.slowSince >= 2) {
+      this.slowSince = 0;
+      if (this.quality > 0.7) this.quality = Math.max(0.7, this.quality - 0.15);
+      else this.cannotKeepUp = true; // 画質を下げても間に合わない → app.mjs が 30fps に切りかえる
+    }
   }
   get renderInfo() { return `${this.applied.w}x${this.applied.h}@${this.applied.ratio}`; }
 }

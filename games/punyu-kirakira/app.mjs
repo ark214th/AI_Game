@@ -175,15 +175,34 @@ function buildDebug() {
   btn('あたり', debug.hitbox, b => { debug.hitbox = !debug.hitbox; view.debugHitbox = debug.hitbox; b.classList.toggle('on', debug.hitbox); });
   game.checkpoints.forEach((c, i) => btn(`旗${i + 1}`, null, () => warp(c.x, c.y)));
   btn('ゴール前', null, () => { const x = game.goal.x - 8; warp(x, game.t.groundAt(x) ?? game.goal.y); });
+  btn(`fps:${fpsMode === 'auto' ? '自動' : fpsMode}`, null, b => {
+    fpsMode = fpsMode === 'auto' ? '60' : fpsMode === '60' ? '30' : 'auto';
+    try { fpsMode === 'auto' ? localStorage.removeItem(FPS_KEY) : localStorage.setItem(FPS_KEY, fpsMode); } catch { /* noop */ }
+    setTargetFps(fpsMode === '30' ? 30 : 60);
+    b.textContent = `fps:${fpsMode === 'auto' ? '自動' : fpsMode}`;
+  });
   btn('セーブ消去', null, () => { if (confirm('保存データを消しますか？')) { try { localStorage.removeItem(STORE); } catch { /* noop */ } location.reload(); } });
 }
 function warp(x, y) { Object.assign(game.p, { x, y, vx: 0, vy: 0, grounded: false }); game.safe = { x, y }; view.snapCamera = true; }
 
 // ---------- メインループ ----------
+// 画面の更新は 60fps か 30fps に固定する。
+// 120Hz の iPad では1回おきに描き、60fps を保てない端末では安定した 30fps に落とす
+// （40〜55fps でばらつくより、30fps で一定のほうが動きがなめらかに見えるため）
+const FPS_KEY = 'punyu-kirakira-fps';
+let fpsMode = 'auto'; // 'auto' | '60' | '30'
+try { const v = localStorage.getItem(FPS_KEY); if (v === '60' || v === '30') fpsMode = v; } catch { /* noop */ }
+let targetFps = fpsMode === '30' ? 30 : 60;
+function setTargetFps(fps) { targetFps = fps; view.targetInterval = 1 / fps; view.cannotKeepUp = false; view.slowSince = 0; view.frameTimes.length = 0; }
+setTargetFps(targetFps);
+
 function frame(now) {
   requestAnimationFrame(frame);
+  // 目標の間隔に満たないうちは描かない（4ms は画面更新のゆらぎの許容分）
+  if (now - last < 1000 / targetFps - 4) return;
   let dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (fpsMode === 'auto' && targetFps === 60 && view.cannotKeepUp) setTargetFps(30);
   if (mode === 'play' || mode === 'clear') {
     const inp = { left: input.left || keys.left, right: input.right || keys.right, jump: input.jump || keys.jump };
     // 画面の更新1回ぶんの時間を等分して計算する。
@@ -201,7 +220,7 @@ function frame(now) {
     }
     hud();
     if (mode === 'clear') { clearT += dt; if (clearT > 2) finishStage(); }
-    if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}  最長 ${view.worstShown ? (view.worstShown * 1000).toFixed(0) : '-'}ms  ${view.renderInfo}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
+    if (DEBUG && $('dbgInfo')) $('dbgInfo').textContent = `x ${game.p.x.toFixed(1)}  vx ${game.p.vx.toFixed(1)}  ${game.time.toFixed(1)}s  fps ${view.fps ? view.fps.toFixed(0) : '-'}/${targetFps}${fpsMode === 'auto' ? '自動' : '固定'}  最長 ${view.worstShown ? (view.worstShown * 1000).toFixed(0) : '-'}ms  ${view.renderInfo}  dmg ${game.stats.hurts}  あな ${game.stats.bubbles}`;
   } else dt = mode === 'pause' ? 0 : dt;
   if (calloutT > 0) { calloutT -= dt; if (calloutT <= 0) $('callout').classList.remove('show'); }
   if (game) view.update(dt);
