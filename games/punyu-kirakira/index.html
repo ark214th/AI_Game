@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#7fd0ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ぷにゅ">
+  <meta name="description" content="まるくてかわいいぷにゅと、ほしのかけらを集める横スクロールアクション。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>ぷにゅの きらきらランド</title>
+</head>
+<body>
+<main id="game">
+  <canvas id="world" aria-label="ゲーム画面"></canvas>
+
+  <header id="hud" hidden>
+    <div class="hud-left">
+      <div id="hearts" class="pill" aria-label="ハート"></div>
+      <div class="pill"><span class="star-icon">★</span><b id="starCount">0</b></div>
+    </div>
+    <div id="medals" class="pill medals" aria-label="メダル"><i></i><i></i><i></i></div>
+    <button id="pauseBtn" class="round" aria-label="ひとやすみ">❚❚</button>
+  </header>
+  <div id="callout" aria-live="polite"></div>
+
+  <div id="touch" hidden>
+    <div class="pad left">
+      <div class="btn" id="btnLeft" aria-hidden="true">◀</div>
+      <div class="btn" id="btnRight" aria-hidden="true">▶</div>
+    </div>
+    <div class="pad right">
+      <div class="btn jump" id="btnJump" aria-hidden="true">ぴょん</div>
+    </div>
+  </div>
+
+  <section id="title" class="screen">
+    <div class="logo">
+      <span class="sub">ぷにゅの</span>
+      <h1>きらきら<br>ランド</h1>
+    </div>
+    <div class="title-actions">
+      <button id="playBtn" class="big">あそぶ</button>
+      <button id="settingsBtn" class="small">せってい</button>
+    </div>
+    <p class="version">しさくばん</p>
+  </section>
+
+  <section id="select" class="screen shade" hidden>
+    <div class="panel wide">
+      <h2>おはなの のはら</h2>
+      <div id="stageList" class="stages"></div>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="settings" class="screen shade" hidden>
+    <div class="panel">
+      <h2>せってい</h2>
+      <button id="autoBtn" class="toggle"></button>
+      <p class="note">オンにすると ぷにゅが じぶんで あるくよ。<br>「ぴょん」だけで あそべるよ。</p>
+      <button id="soundBtn" class="toggle"></button>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="pause" class="screen shade" hidden>
+    <div class="panel">
+      <h2>ひとやすみ</h2>
+      <button id="resumeBtn" class="big">つづける</button>
+      <button id="retryBtn" class="small">はじめから</button>
+      <button id="quitBtn" class="small">おわる</button>
+    </div>
+  </section>
+
+  <section id="result" class="screen shade" hidden>
+    <div class="panel">
+      <h2 class="yay">クリア！</h2>
+      <div id="resultMedals" class="medals big-medals"><i></i><i></i><i></i></div>
+      <p class="result-stars"><span class="star-icon">★</span> <b id="resultStars">0</b></p>
+      <p id="resultDebug" class="debug-line" hidden></p>
+      <button id="againBtn" class="big">もういちど</button>
+      <button id="homeBtn" class="small">タイトルへ</button>
+    </div>
+  </section>
+
+  <div id="rotate"><div class="phone">📱</div><p>よこに してね</p></div>
+  <div id="debug" hidden></div>
+  <div id="loading">よみこみちゅう…</div>
+  <div id="error" hidden><p>よみこめませんでした。</p><p id="errorDetail"></p><button onclick="location.reload()">もういちど</button></div>
+</main>
+<script type="module">
+import('./app.mjs').catch(e => { document.getElementById('loading').hidden = true; document.getElementById('error').hidden = false; document.getElementById('errorDetail').textContent = e.message; });
+</script>
+</body>
+</html>
