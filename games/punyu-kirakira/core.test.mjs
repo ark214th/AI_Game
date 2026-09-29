@@ -84,6 +84,63 @@ test('いたずらっ子は上から踏むと逃げていく', () => {
   assert.equal(g.hearts, TUNE.maxHearts);
 });
 
+test('ダメージを受けると星がとびちり、少しのあいだなら拾いなおせる', () => {
+  const g = new Game(flatStage());
+  g.starCount = 15;
+  g.hurt(g.p.x + 1);
+  assert.equal(g.starCount, 5);
+  assert.equal(g.lostStars.length, 10);
+  // 星のところへ行けば拾える
+  simulate(g, {}, 0.8);
+  for (const st of [...g.lostStars]) { g.p.x = st.x; g.p.y = st.y; g.collect(); }
+  assert.ok(g.starCount >= 13, `recovered ${g.starCount}`);
+  simulate(g, {}, 6);
+  assert.equal(g.lostStars.length, 0);
+});
+
+test('おいかけっこの大玉：止まっていると追いつかれ、前へはじき出される', () => {
+  const b = new Builder(0);
+  b.flat(80);
+  b.add('chase', 10, 0, { x1: 60, speed: 4 });
+  const g = new Game(b.finish({ id: 't' }));
+  g.p.x = 12;
+  simulate(g, {}, 5);
+  assert.ok(g.stats.hurts >= 1);
+  assert.ok(g.p.x > g.chasers[0].x, 'player ends up ahead of the ball');
+  const g2 = new Game(b.finish({ id: 't' }));
+  g2.p.x = 12;
+  simulate(g2, { right: true }, 12);
+  assert.equal(g2.stats.hurts, 0, 'running away is safe');
+});
+
+test('時間で消える橋：消えたらスイッチがもどり、もう一度おせる', () => {
+  const b = new Builder(0);
+  b.flat(12).gap(8).flat(10);
+  b.add('switch', 3, 0, { group: 1 });
+  b.platform(6, 0, 8, 5, { type: 'bridge', group: 1, timer: 3 });
+  const g = new Game(b.finish({ id: 't' }));
+  g.p.x = 3; simulate(g, {}, 0.1);
+  const br = g.t.platforms[0];
+  assert.ok(br.active);
+  g.p.x = 0.5; // スイッチからはなれる
+  simulate(g, {}, 3.2);
+  assert.ok(!br.active);
+  assert.ok(!g.switches[0].on);
+});
+
+test('ボスは のこり1回で ほんきモードになる', () => {
+  const b = new Builder(0);
+  b.flat(30);
+  b.add('boss', 2, 0, { x1: 20, type: 'blob', hp: 3 });
+  const g = new Game(b.finish({ id: 't' }));
+  const B = g.boss;
+  B.active = true; B.hp = 2; B.state = 'walk';
+  Object.assign(g.p, { x: B.x, y: B.y + B.r * 2 - 0.3, vy: -2, grounded: false });
+  g.touchBoss({});
+  assert.equal(B.hp, 1);
+  assert.ok(B.angry);
+});
+
 // 「おまかせ はしり」＋素朴なジャンプの自動操作。ステージが最後まで進めるかの確認用
 export function bot(game) {
   const p = game.p, t = game.t;

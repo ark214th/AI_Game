@@ -102,7 +102,7 @@ export class Terrain {
 }
 
 // ---------- ステージの組み立て ----------
-const LISTS = ['star', 'medal', 'spring', 'dash', 'enemy', 'checkpoint', 'sign', 'spike', 'updraft', 'loop', 'vent', 'switch', 'heart'];
+const LISTS = ['star', 'medal', 'spring', 'dash', 'enemy', 'checkpoint', 'sign', 'spike', 'updraft', 'loop', 'vent', 'switch', 'heart', 'chase', 'drop'];
 export class Builder {
   constructor(y = 0) {
     this.x = -6; this.y = y;
@@ -190,6 +190,10 @@ export class Game {
     this.goal = stage.goal ? { ...stage.goal } : null;
     this.boss = stage.boss ? makeBoss(stage.boss) : null;
     this.shots = [];
+    this.lostStars = [];
+    this.chasers = stage.chase.map(c => ({ trigger: c.x, end: c.x1, speed: c.speed || 4, state: 'wait', x: 0, y: 0, r: 1.5, rot: 0, hit: false }));
+    this.dropZones = stage.drop.map(d => ({ x0: d.x, x1: d.x1, every: d.every || 1.4, kind: d.type || 'nut', t: 0.4, n: 0 }));
+    this.drops = [];
     this.wind = 0;
     this.p = {
       x: stage.start.x, y: stage.start.y, vx: 0, vy: 0, dir: 1, autoDir: 1,
@@ -220,6 +224,9 @@ export class Game {
     this.updateVents(dt);
     if (this.boss) this.updateBoss(dt);
     this.updateShots(dt);
+    this.updateChasers(dt);
+    this.updateDrops(dt);
+    this.updateLostStars(dt);
     if (this.state === 'play') {
       if (this.p.loop) this.updateLoop(dt);
       else if (this.p.ride) this.updateRide(dt, input);
@@ -243,11 +250,20 @@ export class Game {
         const nx = q.bx + (q.dx || 0) * k, ny = q.by + (q.dy || 0) * k;
         q.ddx = nx - q.x; q.ddy = ny - q.y; q.x = nx; q.y = ny;
         if (p.grounded && p.plat === q && this.state === 'play') { p.x += q.ddx; p.y = q.y; }
+      } else if (q.kind === 'bridge' && q.timer && q.active) {
+        // 時間で消える橋：のこり2秒で点滅し、消えたらスイッチがもどる
+        q.timeLeft -= dt;
+        if (q.timeLeft <= 0) {
+          q.active = false;
+          if (p.plat === q) { p.grounded = false; p.plat = null; }
+          for (const sw of this.switches) if (sw.group === (q.group || 1)) sw.on = false;
+          this.emit('bridgeOff', q.x + q.w / 2, q.y);
+        }
       } else if (q.kind === 'crumble') {
         if (q.active) {
           if (p.grounded && p.plat === q) q.touchT += dt;
-          else if (q.touchT > 0 && q.touchT < 0.75) q.touchT = Math.max(0, q.touchT - dt * 0.5);
-          if (q.touchT >= 0.75) {
+          else if (q.touchT > 0) q.touchT = Math.max(0, q.touchT - dt * 0.5);
+          if (q.touchT >= (q.quick ? 0.45 : 0.75)) {
             q.active = false; q.fallT = 0; q.fy = 0;
             if (p.plat === q) { p.grounded = false; p.plat = null; }
             this.emit('crumble', q.x + q.w / 2, q.y);
@@ -475,6 +491,10 @@ export class Game {
       if (m.taken) continue;
       if ((m.x - cx) ** 2 + (m.y - cy) ** 2 < 1.0 ** 2) { m.taken = true; this.emit('medal', m.x, m.y, { id: m.id }); }
     }
+    for (const s of this.lostStars) {
+      if (s.t < 0.45 || s.gone) continue;
+      if ((s.x - cx) ** 2 + (s.y + 0.3 - cy) ** 2 < 0.95 ** 2) { s.gone = true; this.starCount++; this.starBank++; this.emit('star', s.x, s.y + 0.3, { back: true }); }
+    }
     for (const h of this.heartItems) {
       if (h.taken) continue;
       if ((h.x - cx) ** 2 + (h.y - cy) ** 2 < 0.9 ** 2) {
@@ -507,8 +527,9 @@ export class Game {
       if (sw.on) continue;
       if (Math.abs(p.x - sw.x) < 0.8 && Math.abs(p.y - sw.y) < 0.9) {
         sw.on = true;
-        for (const q of this.t.platforms) if (q.kind === 'bridge' && (q.group || 1) === sw.group) q.active = true;
-        this.emit('switch', sw.x, sw.y);
+        let timed = false;
+        for (const q of this.t.platforms) if (q.kind === 'bridge' && (q.group || 1) === sw.group) { q.active = true; q.timeLeft = q.timer || 0; timed ||= !!q.timer; }
+        this.emit('switch', sw.x, sw.y, { timed });
       }
     }
     for (const b of this.rideBubbles) {
@@ -537,6 +558,21 @@ export class Game {
       const dx = s.x - cx, dy = s.y + 0.35 - cy;
       if (dx * dx + dy * dy < (r + 0.3) ** 2) this.hurt(s.x);
     }
+    for (const c of this.chasers) {
+      if (c.state !== 'roll') continue;
+      const dx = cx - c.x, dy = cy - (c.y + c.r);
+      if (dx * dx + dy * dy > (c.r + r - 0.1) ** 2) continue;
+      if (dx > 0) {
+        // 追いつかれた：いたいけど、前へ ぽーんと はじき出される
+        if (p.invuln <= 0 && !this.invincible) { c.hit = true; this.hurt(c.x); }
+        p.vx = 9; p.vy = 10.5; p.grounded = false; p.plat = null; p.x = Math.max(p.x, c.x + c.r * 0.6);
+      } else p.x = Math.min(p.x, c.x - c.r - r + 0.1); // 後ろからは押すだけ
+    }
+    for (const d of this.drops) {
+      if (d.state !== 'fall') continue;
+      const dx = d.x - cx, dy = d.y + 0.35 - cy;
+      if (dx * dx + dy * dy < (r + 0.32) ** 2) { this.hurt(d.x); d.state = 'gone'; this.emit('splash', d.x, d.y, { kind: d.kind }); }
+    }
     if (this.boss) this.touchBoss(input);
     for (const c of this.checkpoints) {
       if (!c.taken && p.x >= c.x) {
@@ -561,8 +597,85 @@ export class Game {
     p.invuln = TUNE.invuln;
     const away = Math.sign(p.x - fromX) || -1;
     p.vx = away * 5; p.vy = 7; p.grounded = false; p.rising = false; p.plat = null;
+    this.scatterStars();
     this.emit('hurt', p.x, p.y + 0.5, { hearts: this.hearts });
     if (this.hearts <= 0) this.startFaint();
+  }
+
+  // ダメージを受けると星がとびちる。少しのあいだなら拾いなおせる
+  scatterStars() {
+    const n = Math.min(this.starCount, 10);
+    if (n <= 0) return;
+    this.starCount -= n; this.starBank = Math.max(0, this.starBank - n);
+    const p = this.p;
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI * (0.15 + 0.7 * (i / Math.max(1, n - 1)));
+      const sp = 4 + (i % 3) * 1.3;
+      this.lostStars.push({ x: p.x, y: p.y + 0.6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + 4, t: 0, gone: false });
+    }
+    this.emit('scatter', p.x, p.y + 0.5, { n });
+  }
+
+  updateLostStars(dt) {
+    for (const s of this.lostStars) {
+      s.t += dt;
+      s.vy -= 25 * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+      s.vx *= Math.exp(-dt * 0.6);
+      const f = this.t.floorAt(s.x, s.y + 0.4, 0.1).h;
+      if (f !== null && s.y < f && s.vy < 0) { s.y = f; s.vy = Math.abs(s.vy) > 2 ? -s.vy * 0.55 : 0; }
+      if (s.t > 4.5 || s.y < this.t.killY) s.gone = true;
+    }
+    this.lostStars = this.lostStars.filter(s => !s.gone);
+  }
+
+  // ---------- おいかけっこ：後ろから大玉が転がってくる ----------
+  updateChasers(dt) {
+    const p = this.p;
+    for (const c of this.chasers) {
+      if (c.state === 'wait') {
+        if (this.state === 'play' && p.x > c.trigger && p.x < c.end) {
+          c.state = 'roll'; c.x = Math.max(this.t.x0 + 2, p.x - 11); c.hit = false;
+          c.y = this.t.groundAt(c.x) ?? p.y;
+          this.emit('chaseStart', c.x, c.y);
+        }
+      } else if (c.state === 'roll') {
+        const gap = p.x - c.x;
+        // はなれすぎると少し速く（画面の中に見えているように）、近いときは決まった速さ
+        const sp = gap > 11 ? c.speed + 2.5 : c.speed;
+        c.x += sp * dt; c.rot -= (sp / c.r) * dt;
+        const g = this.t.groundAt(c.x);
+        if (g !== null) c.y += (g - c.y) * Math.min(1, dt * 10);
+        if (c.x >= c.end) { c.state = 'done'; this.emit('chaseEnd', c.x, c.y + c.r, { safe: !c.hit }); }
+      }
+    }
+  }
+
+  // ---------- 上から落ちてくるもの（影で予告してから落ちる） ----------
+  updateDrops(dt) {
+    const p = this.p;
+    for (const z of this.dropZones) {
+      if (this.state !== 'play' || p.x < z.x0 - 4 || p.x > z.x1) continue;
+      if (!z.announced) { z.announced = true; this.emit('dropZone', z.x0, p.y); }
+      z.t -= dt;
+      if (z.t > 0) continue;
+      z.t = z.every;
+      const offs = this.autoRun ? [11, 12.5, 10.5] : [3, 5, 1.8, 4, 6];
+      const x = p.x + offs[z.n++ % offs.length] * (p.dir || 1);
+      if (x < z.x0 || x > z.x1) continue; // 区間の外には落とさない
+      if (this.drops.some(d => Math.abs(d.x - x) < 1.2)) continue;
+      const g = this.t.floorAt(x, p.y + 6, 0.1).h;
+      if (g === null) continue;
+      this.drops.push({ x, gy: g, y: g + 9, vy: 0, t: 0, state: 'warn', kind: z.kind });
+    }
+    for (const d of this.drops) {
+      d.t += dt;
+      if (d.state === 'warn' && d.t > 1.1) d.state = 'fall';
+      if (d.state === 'fall') {
+        d.vy -= 26 * dt; d.y += d.vy * dt;
+        if (d.y <= d.gy) { d.state = 'gone'; this.emit('splash', d.x, d.gy, { kind: d.kind }); }
+      }
+    }
+    this.drops = this.drops.filter(d => d.state !== 'gone');
   }
 
   startFaint() {
@@ -600,7 +713,8 @@ export class Game {
     p.x = this.respawn.x; p.y = this.respawn.y; p.vx = 0; p.vy = 0; p.grounded = true; p.plat = null;
     p.invuln = TUNE.invuln; p.dash = 0; p.loop = null; p.ride = null;
     this.safe = { ...this.respawn };
-    this.shots.length = 0; this.wind = 0;
+    this.shots.length = 0; this.wind = 0; this.drops.length = 0;
+    for (const c of this.chasers) if (c.state === 'roll') c.state = 'wait';
     if (this.boss && !this.boss.done) resetBoss(this.boss); // ボスの残りハートはそのまま
     this.state = 'play'; this.stateT = 0;
     this.emit('respawn', p.x, p.y);
@@ -668,6 +782,7 @@ export class Game {
       } else {
         B.state = 'hurt'; B.t = 0; B.vy = 0;
         this.emit('bossHit', B.x, by, { hp: B.hp });
+        if (B.hp === 1) { B.angry = true; this.emit('bossAngry', B.x, by); }
       }
     } else this.hurt(B.x);
   }
@@ -718,9 +833,9 @@ const BOSS_AI = {
       B.x += B.dir * (1.6 + angry * 0.5) * dt;
       if (B.x <= B.x0 + B.r + 0.05) B.dir = 1;
       if (B.x >= B.x1 - B.r - 0.05) B.dir = -1;
-      if (B.t > 3.2) { B.state = 'crouch'; B.t = 0; }
+      if (B.t > (B.angry ? 2.2 : 3.2)) { B.state = 'crouch'; B.t = 0; }
     } else if (B.state === 'crouch') {
-      if (B.t > 0.6) { B.state = 'jump'; B.t = 0; B.vy = 10; }
+      if (B.t > 0.6) { B.state = 'jump'; B.t = 0; B.vy = B.angry ? 11.5 : 10; }
     } else if (B.state === 'jump') {
       B.x += B.dir * 2.2 * dt; B.vy -= 22 * dt; B.y += B.vy * dt;
       if (B.x <= B.x0 + B.r + 0.05) B.dir = 1;
@@ -731,9 +846,9 @@ const BOSS_AI = {
   // ワールド2：ぷるるんゼリー。ぴょーんと跳んで近づき、着地したら少し休む
   jelly(g, B, dt) {
     if (B.state === 'hurt') { B.vy -= 25 * dt; B.y = Math.max(B.floor, B.y + B.vy * dt); hurtRecover(B, dt, 'rest'); return; }
-    if (B.state === 'idle' || B.state === 'rest') { B.y = B.floor; if (B.t > (B.state === 'idle' ? 1 : 1.5)) { B.state = 'crouch'; B.t = 0; } return; }
+    if (B.state === 'idle' || B.state === 'rest') { B.y = B.floor; if (B.t > (B.state === 'idle' ? 1 : B.angry ? 0.9 : 1.5)) { B.state = 'crouch'; B.t = 0; } return; }
     if (B.state === 'crouch') {
-      if (B.t > 0.5) {
+      if (B.t > (B.angry ? 0.4 : 0.5)) {
         const target = clamp(g.p.x, B.x0 + 2, B.x1 - 2);
         B.vx = clamp((target - B.x) / 1.0, -5, 5); B.vy = 11; B.state = 'hop'; B.t = 0;
       }
@@ -753,8 +868,11 @@ const BOSS_AI = {
       if (B.x <= B.x0 + 2) B.dir = 1;
       if (B.x >= B.x1 - 2) B.dir = -1;
       B.cycle += dt;
-      if (B.cycle > 1.5) { B.cycle = 0; g.shots.push({ kind: 'rain', x: B.x + (Math.random() - 0.5) * 1.2, y: B.y - 0.1, vx: 0, vy: -1, g: 4, r: 0.25, life: 5 }); }
-      if (B.t > 6) { B.state = 'down'; B.t = 0; }
+      if (B.cycle > (B.angry ? 1.1 : 1.5)) {
+        B.cycle = 0;
+        for (const dx of B.angry ? [-0.9, 0.9] : [0]) g.shots.push({ kind: 'rain', x: B.x + dx + (Math.random() - 0.5) * 0.6, y: B.y - 0.1, vx: 0, vy: -1, g: 4, r: 0.25, life: 5 });
+      }
+      if (B.t > (B.angry ? 5 : 6)) { B.state = 'down'; B.t = 0; }
     } else if (B.state === 'down') {
       B.y = lerp(B.y, B.floor, 1 - Math.exp(-dt * 3));
       if (B.t > 1) { B.state = 'sleep'; B.t = 0; B.y = B.floor; }
@@ -772,12 +890,14 @@ const BOSS_AI = {
       if (B.x >= B.x1 - B.r - 0.05) B.dir = -1;
       if (B.t > 3.4) { B.state = 'throw'; B.t = 0; }
     } else if (B.state === 'throw') {
-      if (B.t > 0.8 && !B.thrown) {
-        B.thrown = true;
+      const throwAt = B.angry ? [0.8, 1.6] : [0.8];
+      B.thrown = B.thrown || 0;
+      if (B.thrown < throwAt.length && B.t > throwAt[B.thrown]) {
+        B.thrown++;
         const d = Math.sign(g.p.x - B.x) || 1;
         g.shots.push({ kind: 'shell', x: B.x + d * 1.3, y: B.floor, vx: d * 3, vy: 0, g: 0, r: 0.3, life: 9 });
       }
-      if (B.t > 1.6) { B.state = 'walk'; B.t = 0; B.thrown = false; }
+      if (B.t > (B.angry ? 2.4 : 1.6)) { B.state = 'walk'; B.t = 0; B.thrown = 0; }
     }
   },
   // ワールド5：いたずらかぜ。ふーっと風を吹いて、星の玉をまき、疲れると降りてくる
@@ -794,12 +914,12 @@ const BOSS_AI = {
       if (B.t > 2.5) { B.state = B.cycle % 2 === 0 ? 'puff' : 'toss'; B.cycle++; B.t = 0; }
     } else if (B.state === 'puff') {
       // 0.9秒ほっぺをふくらませてから、2秒間ふーっ（押し戻すだけで痛くない）
-      if (B.t > 0.9) g.wind = Math.sign(g.p.x - B.x || 1) * 2.4;
+      if (B.t > 0.9) g.wind = Math.sign(g.p.x - B.x || 1) * (B.angry ? 3 : 2.4);
       if (B.t > 2.9) { B.state = 'tired'; B.t = 0; }
     } else if (B.state === 'toss') {
       if (B.t > 0.7 && !B.thrown) {
         B.thrown = true;
-        for (const vx of [-2.6, 0, 2.6]) g.shots.push({ kind: 'orb', x: B.x, y: B.y + 0.8, vx, vy: 5, g: 9, r: 0.3, life: 5 });
+        for (const vx of B.angry ? [-3.6, -1.8, 0, 1.8, 3.6] : [-2.6, 0, 2.6]) g.shots.push({ kind: 'orb', x: B.x, y: B.y + 0.8, vx, vy: 5, g: 9, r: 0.3, life: 5 });
       }
       if (B.t > 1.6) { B.state = 'tired'; B.t = 0; B.thrown = false; }
     } else if (B.state === 'tired') {

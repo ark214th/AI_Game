@@ -163,6 +163,19 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .ending-panel { position: relative; }
 .ending-text { margin: 0; text-align: center; line-height: 1.7; font-weight: 700; font-size: clamp(15px, 4.4vh, 20px); }
 
+/* ---------- おうかん ---------- */
+.pika { font-size: clamp(16px, 4.6vh, 22px); padding: 4px 10px; animation: pikapika 1.6s ease-in-out infinite; transition: transform .3s, opacity .3s; }
+.pika.lost { opacity: 0; transform: scale(.3) rotate(-30deg); animation: none; }
+@keyframes pikapika { 0%, 100% { filter: drop-shadow(0 0 0 #ffd84a); } 50% { filter: drop-shadow(0 0 6px #ffd84a); } }
+.result-crowns { display: flex; gap: 18px; }
+.crown { display: flex; flex-direction: column; align-items: center; font-size: 34px; line-height: 1.1; filter: grayscale(1) opacity(.3); }
+.crown small { font-size: 12px; font-weight: 800; }
+.crown.had { filter: grayscale(.4) opacity(.65); }
+.crown.on { filter: none; animation: pop .5s .6s cubic-bezier(.3, 1.8, .5, 1) both; }
+.stage .crowns { display: flex; gap: 4px; font-size: 16px; }
+.stage .crowns b { filter: grayscale(1) opacity(.25); }
+.stage .crowns b.on { filter: none; }
+
 /* ---------- NEW マーク ---------- */
 .badge { position: relative; }
 .badge.new::after, .ditem.new::after {
@@ -176,7 +189,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 #dress { align-items: flex-start; }
 .dress-panel { width: min(46vw, 420px); min-width: 0; margin-left: 2vw; }
 .dtabs { display: flex; gap: 8px; }
-.dtab { padding: .35em 1em; border-radius: 999px; background: #eee3e9; font-weight: 900; font-size: clamp(15px, 4.4vh, 19px); box-shadow: 0 3px 0 #dccbd4; }
+.dtab { white-space: nowrap; padding: .35em .8em; border-radius: 999px; background: #eee3e9; font-weight: 900; font-size: clamp(15px, 4.4vh, 19px); box-shadow: 0 3px 0 #dccbd4; }
 .dtab.on { background: var(--pink); color: #fff; box-shadow: 0 3px 0 #d9486d; }
 .ditems { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; width: 100%; overflow: auto; max-height: 52vh; padding: 8px 4px 4px; }
 .ditem {

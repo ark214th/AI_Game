@@ -246,6 +246,9 @@ export class View {
       for (const x of [B.x0, B.x1]) { const gate = add(this.makeGate(th), x, B.floor, -0.2); gate.visible = false; this.gates.push(gate); }
     }
     this.shotMeshes = new Map();
+    this.lostMeshes = new Map();
+    this.dropMeshes = new Map();
+    this.chaseMeshes = game.chasers.map(() => { const m = this.makeChaseBall(th); m.visible = false; this.world.add(m); return m; });
     this.rideMeshes = new Map();
     this.player = this.makePunyu();
     this.world.add(this.player);
@@ -636,8 +639,9 @@ export class View {
   burstPlayer() {
     if (!this.player) return;
     const p = this.player.position;
-    this.burst(p.x, p.y + 0.3, 0xffe066, 12, 3, this.geo.star);
-    this.burst(p.x, p.y + 0.3, 0xff8fb5, 10, 3);
+    // アップで見ているので、小さな粒だけ
+    this.burst(p.x, p.y + 0.3, 0xffe066, 10, 2.2);
+    this.burst(p.x, p.y + 0.3, 0xff8fb5, 8, 2.2);
   }
 
   applyOutfit(root) {
@@ -690,6 +694,20 @@ export class View {
         break;
       }
       case 'starpin': put(this.geo.star, this.mat.star, [0.26, r * 0.72, 0.18], [0.45, 0.45, 0.45], [0, 0, 0.3]); break;
+      case 'tiara': {
+        const gold = toon(0xffe08a, { emissive: 0x6b4a00, emissiveIntensity: 0.25 });
+        put(new T.TorusGeometry(0.2, 0.025, 6, 20, Math.PI), gold, [0, r * 0.9, 0.08], [1, 0.6, 1], [-0.5, 0, 0]);
+        for (let i = -2; i <= 2; i++) put(this.geo.cone, gold, [i * 0.08, r * 0.9 + 0.1 - Math.abs(i) * 0.03, 0.12], [0.03, 0.1 - Math.abs(i) * 0.02, 0.03]);
+        put(this.geo.low, toon(0x7fd4ff, { emissive: 0x2f6fbf, emissiveIntensity: 0.4 }), [0, r * 0.9 + 0.05, 0.16], [0.045, 0.055, 0.03]);
+        break;
+      }
+      case 'princess': {
+        const pink = toon(0xffa8d0);
+        put(this.geo.cone, pink, [0.05, r + 0.33, -0.02], [0.2, 0.62, 0.2], [0, 0, -0.12]);
+        put(this.geo.low, this.mat.star, [0.12, r + 0.66, -0.02], [0.06, 0.06, 0.06]);
+        put(this.geo.low, toon(0xffffff, { transparent: true, opacity: 0.7 }), [0.2, r + 0.35, -0.12], [0.08, 0.35, 0.05], [0, 0, -0.5]);
+        break;
+      }
       case 'bunny': {
         const w = toon(0xffffff), pink = this.mat.cheek;
         for (const sx of [-1, 1]) {
@@ -717,6 +735,42 @@ export class View {
         break;
       }
       case 'starcheek': for (const sx of [-1, 1]) put(this.geo.star, this.mat.star, [sx * 0.27, -0.07, r * 0.9], [0.22, 0.22, 0.15]); break;
+      case 'starglasses': {
+        const y = toon(0xffd84a, { transparent: true, opacity: 0.8 });
+        for (const sx of [-1, 1]) put(this.geo.star, y, [sx * 0.15, 0.07, r * 1.0], [0.5, 0.5, 0.2]);
+        put(this.geo.cyl, toon(0xff6f91), [0, 0.09, r * 1.01], [0.014, 0.05, 0.014], [0, 0, Math.PI / 2]);
+        break;
+      }
+    }
+    // せなか
+    u.flaps = [];
+    switch (o.back) {
+      case 'cape': {
+        const cape = new T.Mesh(new T.PlaneGeometry(1.0, 0.78, 1, 4), toon(0xff4f7b, { side: T.DoubleSide }));
+        cape.position.set(0, -0.12, -r * 0.95); cape.rotation.x = 0.15; acc.add(cape);
+        put(this.geo.cyl, toon(0xffd84a), [0, 0.22, -r * 0.55], [0.3, 0.03, 0.2]);
+        u.flaps.push({ m: cape, kind: 'cape' });
+        break;
+      }
+      case 'balloon': {
+        put(this.geo.cyl, toon(0xffffff), [0.2, r + 0.35, -0.25], [0.006, 0.7, 0.006], [0, 0, -0.25]);
+        const b = put(this.geo.mid, toon(0xff5d86), [0.36, r + 0.85, -0.3], [0.22, 0.26, 0.22]);
+        put(this.geo.low, this.mat.shine, [0.3, r + 0.93, -0.12], [0.04, 0.06, 0.02]);
+        u.flaps.push({ m: b, kind: 'balloon' });
+        break;
+      }
+      case 'angel':
+      case 'butterfly': {
+        const cols = o.back === 'angel' ? [0xffffff, 0xffffff] : [0xff9ad5, 0xb79cff];
+        for (const sx of [-1, 1]) {
+          const pivot = new T.Group(); pivot.position.set(sx * 0.12, 0.08, -r * 0.8); acc.add(pivot);
+          const w = new T.Mesh(this.geo.low, toon(cols[0], o.back === 'butterfly' ? { transparent: true, opacity: 0.9 } : {}));
+          w.scale.set(0.32, o.back === 'angel' ? 0.2 : 0.26, 0.05); w.position.set(sx * 0.28, 0.08, 0); pivot.add(w);
+          const w2 = new T.Mesh(this.geo.low, toon(cols[1])); w2.scale.set(0.2, 0.14, 0.05); w2.position.set(sx * 0.22, -0.15, 0); pivot.add(w2);
+          u.flaps.push({ m: pivot, kind: 'wing', sx });
+        }
+        break;
+      }
     }
     u.cheeks.forEach(ch => (ch.visible = o.face !== 'starcheek'));
   }
@@ -918,6 +972,48 @@ export class View {
     return root;
   }
 
+  // おいかけっこの大玉：ワールドの色のしましま玉に、がんばる顔
+  makeChaseBall(th) {
+    const g = new T.Group();
+    const ball = new T.Group(); g.add(ball);
+    const cols = th.decor === 'candy' ? [0xff8fb5, 0xffffff] : th.decor === 'beach' ? [0xff6f61, 0xffffff, 0x4fc3f7, 0xffe066] : th.night ? [0x9f92e6, 0xffe38a] : [0x8fdc6e, 0xfff4d6];
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      const seg = new T.Mesh(new T.SphereGeometry(1.5, 16, 12, (i / n) * Math.PI * 2, (Math.PI * 2) / n), toon(cols[i % cols.length]));
+      ball.add(seg);
+    }
+    const face = new T.Group(); g.add(face);
+    for (const sx of [-1, 1]) {
+      const w = new T.Mesh(this.geo.low, this.mat.white); w.scale.set(0.3, 0.34, 0.1); w.position.set(sx * 0.45, 0.3, 1.42); face.add(w);
+      const pp = new T.Mesh(this.geo.low, this.mat.eye); pp.scale.set(0.15, 0.18, 0.06); pp.position.set(sx * 0.42 + 0.08, 0.28, 1.5); face.add(pp);
+      const br = new T.Mesh(new T.BoxGeometry(0.34, 0.07, 0.05), this.mat.eye); br.position.set(sx * 0.45, 0.72, 1.4); br.rotation.z = -sx * 0.3; face.add(br);
+    }
+    const mouth = new T.Mesh(new T.TorusGeometry(0.22, 0.06, 6, 14, Math.PI), this.mat.eye); mouth.position.set(0.05, -0.35, 1.42); mouth.rotation.z = Math.PI; face.add(mouth);
+    g.userData = { ball, face };
+    return g;
+  }
+
+  makeDrop(kind) {
+    if (kind === 'hail') { const m = new T.Mesh(new T.IcosahedronGeometry(0.35, 0), toon(0xd6f0ff, { emissive: 0x6fb8ff, emissiveIntensity: 0.3 })); return m; }
+    if (kind === 'coconut') {
+      const g = new T.Group();
+      const m = new T.Mesh(this.geo.mid, toon(0x8a5a33)); m.scale.setScalar(0.38); g.add(m);
+      for (let i = 0; i < 3; i++) { const d = new T.Mesh(this.geo.low, this.mat.eye); d.scale.setScalar(0.06); d.position.set((i - 1) * 0.12, 0.1 - Math.abs(i - 1) * 0.05, 0.34); g.add(d); }
+      return g;
+    }
+    if (kind === 'candy') {
+      const g = new T.Group(), pink = toon(0xff8fb5);
+      const m = new T.Mesh(this.geo.mid, pink); m.scale.set(0.3, 0.3, 0.3); g.add(m);
+      for (const sx of [-1, 1]) { const w = new T.Mesh(this.geo.cone, toon(0xffffff)); w.scale.set(0.2, 0.25, 0.2); w.rotation.z = sx * Math.PI / 2; w.position.x = sx * 0.4; g.add(w); }
+      return g;
+    }
+    if (kind === 'meteor') { const m = new T.Mesh(this.geo.star, toon(0xffe38a, { emissive: 0xffb300, emissiveIntensity: 0.7 })); m.scale.setScalar(1.4); return m; }
+    const g = new T.Group();
+    const core = new T.Mesh(this.geo.mid, toon(0x8a5a33)); core.scale.setScalar(0.3); g.add(core);
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; const c2 = new T.Mesh(this.geo.cone, toon(0xc9a36b)); c2.scale.set(0.05, 0.2, 0.05); c2.position.set(Math.cos(a) * 0.35, Math.sin(a) * 0.35, 0); c2.rotation.z = a - Math.PI / 2; g.add(c2); }
+    return g;
+  }
+
   makeShot(kind) {
     if (kind === 'rain') { const m = new T.Mesh(this.geo.low, toon(0x6fb8ff, { emissive: 0x2f6fbf, emissiveIntensity: 0.3 })); m.scale.set(0.2, 0.28, 0.2); return m; }
     if (kind === 'shell') {
@@ -982,6 +1078,11 @@ export class View {
       case 'bossHit': this.shake = 0.3; this.burst(e.x, e.y + 1, 0xffffff, 14, 5); this.burst(e.x, e.y + 1, 0xffe066, 8, 4, this.geo.star); break;
       case 'bossDown': this.shake = 0.4; this.burst(e.x, e.y + 1, 0xff8fb5, 24, 7); this.burst(e.x, e.y + 1, 0xffe066, 20, 6, this.geo.star); break;
       case 'respawn': this.snapCamera = true; break;
+      case 'scatter': this.shake = 0.2; break;
+      case 'chaseStart': this.shake = 0.3; break;
+      case 'chaseEnd': this.shake = 0.35; this.burst(e.x, e.y, 0xffffff, 18, 6); this.burst(e.x, e.y, 0xffe066, 10, 5, this.geo.star); break;
+      case 'bridgeOff': this.burst(e.x, e.y, 0xffe066, 10, 3, this.geo.star); break;
+      case 'bossAngry': this.shake = 0.3; break;
     }
   }
 
@@ -1010,7 +1111,12 @@ export class View {
     if (g.state === 'faint') body.rotation.z = Math.sin(c * 14) * 0.3;
     pl.visible = !(p.invuln > 0 && g.state === 'play' && !p.ride && Math.floor(c * 12) % 2 === 0);
     if (pl.userData.rainbow) pl.userData.skin.color.setHSL((c * 0.15) % 1, 0.75, 0.86);
-    if (this.closeUp) { body.rotation.y = Math.sin(c * 1.2) * 0.5; body.rotation.z = 0; body.scale.set(1, 1, 1); body.position.y = Math.abs(Math.sin(c * 3)) * 0.05; }
+    for (const f of pl.userData.flaps || []) {
+      if (f.kind === 'wing') f.m.rotation.y = f.sx * (0.35 + Math.sin(c * (p.grounded ? 4 : 14)) * 0.35);
+      else if (f.kind === 'cape') f.m.rotation.x = 0.15 + Math.min(0.9, Math.abs(p.vx) * 0.1 + (p.grounded ? 0 : 0.3)) + Math.sin(c * 8) * 0.06;
+      else f.m.position.y = TUNE.radius + 0.85 + Math.sin(c * 2.5) * 0.05;
+    }
+    if (this.closeUp) { body.rotation.y = Math.sin(c * 1.1) * 0.95; body.rotation.z = 0; body.scale.set(1, 1, 1); body.position.y = Math.abs(Math.sin(c * 3)) * 0.05; }
     this.bubble.visible = g.state === 'bubble' || !!p.ride;
     if (this.bubble.visible) { this.bubble.position.copy(pl.position); const w = 1 + Math.sin(c * 8) * 0.05; this.bubble.scale.set(0.85 * w, 0.85 / w, 0.85); }
     // 影
@@ -1036,12 +1142,14 @@ export class View {
         inner.visible = q.active; inner.scale.set(1, q.pop, 1);
         m.userData.ghost.visible = !q.active;
         m.userData.ghost.material.opacity = 0.12 + Math.sin(c * 4) * 0.06;
+        if (q.active && q.timer && q.timeLeft < 2) inner.visible = Math.floor(c * (q.timeLeft < 1 ? 16 : 8)) % 2 === 0;
       }
     }
 
     // 星・メダル・ハート
-    g.stars.forEach((s, i) => { const m = this.starMeshes[i]; m.visible = !s.taken; if (!s.taken) { m.rotation.y = Math.sin(c * 2.4 + s.x * 0.7) * 0.7; m.position.y = s.y + Math.sin(c * 3 + s.x) * 0.06; } });
-    g.medals.forEach((md, i) => { const m = this.medalMeshes[i]; m.visible = !md.taken; m.rotation.y = c * 1.6; m.position.y = md.y + Math.sin(c * 2.5) * 0.1; });
+    const near = x => this.closeUp && Math.abs(x - p.x) < 3.5; // きせかえ画面では、ぷにゅの前にあるものを隠す
+    g.stars.forEach((s, i) => { const m = this.starMeshes[i]; m.visible = !s.taken && !near(s.x); if (!s.taken) { m.rotation.y = Math.sin(c * 2.4 + s.x * 0.7) * 0.7; m.position.y = s.y + Math.sin(c * 3 + s.x) * 0.06; } });
+    g.medals.forEach((md, i) => { const m = this.medalMeshes[i]; m.visible = !md.taken && !near(md.x); m.rotation.y = c * 1.6; m.position.y = md.y + Math.sin(c * 2.5) * 0.1; });
     g.heartItems.forEach((h, i) => { const m = this.heartMeshes[i]; m.visible = !h.taken; m.rotation.y = Math.sin(c * 2) * 0.6; m.position.y = h.y + Math.sin(c * 3) * 0.1; m.scale.setScalar(1 + Math.sin(c * 6) * 0.06); });
     g.springs.forEach((s, i) => { const u = this.springMeshes[i].userData, k = s.anim > 0 ? Math.sin((s.anim / 0.35) * Math.PI * 2) * 0.35 * (s.anim / 0.35) : 0; u.coil.scale.y = 1 + k; u.top.position.y = 0.72 + k * 0.4; });
     g.dashes.forEach((d, i) => { const a = this.dashMeshes[i].userData.arrows; a.forEach((m, j) => { const k = (Math.sin(c * 8 - (j >> 1)) + 1) / 2; m.material.color.setHSL(0.06 + 0.06 * k, 1, 0.5 + 0.15 * k); }); });
@@ -1053,7 +1161,7 @@ export class View {
     // 敵
     g.enemies.forEach((e, i) => {
       const m = this.enemyMeshes[i], u = m.userData;
-      m.visible = e.state !== 'gone';
+      m.visible = e.state !== 'gone' && !near(e.x);
       m.position.set(e.x, e.y + 0.4, 0);
       u.dizzy.visible = e.state !== 'walk';
       if (e.state === 'walk') {
@@ -1095,6 +1203,43 @@ export class View {
       if (s.kind === 'shell') m.rotation.z = -s.x * 1.2; else m.rotation.z += dt * 4;
     }
     for (const [s, m] of this.shotMeshes) if (!seenS.has(s)) { this.world.remove(m); this.shotMeshes.delete(s); }
+    // とびちった星
+    const seenL = new Set();
+    for (const st of g.lostStars) {
+      seenL.add(st);
+      let m = this.lostMeshes.get(st);
+      if (!m) { m = new T.Mesh(this.geo.star, this.mat.star); this.world.add(m); this.lostMeshes.set(st, m); }
+      m.position.set(st.x, st.y + 0.3, 0.2); m.rotation.y = c * 8;
+      m.visible = st.t < 3.3 || Math.floor(c * 14) % 2 === 0; // 消える前は点滅
+    }
+    for (const [st, m] of this.lostMeshes) if (!seenL.has(st)) { this.world.remove(m); this.lostMeshes.delete(st); }
+    // おいかけっこの大玉
+    g.chasers.forEach((ch, i) => {
+      const m = this.chaseMeshes[i];
+      m.visible = ch.state === 'roll';
+      if (!m.visible) return;
+      m.position.set(ch.x, ch.y + ch.r, 0);
+      m.userData.ball.rotation.z = ch.rot;
+      m.userData.face.position.y = Math.abs(Math.sin(c * 10)) * 0.08;
+    });
+    // 上から落ちてくるもの：先に影で知らせる
+    const seenD = new Set();
+    for (const d of g.drops) {
+      seenD.add(d);
+      let o = this.dropMeshes.get(d);
+      if (!o) {
+        o = { shadow: new T.Mesh(new T.CircleGeometry(0.55, 20), new T.MeshBasicMaterial({ color: 0x3a2050, transparent: true, opacity: 0.4, depthWrite: false })), obj: this.makeDrop(d.kind) };
+        o.shadow.rotation.x = -Math.PI / 2; this.world.add(o.shadow, o.obj); this.dropMeshes.set(d, o);
+      }
+      const k = d.state === 'warn' ? Math.min(1, d.t / 1.1) : 1;
+      o.shadow.position.set(d.x, d.gy + 0.04, 0);
+      o.shadow.scale.setScalar(0.4 + k * 0.6 + Math.sin(c * 16) * 0.05);
+      o.shadow.material.opacity = 0.25 + k * 0.3;
+      o.obj.visible = d.state === 'fall' || d.t > 0.8;
+      o.obj.position.set(d.x, d.state === 'fall' ? d.y + 0.35 : d.gy + 9, 0.1);
+      o.obj.rotation.z = c * 5;
+    }
+    for (const [d, o] of this.dropMeshes) if (!seenD.has(d)) { this.world.remove(o.shadow, o.obj); o.shadow.geometry.dispose(); this.dropMeshes.delete(d); }
     // 風の線
     this.windLines.visible = g.wind !== 0;
     if (g.wind) this.windLines.children.forEach((l, j) => {
@@ -1138,7 +1283,9 @@ export class View {
     if (hurt) { u.dizzy.rotation.y = c * 6; u.dizzy.children.forEach((s, j) => { const a = c * 5 + (j * Math.PI * 2) / 4; s.position.set(Math.cos(a) * 1, 0, Math.sin(a) * 1); }); }
     // 踏まれたら白く光る
     const flash = B.flash > 0 && Math.floor(c * 20) % 2 === 0;
-    for (const mt of u.mats) { mt.emissive.setHex(flash ? 0xffffff : 0x000000); mt.emissiveIntensity = flash ? 0.6 : 0; }
+    // ほんきモード（のこり1回）：ほんのり赤く光る
+    const angry = B.angry && !B.done && !flash;
+    for (const mt of u.mats) { mt.emissive.setHex(flash ? 0xffffff : angry ? 0xff3366 : 0x000000); mt.emissiveIntensity = flash ? 0.6 : angry ? 0.18 + Math.sin(c * 8) * 0.1 : 0; }
     // 顔の向き・体のゆれ
     const dir = Math.sign(g.p.x - B.x) || 1;
     u.body.rotation.y += (dir * 0.35 - u.body.rotation.y) * Math.min(1, dt * 4);
@@ -1201,6 +1348,8 @@ export class View {
     for (const s of g.spikes) circle(s.x, s.y + 0.35, 0.3);
     if (g.boss && g.boss.active) circle(g.boss.x, g.boss.y + g.boss.r, g.boss.r, 0xff00ff);
     for (const s of g.shots) circle(s.x, s.y + s.r, s.r);
+    for (const ch of g.chasers) if (ch.state === 'roll') circle(ch.x, ch.y + ch.r, ch.r);
+    for (const d of g.drops) if (d.state === 'fall') circle(d.x, d.y + 0.35, 0.32);
     this.hitboxes = grp; this.world.add(grp);
   }
 
