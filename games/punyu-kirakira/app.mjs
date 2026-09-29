@@ -370,7 +370,8 @@ function frame(now) {
       if (e.type === 'stomp') runStomps++;
       if (e.type === 'star' && e.back) runCaught++;
       if (e.type === 'scatter') callout('ほしが とびちった！ ひろって！', 1.4);
-      if (e.type === 'chaseStart') callout('うしろから なにか くる！ はしれ！', 1.8);
+      if (e.type === 'chaseWarn') callout('うえから なにか おちてくる！', 1.2);
+      if (e.type === 'chaseStart') callout('おおだまだ！ にげろー！', 1.8);
       if (e.type === 'chaseEnd') { if (e.safe) { runFlags.escape = true; callout('にげきった！', 1.4); } }
       if (e.type === 'dropZone') callout('うえに ちゅうい！', 1.4);
       if (e.type === 'bossAngry') callout('ほんきモードだ！ あと1かい！', 1.8);
