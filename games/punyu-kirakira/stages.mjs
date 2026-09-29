@@ -138,7 +138,8 @@ function nohara2() {
   b.slope(12, -3).flat(10); // 157.8 … 169.8 … 179.8 (高さ -2)
   b.stars(158.5, 0.8, 8, 1.4);
   b.add('checkpoint', 171);
-  b.add('enemy', 177, 0, { x0: 174.5, x1: 179.5 });
+  // おいかけっこ：うしろから大玉が転がってくる（はじめてなので ゆっくり）
+  b.add('chase', 172, 0, { x1: 196, speed: 3.8 });
   b.slope(4, 1).slope(4, -1).slope(4, 1).slope(4, -1); // 179.8 … 195.8
   b.stars(182.5, 1.2, 3, 1.2); b.stars(190.5, 1.2, 3, 1.2);
   b.flat(10); // 195.8 … 205.8
@@ -239,6 +240,7 @@ function okashi1() {
   b.slope(12, -4.4).flat(18); // 171.4 … 183.4 … 201.4
   b.stars(172, 0.8, 8, 1.5);
   b.stars(186, 0.9, 6, 1.3);
+  b.add('drop', 184, 0, { x1: 193, type: 'candy', every: 1.6 });
   b.add('goal', 195, 1.3);
   return b.finish({ id: '2-1', world: 2, name: 'おかしの もり 1', theme: 'okashi' });
 }
@@ -278,7 +280,7 @@ function okashi2() {
   b.add('medal', 74.7, 1.2, { onPlat: true });
   b.flat(12); // 80.6 … 92.6
   b.add('checkpoint', 83);
-  b.add('enemy', 88, 0, { x0: 85, x1: 91.5 });
+  b.add('chase', 84, 0, { x1: 117, speed: 4 });
   b.add('enemy', 91, 0, { x0: 89, x1: 92.3, type: 'hop' });
   b.stars(85, 2.6, 6, 1.2);
   b.step(1).flat(6).step(1).flat(6); // 92.6 … 104.6 (高さ2)
@@ -293,7 +295,7 @@ function okashi2() {
   b.flat(10); // 145.2 … 155.2
   b.add('checkpoint', 147);
   // クッキーの階段でメダル3
-  b.platform(149, 1.9, 2.6, 149, { type: 'crumble' }); b.platform(152.6, 3.5, 2.6, 149, { type: 'crumble' });
+  b.platform(149, 1.9, 2.6, 149, { type: 'crumble', quick: true }); b.platform(152.6, 3.5, 2.6, 149, { type: 'crumble', quick: true });
   b.add('medal', 154, 5.2);
   b.add('enemy', 151, 0, { x0: 149.5, x1: 152.6, type: 'hop' });
   b.gap(2.6, 0.5); // 155.2 … 157.8 (高さ -0.5)
@@ -440,6 +442,7 @@ function kumo2() {
   b.flat(4); // 146.6 … 150.6
   b.slope(10, -3.5).flat(18); // 150.6 … 160.6 … 178.6
   b.add('checkpoint', 162);
+  b.add('drop', 152, 0, { x1: 168, type: 'hail', every: 1.3 });
   b.stars(164, 0.9, 6, 1.3);
   b.add('goal', 172, 1.3);
   return b.finish({ id: '3-2', world: 3, name: 'くものうえ 2', theme: 'kumo' });
@@ -527,6 +530,7 @@ function umi1() {
   b.add('enemy', 133, 0, { x0: 128, x1: 135.5, type: 'crab' });
   b.flat(18); // 136.4 … 154.4
   b.stars(138, 0.9, 6, 1.3);
+  b.add('drop', 137, 0, { x1: 146, type: 'coconut', every: 1.4 });
   b.add('goal', 148, 1.3);
   return b.finish({ id: '4-1', world: 4, name: 'うみべ 1', theme: 'umi' });
 }
@@ -583,7 +587,7 @@ function umi2() {
   b.add('spike', 147); b.add('spike', 151);
   b.stars(146, 1.6, 3, 1, 0.8); b.stars(150, 1.6, 3, 1, 0.8);
   b.flat(16); // 155.6 … 171.6
-  b.add('enemy', 160, 0, { x0: 157, x1: 163, type: 'crab' });
+  b.add('chase', 144, 0, { x1: 163, speed: 4.1 });
   b.stars(158, 0.9, 6, 1.3);
   b.add('goal', 166, 1.3);
   return b.finish({ id: '4-2', world: 4, name: 'うみべ 2', theme: 'umi' });
@@ -626,7 +630,7 @@ function hoshi1() {
   b.add('switch', 11, 0, { group: 1 });
   b.flat(4); // 10 … 14
   b.gap(8); // 14 … 22
-  b.platform(14, 0, 8, 13, { type: 'bridge', group: 1 });
+  b.platform(14, 0, 8, 13, { type: 'bridge', group: 1, timer: 5 }); // 5びょうで きえる
   b.stars(15, 1, 6, 1.2);
   b.flat(12); // 22 … 34
   b.add('enemy', 28, 2.2, { x0: 24, x1: 32, type: 'fly' });
@@ -634,8 +638,8 @@ function hoshi1() {
   b.stars(29, 1.6, 3, 1, 0.8);
   b.add('checkpoint', 33);
   b.flat(6); // 34 … 40
-  b.platform(35, 2, 2.4, 35, { type: 'crumble' });
-  b.platform(38.5, 3.6, 2.4, 35, { type: 'crumble' });
+  b.platform(35, 2, 2.4, 35, { type: 'crumble', quick: true });
+  b.platform(38.5, 3.6, 2.4, 35, { type: 'crumble', quick: true });
   b.add('medal', 39.7, 1.2, { onPlat: true });
   b.gap(2.8); // 40 … 42.8
   b.stars(38.6, 1.5, 5, 1.2, 1.7);
@@ -643,7 +647,7 @@ function hoshi1() {
   b.add('enemy', 47, 0, { x0: 45.4, x1: 50.2, type: 'hop' });
   b.add('switch', 51, 0, { group: 2 });
   b.gap(9); // 52.8 … 61.8
-  b.platform(52.8, 0, 9, 51, { type: 'bridge', group: 2 });
+  b.platform(52.8, 0, 9, 51, { type: 'bridge', group: 2, timer: 4 });
   b.stars(54, 1, 7, 1.2);
   b.flat(8); // 61.8 … 69.8
   b.add('updraft', 68.6, 0, { w: 2.4, height: 6.5 });
@@ -669,6 +673,7 @@ function hoshi1() {
   b.add('medal', 130.6, 6.2);
   b.flat(18); // 135.6 … 153.6
   b.stars(137, 0.9, 6, 1.3);
+  b.add('drop', 136, 0, { x1: 145, type: 'meteor', every: 1.2 });
   b.add('goal', 147, 1.3);
   return b.finish({ id: '5-1', world: 5, name: 'ほしぞらの おしろ 1', theme: 'hoshi' });
 }
@@ -682,7 +687,7 @@ function hoshi2() {
   b.add('loop', 13, 0, { R: 2.5 });
   b.add('switch', 22, 0, { group: 1 });
   b.gap(9); // 24 … 33
-  b.platform(24, 0, 9, 23, { type: 'bridge', group: 1 });
+  b.platform(24, 0, 9, 23, { type: 'bridge', group: 1, timer: 5 });
   b.platform(26.5, 2.3, 2.4, 23);
   b.add('medal', 27.7, 1.1, { onPlat: true });
   b.flat(10); // 33 … 43
@@ -719,10 +724,11 @@ function hoshi2() {
   b.stars(118, 2.5, 1); b.stars(118, 4, 1);
   b.add('switch', 127, 0, { group: 2 });
   b.gap(9); // 128.8 … 137.8
-  b.platform(128.8, 0, 9, 127, { type: 'bridge', group: 2 });
+  b.platform(128.8, 0, 9, 127, { type: 'bridge', group: 2, timer: 4 });
   b.add('enemy', 133, 2.3, { x0: 130, x1: 136, type: 'fly' });
   b.flat(6); // 137.8 … 143.8
   b.add('checkpoint', 139);
+  b.add('chase', 140, 0, { x1: 158, speed: 4.2 });
   b.slope(10, -4).flat(6); // 143.8 … 153.8 … 159.8
   b.stars(144.5, 0.8, 7, 1.4);
   b.add('spike', 157);
@@ -733,6 +739,7 @@ function hoshi2() {
   b.add('enemy', 167, 0, { x0: 163, x1: 169.5, type: 'hop' });
   b.flat(18); // 169.8 … 187.8
   b.stars(171, 0.9, 6, 1.3);
+  b.add('drop', 160, 0, { x1: 169, type: 'meteor', every: 1.2 });
   b.add('goal', 181, 1.3);
   return b.finish({ id: '5-2', world: 5, name: 'ほしぞらの おしろ 2', theme: 'hoshi' });
 }

@@ -3,10 +3,13 @@
 
 const cleared = (p, id) => !!p.stages[id]?.clear;
 export const medalCount = p => Object.values(p.stages).reduce((n, s) => n + (s.medals || []).filter(Boolean).length, 0);
+export const goldCrowns = p => Object.values(p.stages).filter(s => s.noDamage).length;
+export const starCrowns = p => Object.values(p.stages).filter(s => s.allStars).length;
 const worldMedals = (p, w) => [1, 2, 3].every(i => (p.stages[`${w}-${i}`]?.medals || []).filter(Boolean).length === 3);
 
 // ---------- きせかえ ----------
-// slot: head（あたま）/ face（かお）/ color（いろ）
+// slot: head（あたま）/ face（かお）/ back（せなか）/ color（いろ）
+// きんのおうかん＝いたくないでクリア、ほしのおうかん＝ほしを ぜんぶ あつめてクリア
 export const ITEMS = [
   { id: 'head-none', slot: 'head', name: 'なし', icon: '・', need: () => true, hint: '' },
   { id: 'ribbon', slot: 'head', name: 'リボン', icon: '🎀', need: () => true, hint: '' },
@@ -17,19 +20,28 @@ export const ITEMS = [
   { id: 'crown', slot: 'head', name: 'おうかん', icon: '👑', need: p => cleared(p, '5-3'), hint: 'さいごの ボス' },
   { id: 'starpin', slot: 'head', name: 'ほしのピン', icon: '⭐', need: p => medalCount(p) >= 9, hint: 'メダル 9こ' },
   { id: 'bunny', slot: 'head', name: 'うさみみ', icon: '🐰', need: p => medalCount(p) >= 24, hint: 'メダル 24こ' },
+  { id: 'tiara', slot: 'head', name: 'ティアラ', icon: '💎', need: p => goldCrowns(p) >= 3, hint: 'きんのおうかん 3こ' },
+  { id: 'princess', slot: 'head', name: 'おひめさまぼうし', icon: '🏰', need: p => goldCrowns(p) >= 8, hint: 'きんのおうかん 8こ' },
   { id: 'face-none', slot: 'face', name: 'なし', icon: '・', need: () => true, hint: '' },
   { id: 'glasses', slot: 'face', name: 'まるめがね', icon: '👓', need: p => medalCount(p) >= 3, hint: 'メダル 3こ' },
   { id: 'hearts', slot: 'face', name: 'ハートめがね', icon: '💗', need: p => medalCount(p) >= 15, hint: 'メダル 15こ' },
   { id: 'starcheek', slot: 'face', name: 'ほしのほっぺ', icon: '✨', need: p => p.starsTotal >= 500, hint: 'ほし 500こ' },
+  { id: 'starglasses', slot: 'face', name: 'ほしめがね', icon: '🤩', need: p => starCrowns(p) >= 4, hint: 'ほしのおうかん 4こ' },
+  { id: 'back-none', slot: 'back', name: 'なし', icon: '・', need: () => true, hint: '' },
+  { id: 'cape', slot: 'back', name: 'マント', icon: '🦸', need: p => goldCrowns(p) >= 1, hint: 'きんのおうかん 1こ' },
+  { id: 'balloon', slot: 'back', name: 'ふうせん', icon: '🎈', need: p => !!p.flags.escape, hint: 'おおだまから にげきる' },
+  { id: 'angel', slot: 'back', name: 'てんしのはね', icon: '🪽', need: p => starCrowns(p) >= 6, hint: 'ほしのおうかん 6こ' },
+  { id: 'butterfly', slot: 'back', name: 'ちょうちょのはね', icon: '🦋', need: p => goldCrowns(p) >= 12, hint: 'きんのおうかん 12こ' },
   { id: 'milk', slot: 'color', name: 'ミルク', icon: '🤍', color: 0xfff4f7, need: () => true, hint: '' },
   { id: 'pink', slot: 'color', name: 'さくら', icon: '🩷', color: 0xffc9dc, need: p => cleared(p, '1-3'), hint: 'ワールド1の ボス' },
   { id: 'mint', slot: 'color', name: 'ミント', icon: '💚', color: 0xc8f2dc, need: p => cleared(p, '2-3'), hint: 'ワールド2の ボス' },
   { id: 'sky', slot: 'color', name: 'そら', icon: '🩵', color: 0xc9e8ff, need: p => cleared(p, '3-3'), hint: 'ワールド3の ボス' },
   { id: 'lemon', slot: 'color', name: 'レモン', icon: '💛', color: 0xfff1a8, need: p => cleared(p, '4-3'), hint: 'ワールド4の ボス' },
   { id: 'lavender', slot: 'color', name: 'ラベンダー', icon: '💜', color: 0xe2d4ff, need: p => cleared(p, '5-3'), hint: 'さいごの ボス' },
+  { id: 'gold', slot: 'color', name: 'きんいろ', icon: '🌟', color: 0xffe08a, need: p => goldCrowns(p) >= 15, hint: 'きんのおうかん ぜんぶ' },
   { id: 'rainbow', slot: 'color', name: 'にじいろ', icon: '🌈', color: 0xffffff, need: p => medalCount(p) >= 45, hint: 'メダル ぜんぶ' },
 ];
-export const DEFAULT_OUTFIT = { head: 'head-none', face: 'face-none', color: 'milk' };
+export const DEFAULT_OUTFIT = { head: 'head-none', face: 'face-none', back: 'back-none', color: 'milk' };
 
 // ---------- シール帳 ----------
 const STAGE_STICKERS = [
@@ -46,6 +58,11 @@ export const STICKERS = [
   { id: 'switch', icon: '🗝️', name: 'ほしのスイッチ', hint: 'ほしのスイッチを おす', need: p => !!p.flags.switch },
   { id: 'boing', icon: '🍡', name: 'ぽよーん', hint: 'ぽよんぐもで はねる', need: p => !!p.flags.boing },
   { id: 'stomp', icon: '👟', name: 'ふみふみ 20かい', hint: 'いたずらっこを 20かい ふむ', need: p => p.stomps >= 20 },
+  { id: 'gold-1', icon: '👑', name: 'はじめての きんのおうかん', hint: 'いたくないで クリアして おうかんを もらう', need: p => goldCrowns(p) >= 1 },
+  { id: 'gold-15', icon: '🏆', name: 'きんのおうかん ぜんぶ', hint: 'ぜんぶの ステージで きんのおうかん', need: p => goldCrowns(p) >= 15 },
+  { id: 'star-15', icon: '🌌', name: 'ほしのおうかん ぜんぶ', hint: 'ぜんぶの ステージで ほしを ぜんぶ', need: p => starCrowns(p) >= 15 },
+  { id: 'escape', icon: '🏃', name: 'にげきった！', hint: 'おおだまに あたらずに にげきる', need: p => !!p.flags.escape },
+  { id: 'catch', icon: '🧺', name: 'ひろいなおし 10こ', hint: 'とびちった ほしを 10こ ひろいなおす', need: p => p.caught >= 10 },
   { id: 'nodamage', icon: '💖', name: 'いたくないで クリア', hint: 'いちども いたくならずに クリア', need: p => Object.values(p.stages).some(s => s.noDamage) },
 ];
 
@@ -59,5 +76,6 @@ export function normalizeProgress(save) {
     starsTotal: Number.isFinite(save.starsTotal) ? save.starsTotal : 0,
     flags: save.flags && typeof save.flags === 'object' ? save.flags : {},
     stomps: Number.isFinite(save.stomps) ? save.stomps : 0,
+    caught: Number.isFinite(save.caught) ? save.caught : 0,
   };
 }

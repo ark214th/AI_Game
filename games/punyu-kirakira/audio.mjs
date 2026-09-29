@@ -47,6 +47,12 @@ export class Sound {
       case 'faint': [523, 440, 392, 330].forEach((f, i) => this.tone(f, 0.25, { type: 'triangle', vol: 0.18, at: i * 0.14 })); break;
       case 'goal': [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, i === 6 ? 0.8 : 0.2, { type: 'triangle', vol: 0.24, at: i * 0.11 })); break;
       case 'tap': this.tone(660, 0.07, { type: 'sine', vol: 0.15 }); break;
+      case 'scatter': [1568, 1319, 1175, 1047, 880].forEach((f, i) => this.tone(f, 0.12, { type: 'triangle', vol: 0.14, at: i * 0.05 })); break;
+      case 'chaseStart': this.tone(70, 0.9, { type: 'sawtooth', vol: 0.12, slide: 1.4 }); [392, 440, 392, 440].forEach((f, i) => this.tone(f, 0.12, { type: 'square', vol: 0.07, at: 0.2 + i * 0.15 })); break;
+      case 'chaseEnd': this.tone(120, 0.5, { type: 'sine', vol: 0.4, slide: 0.4 }); if (e.safe) [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', vol: 0.2, at: 0.25 + i * 0.08 })); break;
+      case 'bridgeOff': this.tone(700, 0.3, { type: 'sine', vol: 0.12, slide: 0.4 }); break;
+      case 'dropZone': this.tone(1400, 0.5, { type: 'sine', vol: 0.1, slide: 0.5 }); break;
+      case 'bossAngry': [523, 622, 523, 622, 784].forEach((f, i) => this.tone(f, 0.12, { type: 'square', vol: 0.09, at: i * 0.1 })); break;
       case 'boing': this.tone(180, 0.3, { type: 'sine', vol: 0.3, slide: 3 }); this.tone(360, 0.2, { type: 'triangle', vol: 0.1, slide: 2, at: 0.04 }); break;
       case 'loop': [523, 784, 1047, 1568].forEach((f, i) => this.tone(f, 0.15, { type: 'triangle', vol: 0.16, at: i * 0.09 })); break;
       case 'crumble': this.tone(160, 0.25, { type: 'square', vol: 0.06, slide: 0.5 }); break;

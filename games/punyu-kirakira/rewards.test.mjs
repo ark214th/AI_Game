@@ -6,13 +6,13 @@ import { STAGES } from './stages.mjs';
 
 const empty = normalizeProgress({});
 const full = normalizeProgress({
-  stages: Object.fromEntries(STAGES.map(s => [s.id, { clear: true, medals: [true, true, true], noDamage: true }])),
-  starsTotal: 5000, flags: { loop: true, ride: true, switch: true, boing: true }, stomps: 50,
+  stages: Object.fromEntries(STAGES.map(s => [s.id, { clear: true, medals: [true, true, true], noDamage: true, allStars: true }])),
+  starsTotal: 5000, flags: { loop: true, ride: true, switch: true, boing: true, escape: true }, stomps: 50, caught: 20,
 });
 
 test('はじめから使えるきせかえがある（あたま・かお・いろ）', () => {
   const have = unlockedItems(empty);
-  for (const slot of ['head', 'face', 'color']) assert.ok(ITEMS.some(i => i.slot === slot && have.has(i.id)), slot);
+  for (const slot of ['head', 'face', 'back', 'color']) assert.ok(ITEMS.some(i => i.slot === slot && have.has(i.id)), slot);
   assert.equal(unlockedStickers(empty).size, 0);
 });
 

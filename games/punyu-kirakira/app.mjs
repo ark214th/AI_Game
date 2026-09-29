@@ -19,7 +19,7 @@ try {
     save.sound = v.sound !== false;
     Object.assign(save, normalizeProgress(v));
     const ids = new Set(ITEMS.map(i => i.id));
-    if (v.outfit && typeof v.outfit === 'object') for (const k of ['head', 'face', 'color']) if (ids.has(v.outfit[k])) save.outfit[k] = v.outfit[k];
+    if (v.outfit && typeof v.outfit === 'object') for (const k of ['head', 'face', 'back', 'color']) if (ids.has(v.outfit[k])) save.outfit[k] = v.outfit[k];
     save.seenItems = Array.isArray(v.seenItems) ? v.seenItems : [];
     save.seenStickers = Array.isArray(v.seenStickers) ? v.seenStickers : [];
   }
@@ -56,7 +56,7 @@ function startStage(s) {
   stage = s;
   const had = stageSave(s.id).medals;
   game = new Game(s, { autoRun: save.autoRun, invincible: debug.invincible, medalsHad: had });
-  runFlags = {}; runStomps = 0;
+  runFlags = {}; runStomps = 0; runCaught = 0; lastPika = null;
   view.build(game);
   clearT = 0;
   show('play');
@@ -73,13 +73,15 @@ function callout(text, sec = 1.2) {
   calloutT = sec;
 }
 
-let lastHud = '';
+let lastHud = '', lastPika = null;
 function hud(force) {
-  const key = `${game.hearts}|${game.starCount}|${game.medals.map(m => m.taken ? 1 : m.had ? 2 : 0).join('')}`;
+  const key = `${game.hearts}|${game.starCount}|${game.stats.hurts + game.stats.bubbles}|${game.medals.map(m => m.taken ? 1 : m.had ? 2 : 0).join('')}`;
   if (key === lastHud && !force) return;
   lastHud = key;
   $('hearts').innerHTML = Array.from({ length: TUNE.maxHearts }, (_, i) => `<span class="${i < game.hearts ? '' : 'off'}">♥</span>`).join('');
-  $('starCount').textContent = game.starCount;
+  $('starCount').textContent = `${game.starCount}/${game.stars.length}`;
+  const pika = game.stats.hurts === 0 && game.stats.bubbles === 0 && game.stats.faints === 0;
+  if (pika !== lastPika) { $('pika').classList.toggle('lost', !pika); lastPika = pika; }
   [...$('medals').children].forEach((el, i) => { const m = game.medals[i]; el.className = m?.taken ? 'on' : m?.had ? 'had' : ''; });
 }
 let lastBoss = '';
@@ -93,7 +95,7 @@ function bossHud() {
   if (show) $('bossHearts').innerHTML = Array.from({ length: B.maxHp }, (_, i) => `<span class="${i < B.hp ? '' : 'off'}">●</span>`).join('');
 }
 
-let runFlags = {}, runStomps = 0;
+let runFlags = {}, runStomps = 0, runCaught = 0;
 const progress = () => normalizeProgress(save);
 
 function finishStage() {
@@ -101,7 +103,12 @@ function finishStage() {
   const s = stageSave(stage.id);
   s.clear = true;
   game.medals.forEach(m => { if (m.taken) s.medals[m.id] = true; });
-  if (game.stats.hurts === 0 && game.stats.bubbles === 0 && game.stats.faints === 0) s.noDamage = true;
+  const gold = game.stats.hurts === 0 && game.stats.bubbles === 0 && game.stats.faints === 0;
+  const allStars = game.starCount >= game.stars.length;
+  if (gold) s.noDamage = true;
+  if (allStars) s.allStars = true;
+  save.caught = (save.caught || 0) + runCaught;
+  $('resultCrowns').innerHTML = `<span class="crown gold ${gold ? 'on' : s.noDamage ? 'had' : ''}">👑<small>いたくない</small></span><span class="crown star ${allStars ? 'on' : s.allStars ? 'had' : ''}">🌟<small>ほし ぜんぶ</small></span>`;
   save.starsTotal += game.starCount;
   save.stomps += runStomps;
   Object.assign(save.flags, runFlags);
@@ -127,7 +134,7 @@ function finishStage() {
 }
 
 // ---------- きせかえ ----------
-const SLOTS = [['head', 'あたま'], ['face', 'かお'], ['color', 'いろ']];
+const SLOTS = [['head', 'あたま'], ['face', 'かお'], ['back', 'せなか'], ['color', 'いろ']];
 let dressSlot = 'head';
 function renderDress() {
   const have = unlockedItems(progress());
@@ -213,7 +220,8 @@ function renderSelect() {
     b.className = 'stage' + (open ? '' : ' locked') + (st.bossStage ? ' boss' : '');
     const label = !open ? 'まだだよ' : s?.clear ? 'クリア！' : st.bossStage ? 'ボス！' : 'あそべるよ';
     b.innerHTML = `<span class="num">${st.bossStage ? '★' : st.id.split('-')[1]}</span><span>${label}</span>` +
-      `<span class="medals">${[0, 1, 2].map(k => `<i class="${s?.medals?.[k] ? 'on' : ''}"></i>`).join('')}</span>`;
+      `<span class="medals">${[0, 1, 2].map(k => `<i class="${s?.medals?.[k] ? 'on' : ''}"></i>`).join('')}</span>` +
+      `<span class="crowns"><b class="${s?.noDamage ? 'on' : ''}">👑</b><b class="${s?.allStars ? 'on' : ''}">🌟</b></span>`;
     b.onclick = () => {
       sound.play('tap');
       if (open) startStage(st);
@@ -360,13 +368,19 @@ function frame(now) {
       if (e.type === 'medal') callout('メダル ゲット！');
       if (e.type === 'loop' || e.type === 'ride' || e.type === 'switch' || e.type === 'boing') runFlags[e.type] = true;
       if (e.type === 'stomp') runStomps++;
+      if (e.type === 'star' && e.back) runCaught++;
+      if (e.type === 'scatter') callout('ほしが とびちった！ ひろって！', 1.4);
+      if (e.type === 'chaseStart') callout('うしろから なにか くる！ はしれ！', 1.8);
+      if (e.type === 'chaseEnd') { if (e.safe) { runFlags.escape = true; callout('にげきった！', 1.4); } }
+      if (e.type === 'dropZone') callout('うえに ちゅうい！', 1.4);
+      if (e.type === 'bossAngry') callout('ほんきモードだ！ あと1かい！', 1.8);
       if (e.type === 'checkpoint') callout('はた ゲット！', 1);
       if (e.type === 'heart') callout('ハート ふえた！');
       if (e.type === 'faint') callout('はたから もういちど！', 1.6);
       if (e.type === 'goal') { callout('やったー！', 2); mode = 'clear'; sound.stopBgm(); $('touch').hidden = true; }
-      if (e.type === 'switch') callout('はしが でたよ！');
+      if (e.type === 'switch') callout(e.timed ? 'はしが でたよ！ いそいで！' : 'はしが でたよ！');
       if (e.type === 'bossStart') { callout(BOSS_NAMES[game.boss.type] + ' が あらわれた！', 2); sound.startBgm('boss'); }
-      if (e.type === 'bossHit') callout(e.hp === 1 ? 'あと 1かい！' : 'いいね！', 1);
+      if (e.type === 'bossHit' && e.hp > 1) callout('いいね！', 1);
       if (e.type === 'bossDown') { callout('なかよしに なったよ！', 2.2); sound.stopBgm(); }
       if (e.type === 'goalAppear') callout('ほしのかけらだ！', 1.4);
     }
