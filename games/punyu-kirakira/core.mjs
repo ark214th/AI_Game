@@ -634,14 +634,33 @@ export class Game {
     for (const c of this.chasers) {
       if (c.state === 'wait') {
         if (this.state === 'play' && p.x > c.trigger && p.x < c.end) {
-          c.state = 'roll'; c.x = Math.max(this.t.x0 + 2, p.x - 11); c.hit = false;
-          c.y = this.t.groundAt(c.x) ?? p.y;
+          // ぷにゅの少し後ろ（画面に見える場所）へ、空から落ちてくる。先に影で知らせる
+          c.state = 'fall'; c.t = 0; c.hit = false; c.rot = 0;
+          c.x = Math.max(this.t.x0 + 2, p.x - 2.5);
+          c.gy = this.t.groundAt(c.x) ?? p.y;
+          c.y = c.gy + 8; c.vy = 0;
+          this.emit('chaseWarn', c.x, c.gy);
+        }
+      } else if (c.state === 'fall') {
+        c.t += dt;
+        if (c.t <= 0.8) {
+          // 予告のあいだは、影がぷにゅのすぐ後ろについてくる（走っていても近くに落ちる）
+          c.x = Math.max(this.t.x0 + 2, p.x - 2.5);
+          const g = this.t.groundAt(c.x); if (g !== null) c.gy = g;
+          c.y = c.gy + 8;
+        } else { c.vy -= 60 * dt; c.y += c.vy * dt; }
+        if (c.y <= c.gy) {
+          c.y = c.gy; c.state = 'windup'; c.t = 0;
           this.emit('chaseStart', c.x, c.y);
         }
+      } else if (c.state === 'windup') {
+        // 着地して、ぐぐっと力をためてから転がりはじめる
+        c.t += dt;
+        if (c.t > 0.5) c.state = 'roll';
       } else if (c.state === 'roll') {
         const gap = p.x - c.x;
-        // はなれすぎると少し速く（画面の中に見えているように）、近いときは決まった速さ
-        const sp = gap > 11 ? c.speed + 2.5 : c.speed;
+        // 走りつづけても 画面に見えるきょり（6マスくらい）でついてくる。止まると追いつかれる
+        const sp = gap > 4.5 ? Math.min(9, c.speed + (gap - 4.5) * 1.5) : c.speed;
         c.x += sp * dt; c.rot -= (sp / c.r) * dt;
         const g = this.t.groundAt(c.x);
         if (g !== null) c.y += (g - c.y) * Math.min(1, dt * 10);
@@ -714,7 +733,7 @@ export class Game {
     p.invuln = TUNE.invuln; p.dash = 0; p.loop = null; p.ride = null;
     this.safe = { ...this.respawn };
     this.shots.length = 0; this.wind = 0; this.drops.length = 0;
-    for (const c of this.chasers) if (c.state === 'roll') c.state = 'wait';
+    for (const c of this.chasers) if (c.state !== 'wait' && c.state !== 'done') c.state = 'wait';
     if (this.boss && !this.boss.done) resetBoss(this.boss); // ボスの残りハートはそのまま
     this.state = 'play'; this.stateT = 0;
     this.emit('respawn', p.x, p.y);

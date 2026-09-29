@@ -974,7 +974,8 @@ export class View {
 
   // おいかけっこの大玉：ワールドの色のしましま玉に、がんばる顔
   makeChaseBall(th) {
-    const g = new T.Group();
+    const root = new T.Group();
+    const g = new T.Group(); root.add(g);
     const ball = new T.Group(); g.add(ball);
     const cols = th.decor === 'candy' ? [0xff8fb5, 0xffffff] : th.decor === 'beach' ? [0xff6f61, 0xffffff, 0x4fc3f7, 0xffe066] : th.night ? [0x9f92e6, 0xffe38a] : [0x8fdc6e, 0xfff4d6];
     const n = 8;
@@ -989,8 +990,10 @@ export class View {
       const br = new T.Mesh(new T.BoxGeometry(0.34, 0.07, 0.05), this.mat.eye); br.position.set(sx * 0.45, 0.72, 1.4); br.rotation.z = -sx * 0.3; face.add(br);
     }
     const mouth = new T.Mesh(new T.TorusGeometry(0.22, 0.06, 6, 14, Math.PI), this.mat.eye); mouth.position.set(0.05, -0.35, 1.42); mouth.rotation.z = Math.PI; face.add(mouth);
-    g.userData = { ball, face };
-    return g;
+    const shadow = new T.Mesh(new T.CircleGeometry(1.5, 24), new T.MeshBasicMaterial({ color: 0x3a2050, transparent: true, opacity: 0.4, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2; shadow.visible = false; this.world.add(shadow);
+    root.userData = { body: g, ball, face, shadow };
+    return root;
   }
 
   makeDrop(kind) {
@@ -1079,7 +1082,7 @@ export class View {
       case 'bossDown': this.shake = 0.4; this.burst(e.x, e.y + 1, 0xff8fb5, 24, 7); this.burst(e.x, e.y + 1, 0xffe066, 20, 6, this.geo.star); break;
       case 'respawn': this.snapCamera = true; break;
       case 'scatter': this.shake = 0.2; break;
-      case 'chaseStart': this.shake = 0.3; break;
+      case 'chaseStart': this.shake = 0.45; this.burst(e.x, e.y + 0.2, 0xffffff, 16, 5); break;
       case 'chaseEnd': this.shake = 0.35; this.burst(e.x, e.y, 0xffffff, 18, 6); this.burst(e.x, e.y, 0xffe066, 10, 5, this.geo.star); break;
       case 'bridgeOff': this.burst(e.x, e.y, 0xffe066, 10, 3, this.geo.star); break;
       case 'bossAngry': this.shake = 0.3; break;
@@ -1216,11 +1219,25 @@ export class View {
     // おいかけっこの大玉
     g.chasers.forEach((ch, i) => {
       const m = this.chaseMeshes[i];
-      m.visible = ch.state === 'roll';
-      if (!m.visible) return;
+      const u = m.userData;
+      m.visible = ch.state === 'fall' || ch.state === 'windup' || ch.state === 'roll';
+      u.shadow.visible = ch.state === 'fall';
+      if (!m.visible) { u.shadow.visible = false; return; }
       m.position.set(ch.x, ch.y + ch.r, 0);
-      m.userData.ball.rotation.z = ch.rot;
-      m.userData.face.position.y = Math.abs(Math.sin(c * 10)) * 0.08;
+      u.ball.rotation.z = ch.rot;
+      if (ch.state === 'fall') {
+        // 落ちてくる場所に、だんだん大きくなる影
+        const k = Math.min(1, ch.t / 0.8);
+        u.shadow.position.set(ch.x, ch.gy + 0.05, 0);
+        u.shadow.scale.setScalar(0.5 + k * 0.7 + Math.sin(c * 16) * 0.04);
+        u.body.scale.set(1, 1, 1);
+      } else if (ch.state === 'windup') {
+        // ぐぐっ
+        const k = Math.sin(Math.min(1, ch.t / 0.5) * Math.PI);
+        u.body.scale.set(1 + k * 0.15, 1 - k * 0.2, 1 + k * 0.15);
+        u.body.position.y = -k * 0.3;
+      } else { u.body.scale.set(1, 1, 1); u.body.position.y = 0; }
+      u.face.position.y = ch.state === 'roll' ? Math.abs(Math.sin(c * 10)) * 0.08 : 0;
     });
     // 上から落ちてくるもの：先に影で知らせる
     const seenD = new Set();
@@ -1305,6 +1322,8 @@ export class View {
   updateCamera(dt) {
     const g = this.game, p = g.p;
     let lookTarget = clamp(p.dir * 2.6 + p.vx * 0.25, -3.5, 5.5);
+    // おいかけっこ中は、後ろの大玉も見えるように前を見すぎない
+    if (g.chasers.some(ch => ch.state === 'fall' || ch.state === 'windup' || ch.state === 'roll')) lookTarget = 0.5;
     let tx = p.x;
     const vh = 10.5; // 画面の縦に見える高さ（マス）
     let ty = p.y + 1.6;
