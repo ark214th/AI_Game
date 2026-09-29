@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#07060b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="記憶の館">
+  <meta name="description" content="暗闇の部屋をランタンが一瞬だけ照らす。中央の紋章と、周辺の宝箱の位置を見抜く。記憶の館 試作 M0。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>記憶の館 — 閃光の間（試作）</title>
+</head>
+<body>
+<main id="game">
+  <canvas id="room" aria-label="ゲーム画面"></canvas>
+
+  <header id="hud" hidden>
+    <div class="hud-left">
+      <div class="lantern" aria-label="ランタン">
+        <svg viewBox="0 0 40 56" aria-hidden="true">
+          <path d="M12 8h16l2 6H10z" fill="#6b5236"/>
+          <rect x="9" y="14" width="22" height="30" rx="4" fill="rgba(255,190,110,.12)" stroke="#8a6a44" stroke-width="2"/>
+          <g class="flame"><path d="M20 20c5 7 7 11 7 15a7 7 0 0 1-14 0c0-4 2-8 7-15z" fill="#ffb347"/><path d="M20 28c2.5 3.5 3.5 5.5 3.5 7.5a3.5 3.5 0 0 1-7 0c0-2 1-4 3.5-7.5z" fill="#fff1b8"/></g>
+          <path d="M8 44h24v5H8z" fill="#6b5236"/>
+          <path d="M15 8a5 5 0 0 1 10 0" fill="none" stroke="#8a6a44" stroke-width="2"/>
+        </svg>
+      </div>
+      <div id="oil" class="oil" aria-label="ランタン油"></div>
+    </div>
+    <div class="hud-mid">
+      <div id="roomNo" class="pill"></div>
+      <div id="roomName" class="room-name"></div>
+    </div>
+    <div class="hud-right">
+      <div class="pill"><span class="gem">✦</span><b id="treasures">0</b></div>
+      <div id="combo" class="combo"></div>
+      <button id="quitBtn" class="round" aria-label="やめる">✕</button>
+    </div>
+  </header>
+
+  <div id="answer" hidden></div>
+  <div id="callout" aria-live="polite"></div>
+  <div id="banner" hidden><b id="bannerTitle"></b><span id="bannerText"></span></div>
+
+  <section id="measure" class="screen" hidden>
+    <p class="hint">ランタンに火を入れています…</p>
+  </section>
+
+  <section id="title" class="screen" hidden>
+    <div class="panel title-panel">
+      <p class="kicker">試作 M0</p>
+      <h1>記憶の館</h1>
+      <p class="sub">閃光の間</p>
+      <p class="lead">暗闇の部屋を、ランタンが一瞬だけ照らす。<br>中央の紋章と、光った宝箱の場所を見抜け。</p>
+      <div class="buttons">
+        <button id="startBtn" class="primary">潜る</button>
+        <button id="howBtn">あそびかた</button>
+        <button id="setBtn">せってい</button>
+      </div>
+      <p id="titleStats" class="stats"></p>
+    </div>
+  </section>
+
+  <section id="howto" class="screen" hidden>
+    <div class="panel">
+      <h2>あそびかた</h2>
+      <ol class="how">
+        <li>真っ暗な部屋で、まんなかの <b>◆</b> を見つめる。</li>
+        <li>ランタンが<b>一瞬だけ</b>部屋を照らし、すぐに煙で見えなくなる。</li>
+        <li>まんなかにあった<b>紋章</b>（太陽・月・星・王冠）を選ぶと、扉が開く。</li>
+        <li>慣れてくると、まわりに<b>宝箱</b>が光るようになる。その<b>方向</b>も選ぶ。目はまんなかのままで、部屋全体をぼんやり見るのがコツ。</li>
+        <li>さらに進むと、コウモリや偽の宝箱がまぎれこむ。</li>
+      </ol>
+      <p class="note">光の長さは、腕前に合わせて毎回少しずつ変わります。うまく見抜けるほど、ランタンの火は小さく、部屋は暗くなっていきます。まちがえるとランタン油が減り、尽きたら帰還。5回続けて見抜くと油が1つ戻ります。</p>
+      <p class="note keys">キーボード：<kbd>1</kbd>〜<kbd>4</kbd> 紋章 ／ <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>A</kbd><kbd>D</kbd><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd> またはテンキーで方向</p>
+      <div class="buttons"><button class="back primary">もどる</button></div>
+    </div>
+  </section>
+
+  <section id="settings" class="screen" hidden>
+    <div class="panel">
+      <h2>せってい</h2>
+      <div class="row">
+        <span>難易度</span>
+        <div class="seg" id="profileSeg">
+          <button data-profile="adult">おとな</button>
+          <button data-profile="child">こども</button>
+        </div>
+      </div>
+      <div class="row">
+        <span>効果音</span>
+        <div class="seg" id="soundSeg">
+          <button data-sound="1">あり</button>
+          <button data-sound="0">なし</button>
+        </div>
+      </div>
+      <p class="note">難易度ごとに、光の長さなどの腕前の記録は別々に残ります。</p>
+      <div class="row wrap">
+        <button id="exportBtn">記録を書き出す（JSON）</button>
+        <label class="file-btn">記録を読みこむ<input id="importInput" type="file" accept="application/json,.json"></label>
+        <button id="resetBtn" class="danger">記録を消す</button>
+      </div>
+      <p id="setMsg" class="note"></p>
+      <div class="buttons"><button class="back primary">もどる</button></div>
+    </div>
+  </section>
+
+  <section id="result" class="screen" hidden>
+    <div class="panel">
+      <p class="kicker" id="resReason"></p>
+      <h2>帰還</h2>
+      <div class="res-grid">
+        <div><span>進んだ部屋</span><b id="resRooms"></b></div>
+        <div><span>見つけた宝</span><b id="resTreasures"></b></div>
+        <div><span>最長コンボ</span><b id="resCombo"></b></div>
+      </div>
+      <div class="flames">
+        <figure><div class="lantern big" id="flameBefore"></div><figcaption>潜る前</figcaption></figure>
+        <span class="arrow">→</span>
+        <figure><div class="lantern big" id="flameAfter"></div><figcaption>いま</figcaption></figure>
+      </div>
+      <p id="resMsg" class="lead"></p>
+      <div class="buttons">
+        <button id="againBtn" class="primary">もう一度潜る</button>
+        <button id="toTitleBtn">タイトルへ</button>
+      </div>
+    </div>
+  </section>
+
+  <aside id="debug" hidden>
+    <pre id="debugText"></pre>
+    <div class="dbg-btns">
+      <button data-stage="1">段階1</button><button data-stage="2">段階2</button><button data-stage="3">段階3</button>
+      <button id="dbgLog">ログ保存</button>
+    </div>
+  </aside>
+</main>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>
