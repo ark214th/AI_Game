@@ -1,13 +1,19 @@
-// 画面の切り替え、閃光の進行（フレーム単位）、入力、保存。
+// 画面の切り替え、ランの進行（依頼 → 収納 → 潜行 → 精算）、閃光のフレーム単位の進行、保存。
 
-import { PROFILES, TIMING, FEEDBACK_MS } from './config/tuning.mjs';
+import { PROFILES, TIMING, FEEDBACK_MS, PEEK_MS } from './config/tuning.mjs';
 import { createRng } from './core/rng.mjs';
 import { makeTrial, judge, applyResult, normalizeFlashState, darkness, durationMs, EMBLEMS } from './core/flash/flash.mjs';
-import { createDive, applyDive } from './core/flash/dive.mjs';
+import { createStaircase, updateStaircase, withMax } from './core/adaptive/staircase.mjs';
+import { routeLoci, capacity } from './core/palace/palace.mjs';
+import { generateBoard } from './core/run/requests.mjs';
+import { createRun, storeSeconds, finishStore, currentRoom, applyFlash, altarCandidates, applyAltar, useLamp, settle, nextRecommended } from './core/run/run.mjs';
 import { loadSave, writeSave, pushLog, statsFor, exportJson, importJson, defaultSave } from './core/save/save.mjs';
 import { createFlashView, THEME_NAMES } from './render/flash-view.mjs';
 import { measureRefresh } from './render/timing.mjs';
 import { createAnswerPad } from './ui/answer-pad.mjs';
+import { createStoreView } from './ui/store-view.mjs';
+import { createAltarView } from './ui/altar-view.mjs';
+import { createBoardView, createShopView, shopCost, renderResult } from './ui/screens.mjs';
 import * as sfx from './audio.mjs';
 
 const $ = (id) => document.getElementById(id);
@@ -22,52 +28,160 @@ sfx.setSound(save.sound);
 
 const view = createFlashView($('room'));
 const pad = createAnswerPad($('answer'), view, { onSubmit, onTap: () => sfx.sfxTap() });
+const boardView = createBoardView($('board'), { onStart: startStore, onBack: toTitle });
+const storeView = createStoreView($('store'), { onDone: startDive, onPlace: () => sfx.sfxPlace(), onTimeUp: () => sfx.sfxTrap() });
+const altarView = createAltarView($('altar'), { onChoose: onAltarChoose, onLamp: onAltarLamp, onNext: enterRoom });
+const shopView = createShopView($('shop'), { onBuy, onBack: () => (shopReturn === 'result' ? showScreen('result') : toTitle()) });
 
 let timing = { frameMs: 1000 / 60, hz: 60 };
 let flash = null;       // 閃光の状態（階段法など）
-let dive = null;        // 今回の潜行
-let trial = null;       // 今の1回
-let phase = 'boot';     // boot / title / fixation / stim / mask / answer / feedback / result
-let ph = {};            // その回のタイミング記録
-let diveStart = null;   // 潜る前の状態（結果画面で比べる）
+let altarStair = null;  // 祭壇の紛らわしさの階段
+let run = null;         // 今回のラン
+let trial = null;       // 閃光の今の1回
+let phase = 'boot';     // boot / menu / store / fixation / stim / mask / answer / feedback / altar
+let ph = {};            // 閃光のタイミング記録
 let lastLog = null;
+let shopReturn = 'title';
 
 // ---------- 画面 ----------
-const SCREENS = ['measure', 'title', 'howto', 'settings', 'result'];
+const SCREENS = ['measure', 'title', 'howto', 'settings', 'result', 'board', 'shop'];
 function showScreen(id) {
   for (const s of SCREENS) $(s).hidden = s !== id;
 }
 
 function refreshTitle() {
   const st = statsFor(save, profile.id);
-  $('titleStats').textContent = st.dives
-    ? `${profile.label}・潜った回数 ${st.dives} ／ 見つけた宝 ${st.treasures} ／ 最長コンボ ${st.bestCombo}`
-    : `${profile.label}・はじめての潜行`;
+  const m = save.meta;
+  $('titleStats').textContent = `${profile.label} ／ 金貨 ${m.gold} ／ 館 ${m.rooms}部屋・置き場 ${capacity(m.rooms)}` + (st.runs ? ` ／ 潜った回数 ${st.runs}` : '');
+}
+
+function hideStages() {
+  pad.hide();
+  storeView.hide();
+  altarView.hide();
+  $('hud').hidden = true;
+  $('banner').hidden = true;
 }
 
 function toTitle() {
-  phase = 'title';
-  pad.hide();
-  $('hud').hidden = true;
+  phase = 'menu';
+  run = null;
+  hideStages();
   refreshTitle();
   showScreen('title');
+}
+
+function recommended() {
+  const r = save.recommend[profile.id];
+  return Math.min(capacity(save.meta.rooms), Number.isInteger(r) ? r : profile.run.recommendStart);
+}
+
+function openBoard() {
+  sfx.unlockAudio();
+  phase = 'menu';
+  hideStages();
+  showScreen('board');
+  boardView.show({ board: generateBoard(rng, { recommended: recommended() }), capacity: capacity(save.meta.rooms), recommended: recommended() });
+}
+
+function openShop(from) {
+  shopReturn = from;
+  showScreen('shop');
+  shopView.show(save.meta);
+}
+
+function onBuy(kind) {
+  const cost = shopCost(save.meta, kind);
+  if (cost == null || save.meta.gold < cost) return;
+  save.meta.gold -= cost;
+  if (kind === 'room') save.meta.rooms += 1;
+  else if (kind === 'oil') save.meta.oilUp += 1;
+  else if (kind === 'lamp') save.meta.lampUp += 1;
+  writeSave(storage, save);
+  sfx.sfxStage(true);
+  shopView.show(save.meta);
+}
+
+// ---------- 収納 ----------
+function startStore(requests) {
+  showScreen(null);
+  const loci = routeLoci(save.meta.rooms);
+  run = createRun({ requests, loci, profile, rng, meta: save.meta });
+  phase = 'store';
+  storeView.start({ run, allLoci: loci, seconds: storeSeconds(profile, run.items.length) });
+  // 潜る前に、この端末の画面の書き換え速さを測っておく
+  measureRefresh().then((t) => { timing = t; });
+}
+
+// ---------- 潜行 ----------
+function startDive({ timeLeftRatio }) {
+  const fs = finishStore(run, profile, timeLeftRatio);
+  run = fs.run;
+  storeView.hide();
+  flash = normalizeFlashState(save.flash[profile.id], profile, timing.frameMs);
+  const a = save.altar[profile.id];
+  altarStair = withMax(a && Number.isFinite(a.level) ? { ...createStaircase(), ...a } : createStaircase(), profile.run.altarMaxLevel);
+  $('hud').hidden = false;
+  if (fs.oilBonus) banner('砂時計に余裕があった', 'ランタン油をひとつ多く持って潜る。', 2200);
+  else banner('迷宮へ', '閃光の部屋を抜けると、祭壇がある。館を心の中でたどろう。', 2200);
+  updateHud();
+  enterRoom();
+}
+
+function enterRoom() {
+  altarView.hide();
+  pad.hide();
+  if (!run) return;
+  if (run.over) { endRun(); return; }
+  const room = currentRoom(run);
+  if (room.type === 'flash') {
+    trial = makeTrial(flash, profile, rng, { frameMs: timing.frameMs, theme: pickTheme() });
+    view.prepare(trial);
+    phase = 'fixation';
+    ph = {};
+  } else {
+    trial = null;
+    phase = 'altar';
+    const level = Math.min(altarStair.level, profile.run.altarMaxLevel);
+    const candidates = altarCandidates(run, room.item, rng, level);
+    ph = { altarLevel: level, tAltar: performance.now() };
+    altarView.show({ run, index: room.item, candidates, allLoci: routeLoci(save.meta.rooms) });
+    sfx.sfxAltar();
+  }
+  updateHud();
+}
+
+function pickTheme() {
+  if (run.flashN < 2) return 'corridor';
+  const pool = ['corridor', 'fog', 'storm'];
+  if (flash.stage >= profile.flash.reflectionFromStage) pool.push('lake');
+  return rng.pick(pool);
 }
 
 // ---------- HUD ----------
 function flameScale(d) { return (1 - d * 0.6).toFixed(3); }
 
 function updateHud() {
-  $('roomNo').textContent = `部屋 ${Math.min(dive.room + 1, dive.rooms)} / ${dive.rooms}`;
-  $('treasures').textContent = dive.treasures;
-  $('combo').textContent = dive.combo >= 2 ? `×${dive.combo}` : '';
+  if (!run) return;
+  const nextAltar = run.seq.slice(run.step).find((r) => r.type === 'altar');
+  const room = currentRoom(run);
+  $('roomNo').textContent = nextAltar ? `祭壇 ${nextAltar.item + 1} / ${run.items.length}` : `祭壇 ${run.items.length} / ${run.items.length}`;
+  $('roomName').textContent = room && room.type === 'altar' ? '祭壇の間' : trial ? THEME_NAMES[trial.theme] : '';
+  $('treasures').textContent = run.flashOk;
+  $('lamps').textContent = run.lamps;
   const oil = $('oil');
-  if (oil.children.length !== dive.oilMax) {
+  const total = Math.max(run.oilMax, run.oil);
+  if (oil.children.length !== total) {
     oil.innerHTML = '';
-    for (let i = 0; i < dive.oilMax; i++) oil.appendChild(document.createElement('i'));
+    for (let i = 0; i < total; i++) oil.appendChild(document.createElement('i'));
   }
-  [...oil.children].forEach((el, i) => el.classList.toggle('off', i >= dive.oil));
-  document.querySelector('#hud .lantern').style.setProperty('--flame', flameScale(darkness(flash)));
-  $('roomName').textContent = trial ? THEME_NAMES[trial.theme] : '';
+  [...oil.children].forEach((el, i) => el.classList.toggle('off', i >= run.oil));
+  if (flash) document.querySelector('#hud .lantern').style.setProperty('--flame', flameScale(darkness(flash)));
+}
+
+function hurtLantern() {
+  const l = document.querySelector('#hud .lantern');
+  l.classList.remove('hurt'); void l.offsetWidth; l.classList.add('hurt');
 }
 
 let calloutTimer = 0;
@@ -94,40 +208,7 @@ const STAGE_TEXT = {
   3: ['閃光の段階 3', 'コウモリや偽の宝箱がまぎれこむ。本物の宝箱の方向を答えよう。'],
 };
 
-// ---------- 潜行 ----------
-async function startDive() {
-  sfx.unlockAudio();
-  showScreen('measure');
-  phase = 'boot';
-  timing = await measureRefresh();
-  showScreen(null);
-  flash = normalizeFlashState(save.flash[profile.id], profile, timing.frameMs);
-  dive = createDive(profile);
-  diveStart = { dark: darkness(flash), stage: flash.stage };
-  $('hud').hidden = false;
-  $('banner').hidden = true;
-  const [t, s] = STAGE_TEXT[flash.stage];
-  banner(t, s, 2600);
-  nextRoom();
-}
-
-function pickTheme() {
-  if (dive.room < 3) return 'corridor';
-  const pool = ['corridor', 'fog', 'storm'];
-  if (flash.stage >= profile.flash.reflectionFromStage) pool.push('lake');
-  return rng.pick(pool);
-}
-
-function nextRoom() {
-  trial = makeTrial(flash, profile, rng, { frameMs: timing.frameMs, theme: pickTheme() });
-  view.prepare(trial);
-  pad.hide();
-  phase = 'fixation';
-  ph = {};
-  updateHud();
-}
-
-// 閃光の途中で画面が隠れた・大きさが変わったときは、その回をやり直す（採点しない）
+// ---------- 閃光の回答 ----------
 function restartTrial() {
   if (!['fixation', 'stim', 'mask'].includes(phase)) return;
   pad.hide();
@@ -149,10 +230,10 @@ function onSubmit(answer) {
   const { state, stageChange } = applyResult(flash, trial, result, profile, { skipStair: dropped });
   flash = state;
   save.flash[profile.id] = flash;
-  const { dive: nd, events } = applyDive(dive, result);
-  dive = nd;
+  run = applyFlash(run, result.success);
 
   lastLog = {
+    kind: 'flash',
     at: new Date().toISOString(),
     profile: profile.id,
     stage: trial.stage,
@@ -175,25 +256,14 @@ function onSubmit(answer) {
   pushLog(save, lastLog);
   writeSave(storage, save);
 
-  // 演出
   if (result.success) {
-    sfx.sfxSuccess(dive.combo);
-    callout(dive.combo >= 3 ? `見抜いた ×${dive.combo}` : '見抜いた', 'good');
-    const c = $('combo');
-    c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+    sfx.sfxSuccess(Math.min(8, run.flashOk));
+    callout(trial.target ? '宝箱を見つけた' : '扉が開いた', 'good');
   } else {
     sfx.sfxTrap();
     if (result.dirOk === false) sfx.sfxMimic();
     callout(result.dirOk === false && result.emblemOk ? 'ミミックだ！' : '罠だ！', 'bad');
-    const l = document.querySelector('#hud .lantern');
-    l.classList.remove('hurt'); void l.offsetWidth; l.classList.add('hurt');
-  }
-  if (events.oilGained) {
-    setTimeout(() => {
-      sfx.sfxOil();
-      const el = $('oil').children[dive.oil - 1];
-      if (el) { el.classList.remove('gain'); void el.offsetWidth; el.classList.add('gain'); }
-    }, 350);
+    hurtLantern();
   }
   if (stageChange) {
     sfx.sfxStage(stageChange > 0);
@@ -209,43 +279,53 @@ function onSubmit(answer) {
   updateDebug();
 }
 
-function afterFeedback() {
-  if (dive.over) endDive();
-  else nextRoom();
+// ---------- 祭壇 ----------
+function onAltarChoose(id, { lamp }) {
+  if (phase !== 'altar') return;
+  const r = applyAltar(run, id, { lamp });
+  run = r.run;
+  if (!lamp) {
+    altarStair = updateStaircase(altarStair, r.ok);
+    save.altar[profile.id] = altarStair;
+  }
+  pushLog(save, { kind: 'altar', at: new Date().toISOString(), profile: profile.id, index: r.index, target: run.items[r.index].id, chosen: id, ok: r.ok, lamp, level: ph.altarLevel, rtMs: Math.round(performance.now() - ph.tAltar) });
+  writeSave(storage, save);
+  if (r.ok) sfx.sfxRecall();
+  else { sfx.sfxMimic(); sfx.sfxTrap(); hurtLantern(); }
+  updateHud();
+  altarView.reveal({ ok: r.ok, run, index: r.index, chosenId: id });
+  updateDebug();
 }
 
-function endDive() {
-  phase = 'result';
-  pad.hide();
-  $('hud').hidden = true;
+function onAltarLamp() {
+  run = useLamp(run);
+  altarView.setRun(run);
+  altarView.peek(PEEK_MS);
+  sfx.sfxOil();
+  updateHud();
+}
+
+// ---------- 精算 ----------
+function endRun() {
+  phase = 'menu';
+  hideStages();
+  const result = settle(run);
+  save.meta.gold += result.total;
   const st = statsFor(save, profile.id);
   save.stats[profile.id] = {
-    dives: st.dives + 1,
-    treasures: st.treasures + dive.treasures,
-    bestCombo: Math.max(st.bestCombo, dive.bestCombo),
+    runs: st.runs + 1,
+    items: st.items + result.correct,
+    bestItems: Math.max(st.bestItems, result.correct),
+    completed: st.completed + result.reqs.filter((r) => r.complete).length,
   };
+  const prev = recommended();
+  const rec = nextRecommended(prev, result, capacity(save.meta.rooms));
+  save.recommend[profile.id] = rec;
   writeSave(storage, save);
   sfx.sfxEnd();
-
-  $('resReason').textContent = dive.oil <= 0 ? 'ランタン油が尽きた' : 'すべての部屋を抜けた';
-  $('resRooms').textContent = `${dive.room}`;
-  $('resTreasures').textContent = `${dive.treasures}`;
-  $('resCombo').textContent = `${dive.bestCombo}`;
-  const lanternSvg = document.querySelector('#hud .lantern svg').outerHTML;
-  const after = darkness(flash);
-  for (const [id, d] of [['flameBefore', diveStart.dark], ['flameAfter', after]]) {
-    $(id).innerHTML = lanternSvg;
-    $(id).style.setProperty('--flame', flameScale(d));
-  }
-  // 数値ではなく、炎の大きさと言葉で伝える
-  const diff = after - diveStart.dark;
-  let msg;
-  if (flash.stage > diveStart.stage) msg = `閃光の段階が ${flash.stage} に上がった。見るべきものが増えていく。`;
-  else if (diff > 0.02) msg = '闇が深くなった。前より短い光で見抜けている。';
-  else if (diff < -0.02) msg = '今日は少し明るめの部屋で。光の長さは、次の潜行でまた合わせていく。';
-  else msg = '闇の深さは変わらず。いまの腕前にちょうどいい暗さ。';
-  $('resMsg').textContent = msg;
+  renderResult($('result'), { result, run, gold: save.meta.gold, recommended: rec, prevRecommended: prev });
   showScreen('result');
+  updateDebug();
 }
 
 // ---------- フレーム単位の進行 ----------
@@ -254,9 +334,10 @@ function loop(ts) {
   requestAnimationFrame(loop);
   if (frozen) return;
   switch (phase) {
-    case 'title':
-    case 'result':
     case 'boot':
+    case 'menu':
+    case 'store':
+    case 'altar':
       view.drawDark(ts, { dark: 0, fixation: false });
       break;
     case 'fixation':
@@ -292,7 +373,7 @@ function loop(ts) {
       view.drawAnswerBg(ts, darkness(flash));
       break;
     case 'feedback':
-      if (view.drawFeedback(ts)) afterFeedback();
+      if (view.drawFeedback(ts)) enterRoom();
       break;
   }
 }
@@ -300,22 +381,24 @@ function loop(ts) {
 // ---------- 入力 ----------
 document.addEventListener('keydown', (e) => {
   if (pad.handleKey(e)) { e.preventDefault(); return; }
-  if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) {
-    if (phase === 'title' && !$('title').hidden) { e.preventDefault(); startDive(); }
-    else if (phase === 'result') { e.preventDefault(); startDive(); }
+  if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat && phase === 'menu' && !$('title').hidden) {
+    e.preventDefault();
+    openBoard();
   }
-  if (e.code === 'Escape' && dive && !['title', 'result', 'boot'].includes(phase)) quit();
+  if (e.code === 'Escape' && run && phase !== 'menu') quit();
 });
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) restartTrial(); });
 window.addEventListener('resize', restartTrial);
 
 function quit() {
-  if (confirm('潜行をやめてタイトルにもどりますか？（腕前の記録は残ります）')) toTitle();
+  if (confirm('このランをやめてタイトルにもどりますか？（金貨はもらえません）')) toTitle();
 }
 
-$('startBtn').onclick = startDive;
-$('againBtn').onclick = startDive;
+$('startBtn').onclick = openBoard;
+$('againBtn').onclick = openBoard;
+$('shopBtn').onclick = () => openShop('title');
+$('resShopBtn').onclick = () => openShop('result');
 $('toTitleBtn').onclick = toTitle;
 $('howBtn').onclick = () => showScreen('howto');
 $('setBtn').onclick = () => { refreshSettings(); showScreen('settings'); };
@@ -373,7 +456,7 @@ $('importInput').onchange = async (e) => {
   e.target.value = '';
 };
 $('resetBtn').onclick = () => {
-  if (!confirm('腕前や記録をすべて消しますか？')) return;
+  if (!confirm('腕前・金貨・館の記録をすべて消しますか？')) return;
   save = defaultSave();
   profile = PROFILES[save.profile];
   writeSave(storage, save);
@@ -388,14 +471,14 @@ function updateDebug() {
   const L = lastLog;
   $('debugText').textContent = [
     `${timing.hz}Hz (${timing.frameMs.toFixed(2)}ms/frame)  profile=${profile.id}  stage=${flash.stage}  trials=${flash.trials}`,
-    `duration lv ${s.duration.level}/${s.duration.max} = ${durationMs(s.duration.level, profile.flash).toFixed(0)}ms  ecc lv ${s.ecc.level}  distract lv ${s.distract.level}  stageHist ${flash.stageHistory.map((x) => (x ? 'o' : 'x')).join('')}`,
-    L ? `last: focus=${L.focus} ${L.success ? 'OK' : 'NG'} intended=${L.intendedMs}ms frames=${L.frames} actual=${L.actualMs}ms${L.dropped ? ' DROPPED' : ''} rt=${L.rtMs}ms` : 'last: -',
+    `duration lv ${s.duration.level}/${s.duration.max} = ${durationMs(s.duration.level, profile.flash).toFixed(0)}ms  ecc lv ${s.ecc.level}  distract lv ${s.distract.level}  altar lv ${altarStair ? altarStair.level : '-'}`,
+    L ? `last flash: focus=${L.focus} ${L.success ? 'OK' : 'NG'} intended=${L.intendedMs}ms frames=${L.frames} actual=${L.actualMs}ms${L.dropped ? ' DROPPED' : ''} rt=${L.rtMs}ms` : 'last flash: -',
   ].join('\n');
 }
 if (DEBUG) {
   $('debug').hidden = false;
   document.querySelectorAll('#debug [data-stage]').forEach((b) => (b.onclick = () => {
-    if (!flash) return;
+    flash = normalizeFlashState(save.flash[profile.id], profile, timing.frameMs);
     flash = { ...flash, stage: Number(b.dataset.stage), stageHistory: [] };
     save.flash[profile.id] = flash;
     writeSave(storage, save);
@@ -403,7 +486,11 @@ if (DEBUG) {
   }));
   $('dbgLog').onclick = () => download('mnemo-manor-log.json', JSON.stringify(save.log, null, 1));
   // 自動テスト・画面確認用
-  window.__mm = { view, get phase() { return phase; }, get trial() { return trial; }, get flash() { return flash; }, get dive() { return dive; }, get save() { return save; }, freeze: (v) => { frozen = v; } };
+  window.__mm = {
+    view, boardView, storeView,
+    get phase() { return phase; }, get trial() { return trial; }, get flash() { return flash; }, get run() { return run; }, get save() { return save; },
+    freeze: (v) => { frozen = v; },
+  };
 }
 
 // ---------- 起動 ----------
@@ -411,9 +498,7 @@ if (DEBUG) {
   showScreen('measure');
   requestAnimationFrame(loop);
   timing = await measureRefresh();
-  if (DEBUG) {
-    flash = normalizeFlashState(save.flash[profile.id], profile, timing.frameMs);
-    updateDebug();
-  }
+  flash = normalizeFlashState(save.flash[profile.id], profile, timing.frameMs);
+  updateDebug();
   toTitle();
 })();

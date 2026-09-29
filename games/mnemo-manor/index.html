@@ -8,12 +8,12 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="記憶の館">
-  <meta name="description" content="暗闇の部屋をランタンが一瞬だけ照らす。中央の紋章と、周辺の宝箱の位置を見抜く。記憶の館 試作 M0。">
+  <meta name="description" content="依頼の品を自分の館に置いて覚え、暗闇の迷宮をランタンの一瞬の光で進み、祭壇で正しい品を選び取る。">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
-  <title>記憶の館 — 閃光の間（試作）</title>
+  <title>記憶の館</title>
 </head>
 <body>
 <main id="game">
@@ -37,8 +37,8 @@
       <div id="roomName" class="room-name"></div>
     </div>
     <div class="hud-right">
-      <div class="pill"><span class="gem">✦</span><b id="treasures">0</b></div>
-      <div id="combo" class="combo"></div>
+      <div class="pill" aria-label="記憶の灯">🕯️<b id="lamps">0</b></div>
+      <div class="pill" aria-label="閃光で見つけた宝"><span class="gem">✦</span><b id="treasures">0</b></div>
       <button id="quitBtn" class="round" aria-label="やめる">✕</button>
     </div>
   </header>
@@ -53,12 +53,12 @@
 
   <section id="title" class="screen" hidden>
     <div class="panel title-panel">
-      <p class="kicker">試作 M0</p>
+      <p class="kicker">Mnemo Manor</p>
       <h1>記憶の館</h1>
-      <p class="sub">閃光の間</p>
-      <p class="lead">暗闇の部屋を、ランタンが一瞬だけ照らす。<br>中央の紋章と、光った宝箱の場所を見抜け。</p>
+      <p class="lead">依頼の品は、迷宮に持ちこめない。<br>だから、自分の館に置いて覚える。</p>
       <div class="buttons">
-        <button id="startBtn" class="primary">潜る</button>
+        <button id="startBtn" class="primary">依頼を受ける</button>
+        <button id="shopBtn">館の手入れ</button>
         <button id="howBtn">あそびかた</button>
         <button id="setBtn">せってい</button>
       </div>
@@ -66,18 +66,23 @@
     </div>
   </section>
 
+  <section id="board" class="screen" hidden></section>
+  <section id="store" class="stage" hidden></section>
+  <section id="altar" class="stage altar-stage" hidden></section>
+  <section id="shop" class="screen" hidden></section>
+
   <section id="howto" class="screen" hidden>
     <div class="panel">
       <h2>あそびかた</h2>
       <ol class="how">
-        <li>真っ暗な部屋で、まんなかの <b>◆</b> を見つめる。</li>
-        <li>ランタンが<b>一瞬だけ</b>部屋を照らし、すぐに煙で見えなくなる。</li>
-        <li>まんなかにあった<b>紋章</b>（太陽・月・星・王冠）を選ぶと、扉が開く。</li>
-        <li>慣れてくると、まわりに<b>宝箱</b>が光るようになる。その<b>方向</b>も選ぶ。目はまんなかのままで、部屋全体をぼんやり見るのがコツ。</li>
-        <li>さらに進むと、コウモリや偽の宝箱がまぎれこむ。</li>
+        <li><b>依頼を受ける</b>：掲示板から依頼を選ぶ。たくさん受けるほどお礼は増えるが、覚える品も増える。</li>
+        <li><b>館に置く</b>：品物を、館の道順どおりに置き場へ運ぶ。置くと家具と変なことが起きる。その場面を思い浮かべるのが覚えるコツ。置き終わったら館をひと回りして確かめ、依頼書を燃やして潜る。</li>
+        <li><b>閃光の部屋</b>：真っ暗な部屋をランタンが一瞬だけ照らす。まんなかの<b>紋章</b>を答える（慣れてくると、まわりに光る<b>宝箱の方向</b>も）。目はまんなかの ◆ のまま。</li>
+        <li><b>祭壇の部屋</b>：「3品目は？」と聞かれる。心の中で館を玄関からたどって、正しい品を選ぶ。まちがえるとミミックに油を食われる。</li>
+        <li>まちがえるたびにランタン油が減り、尽きたら帰還。集めた金貨で館に部屋を増やすと、一度に覚えられる品が増える。</li>
       </ol>
-      <p class="note">光の長さは、腕前に合わせて毎回少しずつ変わります。うまく見抜けるほど、ランタンの火は小さく、部屋は暗くなっていきます。まちがえるとランタン油が減り、尽きたら帰還。5回続けて見抜くと油が1つ戻ります。</p>
-      <p class="note keys">キーボード：<kbd>1</kbd>〜<kbd>4</kbd> 紋章 ／ <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>A</kbd><kbd>D</kbd><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd> またはテンキーで方向</p>
+      <p class="note">どうしても思い出せないときは「記憶の灯」で館を2秒だけ覗ける（その品のお礼は半分）。閃光の光の長さは、腕前に合わせて少しずつ変わります。うまく見抜けるほど、ランタンの火は小さく、部屋は暗くなっていきます。</p>
+      <p class="note keys">キーボード（閃光）：<kbd>1</kbd>〜<kbd>4</kbd> 紋章 ／ <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>A</kbd><kbd>D</kbd><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd> またはテンキーで方向</p>
       <div class="buttons"><button class="back primary">もどる</button></div>
     </div>
   </section>
@@ -112,21 +117,14 @@
 
   <section id="result" class="screen" hidden>
     <div class="panel">
-      <p class="kicker" id="resReason"></p>
-      <h2>帰還</h2>
-      <div class="res-grid">
-        <div><span>進んだ部屋</span><b id="resRooms"></b></div>
-        <div><span>見つけた宝</span><b id="resTreasures"></b></div>
-        <div><span>最長コンボ</span><b id="resCombo"></b></div>
-      </div>
-      <div class="flames">
-        <figure><div class="lantern big" id="flameBefore"></div><figcaption>潜る前</figcaption></figure>
-        <span class="arrow">→</span>
-        <figure><div class="lantern big" id="flameAfter"></div><figcaption>いま</figcaption></figure>
-      </div>
-      <p id="resMsg" class="lead"></p>
+      <p class="kicker res-reason"></p>
+      <h2>帰還・精算</h2>
+      <div class="res-reqs"></div>
+      <div class="res-coins"></div>
+      <p class="res-msg lead"></p>
       <div class="buttons">
-        <button id="againBtn" class="primary">もう一度潜る</button>
+        <button id="againBtn" class="primary">次の依頼へ</button>
+        <button id="resShopBtn">館の手入れ</button>
         <button id="toTitleBtn">タイトルへ</button>
       </div>
     </div>

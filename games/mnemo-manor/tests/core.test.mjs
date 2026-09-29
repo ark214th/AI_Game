@@ -8,7 +8,12 @@ import {
   createFlashState, normalizeFlashState, makeTrial, judge, applyResult,
   durationMs, msToFrames, maxDurationLevel, reflectedDir, darkness, DIR_COUNT,
 } from '../core/flash/flash.mjs';
-import { createDive, applyDive } from '../core/flash/dive.mjs';
+import { routeLoci, capacity, sceneText } from '../core/palace/palace.mjs';
+import { generateBoard } from '../core/run/requests.mjs';
+import { createRun, finishStore, currentRoom, applyFlash, altarCandidates, applyAltar, useLamp, settle, nextRecommended, storeSeconds } from '../core/run/run.mjs';
+import { ITEMS, ITEM_BY_ID } from '../content/items.mjs';
+import { FURNITURE, ROOMS } from '../content/palace.mjs';
+import { SHOP } from '../config/tuning.mjs';
 import { loadSave, writeSave, sanitize, exportJson, importJson, pushLog } from '../core/save/save.mjs';
 
 const adult = PROFILES.adult;
@@ -69,7 +74,7 @@ test('閃光：段階1は紋章だけ、段階2で宝箱、段階3で妨害物�
   const t1 = makeTrial(st, adult, rng, { frameMs: F60 });
   assert.equal(t1.target, null);
   assert.equal(t1.distractors.length, 0);
-  assert.ok(t1.fixationMs >= 500 && t1.fixationMs <= 1000);
+  assert.ok(t1.fixationMs >= adult.flash.fixationMs[0] && t1.fixationMs <= adult.flash.fixationMs[1]);
 
   st = { ...st, stage: 2 };
   const t2 = makeTrial(st, adult, rng, { frameMs: F60 });
@@ -156,27 +161,111 @@ test('壊れたセーブでも閃光の状態は正しく整う', () => {
   assert.equal(darkness(createFlashState(adult)), 0);
 });
 
-test('潜行：失敗で油が減り、尽きたら終わり。連続成功で油が戻る', () => {
-  let d = createDive(adult);
-  assert.equal(d.oil, 6);
-  d = applyDive(d, { success: false }).dive;
-  assert.equal(d.oil, 5);
-  let gained = 0;
-  for (let i = 0; i < 5; i++) {
-    const r = applyDive(d, { success: true });
-    d = r.dive;
-    gained += r.events.oilGained;
-  }
-  assert.equal(gained, 1);
-  assert.equal(d.oil, 6);
-  assert.equal(d.bestCombo, 5);
-  while (!d.over) d = applyDive(d, { success: false }).dive;
-  assert.ok(d.oil <= 0 || d.room >= d.rooms);
+test('コンテンツ：品物・家具・部屋がそろっている', () => {
+  assert.equal(new Set(ITEMS.map((i) => i.id)).size, ITEMS.length);
+  assert.equal(new Set(ITEMS.map((i) => i.emoji)).size, ITEMS.length, '絵文字も重ならない');
+  for (const r of ROOMS) for (const f of r.furn) assert.ok(FURNITURE[f], f);
+  const allFurn = ROOMS.flatMap((r) => r.furn);
+  assert.equal(new Set(allFurn).size, allFurn.length, '置き場の家具は館の中で一つずつ');
+  for (const f of Object.values(FURNITURE)) assert.ok(f.reactions.length >= 2);
+  assert.equal(capacity(SHOP.startRooms), 12);
+  assert.equal(sceneText('魚', 'fireplace', 0), '魚が暖炉の炎の中でタップダンス！');
+  const loci = routeLoci(3);
+  assert.deepEqual(loci.slice(0, 5).map((l) => [l.room, l.slot]), [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0]]);
+});
 
-  let e = createDive(adult);
-  for (let i = 0; i < adult.dive.rooms; i++) e = applyDive(e, { success: true }).dive;
-  assert.ok(e.over);
-  assert.equal(e.treasures, adult.dive.rooms);
+test('掲示板：依頼どうしで品物が重ならない', () => {
+  const rng = createRng(21);
+  for (let k = 0; k < 50; k++) {
+    const board = generateBoard(rng, { recommended: 5 });
+    assert.equal(board.length, 4);
+    const ids = board.flatMap((r) => r.items);
+    assert.equal(new Set(ids).size, ids.length);
+    for (const r of board) assert.ok(r.items.length >= 2 && r.items.length <= 5 && r.reward > 0);
+  }
+});
+
+function makeRun(seed = 1, pick = [0, 1]) {
+  const rng = createRng(seed);
+  const board = generateBoard(rng, { recommended: 5 });
+  const requests = pick.map((i) => board[i]);
+  return { rng, run: createRun({ requests, loci: routeLoci(3), profile: adult, rng }) };
+}
+
+test('ラン：品物は道順どおりに置かれ、祭壇の前に閃光の部屋がある', () => {
+  const { run } = makeRun();
+  run.items.forEach((it, i) => assert.equal(it.locus, i));
+  const altars = run.seq.filter((r) => r.type === 'altar').map((r) => r.item);
+  assert.deepEqual(altars, run.items.map((_, i) => i), '祭壇は品物の順');
+  assert.equal(run.seq[0].type, 'flash');
+  for (let i = 1; i < run.seq.length; i++) if (run.seq[i].type === 'altar') assert.equal(run.seq[i - 1].type, 'flash');
+  assert.throws(() => createRun({ requests: [{ items: ITEMS.slice(0, 13).map((i) => i.id) }], loci: routeLoci(3), profile: adult, rng: createRng(1) }));
+  assert.equal(storeSeconds(adult, 5), 25 + 45);
+  assert.equal(storeSeconds(PROFILES.child, 5), null);
+});
+
+test('収納：時間を残して終えると油 +1', () => {
+  const { run } = makeRun();
+  assert.equal(finishStore(run, adult, 0.5).run.oil, run.oil + 1);
+  assert.equal(finishStore(run, adult, 0.1).run.oil, run.oil);
+});
+
+test('祭壇：候補には正解が1つだけ。段階が上がると同じカテゴリや依頼の別の品が混ざる', () => {
+  const { run, rng } = makeRun(4, [0, 1, 2]);
+  for (let level = 0; level <= 3; level++) {
+    for (let i = 0; i < run.items.length; i++) {
+      const c = altarCandidates(run, i, rng, level);
+      assert.equal(c.length, [3, 4, 5, 5][level]);
+      assert.equal(new Set(c).size, c.length);
+      assert.equal(c.filter((id) => id === run.items[i].id).length, 1);
+      const cat = ITEM_BY_ID[run.items[i].id].cat;
+      const inRun = new Set(run.items.map((it) => it.id));
+      const others = c.filter((id) => id !== run.items[i].id);
+      if (level === 0) assert.ok(others.every((id) => !inRun.has(id)));
+      if (level >= 1) assert.ok(others.some((id) => ITEM_BY_ID[id].cat === cat && !inRun.has(id)), `level ${level}`);
+      if (level >= 2) assert.equal(others.filter((id) => inRun.has(id)).length, 1);
+    }
+  }
+});
+
+test('潜行と精算：全部思い出せば依頼のお礼。油が尽きたら残りは失われる', () => {
+  let { run } = makeRun(8, [0, 1]);
+  const start = run.oil;
+  while (!run.over) {
+    const room = currentRoom(run);
+    if (room.type === 'flash') run = applyFlash(run, true);
+    else run = applyAltar(run, run.items[room.item].id, { lamp: room.item === 0 }).run;
+  }
+  assert.equal(run.endReason, 'done');
+  assert.equal(run.oil, start);
+  const res = settle(run);
+  assert.ok(res.allComplete);
+  assert.equal(res.correct, run.items.length);
+  assert.equal(res.multi, 1.15);
+  assert.equal(res.itemCoins, 6 * (run.items.length - 1) + 3, '灯を使った品は半分');
+  assert.equal(res.total, Math.round((res.itemCoins + res.bonusCoins + res.flashCoins) * 1.15));
+
+  ({ run } = makeRun(9, [0]));
+  while (!run.over) {
+    const room = currentRoom(run);
+    run = room.type === 'flash' ? applyFlash(run, false) : applyAltar(run, 'nothing').run;
+  }
+  assert.equal(run.endReason, 'oil');
+  const bad = settle(run);
+  assert.equal(bad.correct, 0);
+  assert.ok(run.collected.some((c) => c === null), 'たどり着けなかった品がある');
+  assert.equal(bad.bonusCoins, 0);
+});
+
+test('記憶の灯とおすすめ品数', () => {
+  const { run } = makeRun();
+  assert.equal(useLamp(run).lamps, run.lamps - 1);
+  assert.equal(useLamp({ ...run, lamps: 0 }).lamps, 0);
+  assert.equal(nextRecommended(5, { correct: 5, items: 5, attempted: 5 }, 12), 6);
+  assert.equal(nextRecommended(5, { correct: 2, items: 5, attempted: 5 }, 12), 4);
+  assert.equal(nextRecommended(5, { correct: 4, items: 5, attempted: 5 }, 12), 5);
+  assert.equal(nextRecommended(12, { correct: 12, items: 12, attempted: 12 }, 12), 12, '置き場の数が上限');
+  assert.equal(nextRecommended(3, { correct: 0, items: 3, attempted: 3 }, 12), 3, '下限は3');
 });
 
 test('セーブ：保存・読みこみ・書き出し・読みこみ直し', () => {
@@ -186,11 +275,15 @@ test('セーブ：保存・読みこみ・書き出し・読みこみ直し', ()
   assert.equal(s.profile, 'adult');
   s.profile = 'child';
   s.flash.child = createFlashState(PROFILES.child);
+  s.meta.gold = 120;
+  s.meta.rooms = 99;
   for (let i = 0; i < 700; i++) pushLog(s, { i });
   assert.equal(s.log.length, 600);
   assert.ok(writeSave(storage, s));
   const back = loadSave(storage);
   assert.equal(back.profile, 'child');
+  assert.equal(back.meta.gold, 120);
+  assert.equal(back.meta.rooms, SHOP.startRooms + SHOP.room.length, '部屋の数は上限に丸める');
   assert.equal(back.log[0].i, 100);
   const again = importJson(exportJson(back));
   assert.equal(again.profile, 'child');
