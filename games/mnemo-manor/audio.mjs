@@ -95,3 +95,20 @@ export function sfxTap() {
 export function sfxEnd() {
   [523.25, 392, 440, 523.25].forEach((f, i) => tone(f, { at: i * 0.16, dur: 0.5, type: 'triangle', vol: 0.18 }));
 }
+
+// 館に品物を置いた：ぽよんと変な音（毎回少しずつ音程を変える）
+export function sfxPlace() {
+  const f = 300 + Math.random() * 300;
+  tone(f, { dur: 0.25, type: 'sine', vol: 0.25, slide: 2.2 });
+  tone(f * 1.5, { at: 0.12, dur: 0.3, type: 'triangle', vol: 0.12, slide: 0.6 });
+}
+
+export function sfxAltar() {
+  tone(196, { dur: 1.2, type: 'sine', vol: 0.12 });
+  tone(293.66, { at: 0.05, dur: 1.2, type: 'sine', vol: 0.08 });
+}
+
+// 祭壇で思い出せた
+export function sfxRecall() {
+  [659.25, 783.99, 987.77, 1318.51].forEach((f, i) => tone(f, { at: i * 0.07, dur: 0.5, type: 'triangle', vol: 0.18 }));
+}
