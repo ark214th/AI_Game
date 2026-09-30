@@ -29,11 +29,24 @@
     .tags { display:flex; gap:7px; flex-wrap:wrap; }
     .tags span { padding:5px 9px; border-radius:999px; font-size:11px; background:rgba(255,255,255,.09); color:#cbd3ff; }
     footer { margin-top:32px; color:#8f99c2; font-size:12px; }
+    /* 開発者モード（タイトルを5回すばやくタップで切りかえ。?dev=1 / ?dev=0 でも可） */
+    h1 { -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; cursor:default; }
+    .dev-badge { display:none; margin-left:.4em; padding:.15em .5em; border-radius:999px; font-size:.3em; vertical-align:middle; background:#ff9f43; color:#1b1230; letter-spacing:.05em; }
+    #dev { display:none; margin-top:38px; padding-top:26px; border-top:2px dashed rgba(255,159,67,.45); }
+    #dev h2.section { margin:0 0 6px; font-size:20px; color:#ffb870; }
+    #dev > p { margin:0 0 16px; color:#bec7ef; font-size:13px; }
+    body.dev #dev, body.dev .dev-badge { display:block; }
+    body.dev .dev-badge { display:inline-block; }
+    .card.wip { border-style:dashed; border-color:rgba(255,159,67,.7); }
+    .wip-label { display:inline-block; margin-bottom:6px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; background:#ff9f43; color:#1b1230; }
+    .wip-label.hidden-label { background:#9aa6d8; }
+    #devToast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px); opacity:0; padding:10px 18px; border-radius:999px; background:#ff9f43; color:#1b1230; font-weight:700; font-size:14px; transition:opacity .2s, transform .2s; pointer-events:none; }
+    #devToast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
   <main>
-    <header><h1>AI Game Library</h1><p>AIと一緒に制作した、ブラウザですぐ遊べるゲーム置き場です。</p></header>
+    <header><h1 id="title">AI Game Library<span class="dev-badge">DEV</span></h1><p>AIと一緒に制作した、ブラウザですぐ遊べるゲーム置き場です。</p></header>
     <section class="grid" aria-label="ゲーム一覧">
       <a class="card" style="background:radial-gradient(circle at 82% 8%,#fff3a855,transparent 40%),radial-gradient(circle at 12% 92%,#ff8fc055,transparent 45%),linear-gradient(150deg,#3d6fc4,#7148b8 58%,#b8467f);border-color:#ffd6ea" href="./games/punyu-kirakira/"><div class="icon">🐹⭐</div><h2>ぷにゅの きらきらランド</h2><p>まるくてぷにぷにの「ぷにゅ」と、ほしのかけらを集める横スクロールアクション。5つのせかいと、こわくないボス。きせかえとシールあつめも。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>小学1年生向け</span><span>15ステージ</span><span>きせかえ</span></div></a>
       <a class="card" style="background:radial-gradient(circle at 80% 8%,#f3d58c55,transparent 42%),radial-gradient(circle at 15% 90%,#ff79d833,transparent 45%),linear-gradient(150deg,#2d2466,#0b0a1f);border-color:#f3d58c" href="./games/starfall-waltz/"><div class="icon">🌟🎻</div><h2>STARFALL WALTZ</h2><p>歯車の庭、薔薇窓の聖堂、大天球儀。3人のボスが放つ美しい弾幕を、小さな当たり判定ですり抜ける。被弾直後のボムでまだ間に合う、ボス戦中心の弾幕シューティング。</p><div class="tags"><span>PC・iPad・iPhone</span><span>弾幕STG</span><span>ボス戦</span><span>スペル練習</span></div></a>
@@ -50,7 +63,45 @@
       <a class="card" href="./games/convenience/"><div class="icon">🏪</div><h2>まちかどコンビニ日記</h2><p>棚を置き、商品を仕入れ、お客さんに愛されるコンビニへ育てる店舗経営シミュレーションです。</p><div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>経営</span><span>セーブ対応</span></div></a>
       <a class="card" href="./games/survivor/"><div class="icon">🌙</div><h2>月影サバイバー</h2><p>左下のスティックで移動し、押し寄せる魔物から5分間生き残る自動攻撃アクションです。</p><div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>1人用</span><span>約5分</span></div></a>
     </section>
+    <section id="dev" aria-label="開発中・非掲載のゲーム">
+      <h2 class="section">開発中・非掲載</h2>
+      <p>開発者モードでだけ表示されます。タイトルを5回すばやくタップするとオフに戻ります。</p>
+      <div class="grid">
+        <a class="card wip" style="background:radial-gradient(circle at 85% 10%,#fff3a855,transparent 40%),linear-gradient(150deg,#3f76a8,#a8467a 60%,#4b2f78)" href="./games/fushigi-pet-hotel/"><span class="wip-label">開発中</span><div class="icon">🏨☁️</div><h2>ふしぎな ペットホテル</h2><p>ふしぎな生きものが泊まりに来るホテルで、お世話と部屋のかざりつけ。ハートを集めてホテルを大きくしよう。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>小学1年生向け</span><span>試作</span></div></a>
+        <a class="card wip" style="background:linear-gradient(150deg,#4a3a6e,#1a1430)" href="./games/mnemo-manor/"><span class="wip-label">開発中</span><div class="icon">🏚️🕯️</div><h2>記憶の館</h2><p>依頼の品を記憶の館に置いて覚え、暗闇の迷宮をランタンの光で進むローグライト。</p><div class="tags"><span>記憶ゲーム</span><span>ローグライト</span></div></a>
+        <a class="card wip" style="background:linear-gradient(150deg,#b8863b,#3a2a52)" href="./games/aurelia/"><span class="wip-label hidden-label">非掲載</span><div class="icon">🏛️🌅</div><h2>AURELIA — 暁の遺跡</h2><p>直接URLで公開している縦持ち向けの3Dランゲーム。</p><div class="tags"><span>スマホ・iPad縦持ち</span><span>3Dラン</span></div></a>
+      </div>
+    </section>
     <footer>© AI Game Library</footer>
   </main>
+  <div id="devToast" aria-live="polite"></div>
+  <script>
+  (() => {
+    const KEY = 'aigl-dev-mode';
+    const read = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
+    const write = on => { try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
+    const apply = on => document.body.classList.toggle('dev', on);
+    const toast = msg => {
+      const t = document.getElementById('devToast');
+      t.textContent = msg; t.classList.add('show');
+      clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1600);
+    };
+    const q = new URLSearchParams(location.search).get('dev');
+    if (q === '1' || q === '0') write(q === '1');
+    apply(read());
+    // タイトルを 2びょう いないに 5かい タップで きりかえ
+    let taps = [];
+    document.getElementById('title').addEventListener('click', () => {
+      const now = Date.now();
+      taps = taps.filter(t => now - t < 2000).concat(now);
+      if (taps.length < 5) return;
+      taps = [];
+      const on = !read();
+      write(on); apply(on);
+      toast(on ? '開発者モード：オン' : '開発者モード：オフ');
+      if (on) document.getElementById('dev').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  })();
+  </script>
 </body>
 </html>
