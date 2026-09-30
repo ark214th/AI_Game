@@ -87,7 +87,35 @@ export function drawCreature(ctx, sp, x, y, r, st = {}) {
     ctx.beginPath(); ctx.moveTo(0, 0.62); ctx.lineTo(0.24, 0.5); ctx.lineTo(0.24, 0.76); ctx.closePath(); ctx.fill();
     circ(ctx, 0, 0.62, 0.07); ctx.fill();
   }
+  if (st.towel) {
+    // おふろあがりの タオル
+    const w = Math.sin(t * 9) * 0.06;
+    ctx.fillStyle = '#ffd36b';
+    ctx.beginPath(); ctx.moveTo(-0.95, -0.35 + w); ctx.quadraticCurveTo(-0.9, -1.15, 0, -1.12); ctx.quadraticCurveTo(0.9, -1.15, 0.95, -0.35 - w);
+    ctx.quadraticCurveTo(0.5, -0.5, 0, -0.48); ctx.quadraticCurveTo(-0.5, -0.5, -0.95, -0.35 + w); ctx.fill();
+    ctx.fillStyle = '#ffb347'; for (let i = -2; i <= 2; i++) { ell(ctx, i * 0.34, -0.8, 0.06, 0.2, i * 0.15); ctx.fill(); }
+  }
+  if (st.blanket) {
+    // もうふ
+    ctx.fillStyle = '#9fb8ff';
+    ctx.beginPath(); ctx.moveTo(-1.18, 0.15);
+    for (let i = 0; i < 6; i++) ctx.quadraticCurveTo(-1.18 + (i + 0.5) * 0.397, 0.02, -1.18 + (i + 1) * 0.397, 0.15);
+    ctx.lineTo(1.2, 0.75); ctx.quadraticCurveTo(1.22, 1.05, 0.9, 1.05); ctx.lineTo(-0.9, 1.05); ctx.quadraticCurveTo(-1.22, 1.05, -1.2, 0.75); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff6c2'; for (const [x, y] of [[-0.6, 0.5], [0.2, 0.7], [0.7, 0.35], [-0.2, 0.3]]) { star(ctx, x, y, 0.1); ctx.fill(); }
+    ctx.fillStyle = '#c3d3ff'; ctx.fillRect(-1.18, 0.13, 2.38, 0.08);
+  }
   ctx.restore();
+  if (st.suitcase) {
+    // にもつ
+    const bx = x + r * 1.02, s2 = r * 0.62;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = s2 * 0.08;
+    ctx.beginPath(); ctx.arc(bx, y - s2 * 0.78, s2 * 0.18, Math.PI, 0); ctx.stroke();
+    ctx.fillStyle = '#e8834e'; rr(ctx, bx - s2 * 0.45, y - s2 * 0.8, s2 * 0.9, s2 * 0.8, s2 * 0.12); ctx.fill();
+    ctx.fillStyle = '#ffcf7a'; ctx.fillRect(bx - s2 * 0.45, y - s2 * 0.5, s2 * 0.9, s2 * 0.12);
+    ctx.fillStyle = '#fff'; star(ctx, bx + s2 * 0.18, y - s2 * 0.22, s2 * 0.1); ctx.fill();
+    ctx.restore();
+  }
 }
 
 function bodyFuwari(ctx, t) {
@@ -533,23 +561,89 @@ export function drawGround(ctx, W, H, gy, night = 0) {
 }
 
 // ホテルの たてもの（へやの まわりの かべ・やね・かんばん）
+// L: { bx, by, bw, bh, pad, roofH, floors, ch, signX }（よこに ひろがる たてもの）
 export function drawHotelShell(ctx, L, night = 0) {
   const { bx, by, bw, bh, pad } = L;
   ctx.fillStyle = night > 0.5 ? '#c7a3b8' : '#ffe0ea';
   rr(ctx, bx, by, bw, bh, 18); ctx.fill();
   ctx.strokeStyle = '#e8a9bf'; ctx.lineWidth = 6; ctx.stroke();
-  // やね
-  const rx = bx - 30, rw = bw + 60, ry = by - L.roofH;
+  // やね（よせむね）
+  const rh = L.roofH, inset = Math.min(rh * 1.4, bw * 0.2);
   ctx.fillStyle = '#ff7f9f';
-  ctx.beginPath(); ctx.moveTo(rx, by + 6); ctx.lineTo(bx + bw / 2, ry); ctx.lineTo(rx + rw, by + 6); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(bx - 30, by + 6); ctx.lineTo(bx + inset, by - rh); ctx.lineTo(bx + bw - inset, by - rh); ctx.lineTo(bx + bw + 30, by + 6); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#ff9fb8';
-  for (let i = 1; i < 6; i++) { const u = i / 6; ctx.fillRect(rx + rw * u - 3, by - L.roofH * (1 - Math.abs(u - 0.5) * 2) + 10, 6, L.roofH * (1 - Math.abs(u - 0.5) * 2) - 6); }
-  // かんばん
-  const sw = Math.min(bw * 0.8, 420), sh = L.roofH * 0.42;
-  ctx.fillStyle = '#fffaf0'; rr(ctx, bx + bw / 2 - sw / 2, by - sh - 14, sw, sh, sh / 2); ctx.fill();
+  for (let x = bx + inset + 40; x < bx + bw - inset - 20; x += 80) ctx.fillRect(x - 3, by - rh + 10, 6, rh - 6);
+  ctx.fillStyle = '#ff6a8e'; ctx.fillRect(bx + inset - 6, by - rh - 6, bw - inset * 2 + 12, 12);
+  // えんとつ
+  ctx.fillStyle = '#d9738f'; ctx.fillRect(bx + bw - inset - 60, by - rh - 44, 34, 44);
+  // かんばん（ロビーの うえ）
+  const sw = 420, sh = rh * 0.46, sx = L.signX ?? bx + bw / 2;
+  ctx.fillStyle = '#fffaf0'; rr(ctx, sx - sw / 2, by - sh - 16, sw, sh, sh / 2); ctx.fill();
   ctx.strokeStyle = '#ffb3c8'; ctx.lineWidth = 4; ctx.stroke();
-  text(ctx, 'ふしぎな ペットホテル', bx + bw / 2, by - sh / 2 - 14, sh * 0.5, { color: '#ff6f91' });
+  text(ctx, 'ふしぎな ペットホテル', sx, by - sh / 2 - 16, sh * 0.5, { color: '#ff6f91' });
   // かいの さかいめ
   ctx.fillStyle = '#e8a9bf';
   for (let f = 1; f < L.floors; f++) ctx.fillRect(bx + 8, by + bh - pad - f * (L.ch + pad) + pad / 2 - 4, bw - 16, 8);
+}
+
+// まだ へやが ない ところ：そとの かべ（まど と はなだん）
+export function drawFacade(ctx, rect, night = 0) {
+  const k = rect.w / 340;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+  ctx.fillStyle = night > 0.5 ? '#c7a3b8' : '#ffe0ea'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle = night > 0.5 ? '#bb97ac' : '#ffd3e0';
+  for (let y = rect.y + 18 * k; y < rect.y + rect.h; y += 36 * k) ctx.fillRect(rect.x, y, rect.w, 3 * k);
+  for (const u of [0.27, 0.73]) {
+    const cx = rect.x + rect.w * u, top = rect.y + rect.h * 0.2, w = rect.w * 0.2, h = rect.h * 0.46;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx - w / 2 - 6 * k, top + h + 4 * k); ctx.lineTo(cx - w / 2 - 6 * k, top + w / 2); ctx.arc(cx, top + w / 2, w / 2 + 6 * k, Math.PI, 0); ctx.lineTo(cx + w / 2 + 6 * k, top + h + 4 * k); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = night > 0.5 ? '#ffe7a3' : '#a9dcff'; ctx.beginPath(); ctx.moveTo(cx - w / 2, top + h); ctx.lineTo(cx - w / 2, top + w / 2); ctx.arc(cx, top + w / 2, w / 2, Math.PI, 0); ctx.lineTo(cx + w / 2, top + h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 2 * k, top, 4 * k, h); ctx.fillRect(cx - w / 2, top + h * 0.55, w, 4 * k);
+    ctx.fillStyle = '#c98b55'; rr(ctx, cx - w * 0.7, top + h + 2 * k, w * 1.4, 16 * k, 5 * k); ctx.fill();
+    const cols = ['#ff6f91', '#ffd84a', '#ff9fc0', '#b58cff'];
+    for (let i = 0; i < 4; i++) { const fx = cx - w * 0.5 + i * w / 3; ctx.fillStyle = '#6cbf57'; circ(ctx, fx, top + h + 2 * k, 7 * k); ctx.fill(); ctx.fillStyle = cols[i]; circ(ctx, fx, top + h - 5 * k, 6 * k); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+// こうじちゅうの あしば（u: 0→1 で できあがる）
+export function drawScaffold(ctx, rect, u, t = 0) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+  ctx.fillStyle = `rgba(255,236,200,${1 - u * 0.6})`; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = '#d99a5e'; ctx.lineWidth = rect.w * 0.02;
+  for (let i = 0; i <= 4; i++) { const x = rect.x + rect.w * i / 4; ctx.beginPath(); ctx.moveTo(x, rect.y); ctx.lineTo(x, rect.y + rect.h); ctx.stroke(); }
+  for (let j = 0; j <= 3; j++) { const y = rect.y + rect.h * j / 3; ctx.beginPath(); ctx.moveTo(rect.x, y); ctx.lineTo(rect.x + rect.w, y); ctx.stroke(); }
+  ctx.strokeStyle = '#e8b27a';
+  for (let i = 0; i < 4; i++) { const x = rect.x + rect.w * i / 4; ctx.beginPath(); ctx.moveTo(x, rect.y + rect.h); ctx.lineTo(x + rect.w / 4, rect.y); ctx.stroke(); }
+  const k = rect.w / 340;
+  emoji(ctx, '🔨', rect.x + rect.w * (0.3 + 0.4 * u), rect.y + rect.h * 0.45 + Math.sin(t * 20) * 8 * k, 60 * k);
+  ctx.restore();
+}
+
+export function drawBall(ctx, x, y, r, rot = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.fillStyle = '#fff'; circ(ctx, 0, 0, r); ctx.fill();
+  ctx.strokeStyle = '#d9c9d2'; ctx.lineWidth = r * 0.08; ctx.stroke();
+  ctx.fillStyle = '#ff6f91'; ctx.beginPath(); ctx.arc(0, 0, r, -0.5, 0.9); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5cc8ff'; ctx.beginPath(); ctx.arc(0, 0, r, 1.6, 3.0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.arc(0, 0, r, 3.7, 5.1); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.7)'; ell(ctx, -r * 0.35, -r * 0.4, r * 0.25, r * 0.14, -0.6); ctx.fill();
+  ctx.restore();
+}
+
+export function drawBubble(ctx, x, y, r) {
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+  g.addColorStop(0, 'rgba(255,255,255,.1)'); g.addColorStop(0.8, 'rgba(190,230,255,.25)'); g.addColorStop(1, 'rgba(255,190,240,.7)');
+  ctx.fillStyle = g; circ(ctx, x, y, r); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = Math.max(1.5, r * 0.06); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; ell(ctx, x - r * 0.4, y - r * 0.4, r * 0.18, r * 0.1, -0.7); ctx.fill();
+}
+
+export function drawWand(ctx, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-0.4);
+  ctx.fillStyle = '#b89ad8'; rr(ctx, -s * 0.06, 0, s * 0.12, s * 0.9, s * 0.05); ctx.fill();
+  ctx.strokeStyle = '#ff8fc8'; ctx.lineWidth = s * 0.1; circ(ctx, 0, -s * 0.22, s * 0.26); ctx.stroke();
+  ctx.fillStyle = 'rgba(200,235,255,.5)'; circ(ctx, 0, -s * 0.22, s * 0.21); ctx.fill();
+  ctx.restore();
 }

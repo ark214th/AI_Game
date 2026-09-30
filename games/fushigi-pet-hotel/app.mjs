@@ -1,4 +1,4 @@
-import { SPECIES, FOODS, ITEMS, WALLS, FLOORS, NEEDS, SPOTS, TAGS, ROOM, MAX_ROOMS } from './data.mjs';
+import { SPECIES, FOODS, TOYS, ITEMS, WALLS, FLOORS, NEEDS, SPOTS, TAGS, ROOM, MAX_ROOMS } from './data.mjs';
 import * as C from './core.mjs';
 import * as D from './draw.mjs';
 import { Sound } from './audio.mjs';
@@ -28,18 +28,24 @@ addEventListener('resize', resize);
 resize();
 const toV = e => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / S, y: (e.clientY - r.top) / S }; };
 const domCenter = el => { const r = el.getBoundingClientRect(); return { x: (r.left + r.width / 2) / S, y: (r.top + r.height / 2) / S }; };
+const inRect = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 
 // ---------- じょうたい ----------
 let scene = 'title';           // title / hotel / room / bath / night / morning
 let T = 0;
 let curRoom = -1, decor = false, tab = 'item';
 let night = 0, nightTarget = 0;
-let actors = [];
+let actors = [];               // きょうの お客さん（save.today.guests と おなじ ならび）
+let leavers = [];              // チェックアウトで かえる ところ
 let parts = [];
 let timers = [];
 let shownHearts = save.hearts;
-let plate = null, foodDrag = null, petting = null, drag = null, bath = null;
+let care = null;               // へやの 中の おせわ：food / play / sleep
+let foodDrag = null, eating = null, petting = null, drag = null, bath = null;
 let handHint = 0, tipUntil = 0, tipText = '', hintIdx = 0;
+let camX = 0, camTarget = null, down = null, guestDrag = null, selected = -1;
+let building = null, pendingBuild = new Set();
+let idleAt = 6;
 const punyu = { sq: 0, v: 0 };
 let speeches = [];
 let pointerId = null;
@@ -49,6 +55,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const guests = () => save.today?.guests || [];
 const R_BASE = 105;
+const LOBBY_Y = 560, DOOR_X = 150;
 
 function toast(str, sec = 1.8) {
   const t = $('toast');
@@ -59,50 +66,95 @@ function firstTip(key, str) { if (save.tips[key]) return; save.tips[key] = true;
 
 // ---------- おきゃくさん（うごき）----------
 function genDirt() { return Array.from({ length: 5 }, (_, i) => ({ x: rand(-0.6, 0.6), y: -0.62 + i * 0.18 + rand(-0.05, 0.05), a: 1 })); }
-function makeActor(g) {
+function makeActor(g, arriving = false) {
+  const baseY = g.species === 'fuwari' ? 500 : 525;
   return {
-    x: rand(320, 680), tx: 500, y: g.species === 'fuwari' ? 500 : 525, sq: 0, v: 0,
+    x: arriving ? DOOR_X : rand(320, 680), tx: 500, y: g.room < 0 ? LOBBY_Y : baseY, ty: baseY, baseY, lift: 0, liftT: 0,
+    alpha: arriving ? 0 : 1, sq: 0, v: 0, jumpT: -9, spin: 0,
     mood: 'normal', moodUntil: 0, say: '', sayUntil: 0, look: 0, lookUntil: 0, shake: 0, puff: 1, puffT: 1, mouth: 0,
-    needAt: T + 1.5, dirt: null, pet: 0, favD: 0, allD: 0, favRub: 0, spotSaid: false, wanderAt: 0, pop: 1, greeted: false, hop: 0,
+    needAt: T + 1.5, lastNeed: null, dirt: null, pet: 0, favD: 0, allD: 0, favRub: 0, spotSaid: false, wanderAt: 0, pop: 1,
+    asleep: C.isHappy(g), thanked: C.isHappy(g), lastComment: -99, towel: 0,
   };
 }
-function resetActors() { actors = guests().map(makeActor); }
+function syncActors() {
+  const gs = guests();
+  while (actors.length < gs.length) actors.push(makeActor(gs[actors.length], true));
+  actors.length = gs.length;
+}
+function resetActors() { actors = guests().map(g => makeActor(g)); }
 const poke = (a, v = 0.25) => { a.v += v * 7; };
+const jump = a => { a.jumpT = T; poke(a, -0.2); };
 const setMood = (a, m, sec = 1.5) => { a.mood = m; a.moodUntil = T + sec; };
 const say = (a, str, sec = 2.4) => { a.say = str; a.sayUntil = T + sec; };
+const jumpOff = a => { const u = (T - a.jumpT) / 0.55; return u >= 0 && u <= 1 ? Math.sin(u * Math.PI) * 70 : 0; };
 function moodOf(gi) {
   const a = actors[gi], g = guests()[gi];
   if (T < a.moodUntil) return a.mood;
-  if (night > 0.5) return 'sleep';
+  if (a.asleep || night > 0.5) return 'sleep';
   return C.isHappy(g) ? 'happy' : 'normal';
 }
-const showNeed = gi => { const g = guests()[gi]; return g && night < 0.3 && T >= actors[gi].needAt ? C.needOf(g) : null; };
+const showNeed = gi => { const g = guests()[gi], a = actors[gi]; return g && a && night < 0.3 && !a.asleep && T >= a.needAt ? C.needOf(g) : null; };
+const sleepCareOn = gi => care?.type === 'sleep' && care.gi === gi;
 const stOf = gi => {
-  const a = actors[gi];
-  return { t: T + gi * 1.7, sq: a.sq, mood: moodOf(gi), look: a.look, mouth: a.mouth, dirt: C.needOf(guests()[gi]) === 'bath' ? a.dirt : null, puff: a.puff, shake: a.shake };
-};
+  const a = actors[gi], g = guests()[gi];
+  return {
+    t: T + gi * 1.7, sq: a.sq, mood: moodOf(gi), look: a.look, mouth: a.mouth, alpha: a.alpha,
+    dirt: C.needOf(g) === 'bath' ? a.dirt : null, puff: a.puff, shake: a.shake,
+    blanket: a.asleep || (sleepCareOn(gi) && Math.abs(a.x - a.tx) < 8), towel: T < a.towel, suitcase: g.room < 0,
+  };
+}
+
+function moveActor(a, dt, speed) {
+  const d = a.tx - a.x;
+  if (Math.abs(d) > 3) {
+    a.x += Math.sign(d) * Math.min(Math.abs(d), speed * dt);
+    if (T > a.lookUntil) a.look = Math.sign(d) * 0.6;
+    if (Math.sin(T * 10) > 0.93) poke(a, 0.04);
+  }
+  a.y += (a.ty - a.y) * Math.min(1, dt * 5);
+  a.lift += (a.liftT - a.lift) * Math.min(1, dt * 5);
+}
 
 function updateActors(dt) {
-  guests().forEach((g, gi) => {
+  const gs = guests();
+  let waitIdx = 0;
+  gs.forEach((g, gi) => {
     const a = actors[gi]; if (!a) return;
-    const acc = -120 * a.sq - 9 * a.v;
-    a.v += acc * dt; a.sq = clamp(a.sq + a.v * dt, -0.3, 0.3);
+    a.v += (-120 * a.sq - 9 * a.v) * dt; a.sq = clamp(a.sq + a.v * dt, -0.3, 0.3);
     a.shake = Math.max(0, a.shake - dt * 1.2);
     a.puff += (a.puffT - a.puff) * Math.min(1, dt * 4);
     a.pop = Math.min(1, a.pop + dt * 2.5);
+    a.alpha = Math.min(1, a.alpha + dt * 2);
     if (T > a.lookUntil) a.look *= 0.9;
     if (!(foodDrag && C.guestAt(save, curRoom) === gi)) a.mouth *= 0.85;
     if (C.needOf(g) === 'bath' && !a.dirt) a.dirt = genDirt();
-    const inView = (scene === 'room' || scene === 'bath') && curRoom === g.room && !decor;
-    if (inView) a.tx = 560;
-    else if (T > a.wanderAt && night < 0.5) { a.tx = rand(260, 740); a.wanderAt = T + rand(3, 7); }
-    const d = a.tx - a.x;
-    if (Math.abs(d) > 4) {
-      a.x += Math.sign(d) * Math.min(Math.abs(d), 90 * dt);
-      if (T > a.lookUntil) a.look = Math.sign(d) * 0.6;
-      a.hop += dt * 9; if (Math.sin(a.hop) > 0.97) poke(a, 0.05);
+    // ふきだしが でたら ひとこと
+    const need = showNeed(gi);
+    if (need && need !== a.lastNeed) { a.lastNeed = need; if (T > a.sayUntil) say(a, NEEDS[need].say, 2.2); }
+    if (g.room < 0) {
+      a.tx = 330 + waitIdx++ * 130; a.ty = LOBBY_Y; a.liftT = 0;
+      moveActor(a, dt, 150);
+      return;
     }
+    const room = save.rooms[g.room], bed = C.bedOf(room);
+    const inView = (scene === 'room' || scene === 'bath') && curRoom === g.room && !decor;
+    a.ty = a.baseY; a.liftT = 0;
+    let speed = 90;
+    if (a.asleep || sleepCareOn(gi)) {
+      if (bed) { a.tx = bed.x + 20; a.ty = bed.y + 3; a.liftT = 58; } else a.tx = 500;
+      speed = 160;
+    } else if (care?.type === 'play' && care.gi === gi && care.toy) { a.tx = care.targetX ?? 560; speed = 330; }
+    else if (inView) a.tx = 560;
+    else if (T > a.wanderAt && night < 0.5) { a.tx = rand(260, 740); a.wanderAt = T + rand(3, 7); }
+    moveActor(a, dt, speed);
   });
+  for (const l of leavers) {
+    const a = l.a;
+    a.v += (-120 * a.sq - 9 * a.v) * dt; a.sq = clamp(a.sq + a.v * dt, -0.3, 0.3);
+    moveActor(a, dt, 150);
+    if (a.x <= DOOR_X + 20) a.alpha = Math.max(0, a.alpha - dt * 2.5);
+  }
+  leavers = leavers.filter(l => l.a.alpha > 0);
   punyu.v += (-120 * punyu.sq - 9 * punyu.v) * dt; punyu.sq = clamp(punyu.sq + punyu.v * dt, -0.3, 0.3);
 }
 
@@ -114,6 +166,11 @@ function burstHearts(x, y, n) {
 function sparkles(x, y, n = 8, spread = 80) {
   for (let i = 0; i < n; i++) parts.push({ k: 'spark', x: x + rand(-spread, spread), y: y + rand(-spread, spread), vx: rand(-40, 40), vy: rand(-90, -20), t: 0, life: rand(0.5, 0.9), s: rand(10, 20) });
 }
+function confetti(x, y) {
+  const cols = ['#ff6f91', '#ffd84a', '#5cc8ff', '#7ee081', '#b58cff'];
+  for (let i = 0; i < 30; i++) parts.push({ k: 'conf', x, y, vx: rand(-380, 380), vy: rand(-700, -300), t: 0, life: rand(1.2, 1.8), s: rand(8, 14), c: cols[i % 5], rot: rand(0, 6) });
+}
+function notes(x, y, n = 3) { for (let i = 0; i < n; i++) parts.push({ k: 'note', x: x + rand(-40, 40), y, vx: rand(-30, 30), vy: -80, t: -i * 0.15, life: 1.2, s: 40 }); }
 function updateParts(dt) {
   const tg = heartTarget();
   for (const p of parts) {
@@ -131,7 +188,8 @@ function updateParts(dt) {
       }
     } else {
       p.x += p.vx * dt; p.y += p.vy * dt;
-      if (p.k === 'drop') p.vy += 1400 * dt;
+      if (p.k === 'drop' || p.k === 'conf' || p.k === 'crumb') p.vy += (p.k === 'conf' ? 900 : 1400) * dt;
+      if (p.k === 'steam') p.vx += Math.sin(T * 3 + p.s) * 20 * dt;
     }
     if (p.t > p.life) p.dead = true;
   }
@@ -144,30 +202,45 @@ function drawParts() {
     const u = p.t / p.life;
     if (p.k === 'heart') D.drawHeart(ctx, p.x, p.y, 44);
     else if (p.k === 'spark') { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#ffe45c'; D.star(ctx, p.x, p.y, p.s * (1 - u * 0.5)); ctx.fill(); ctx.globalAlpha = 1; }
-    else if (p.k === 'note') { ctx.globalAlpha = 1 - u; D.text(ctx, '♪', p.x, p.y, p.s, { color: '#ff6f91' }); ctx.globalAlpha = 1; }
+    else if (p.k === 'note') { ctx.globalAlpha = 1 - u; D.text(ctx, '♪', p.x, p.y, p.s, { color: '#ff6f91', stroke: '#fff', sw: 6 }); ctx.globalAlpha = 1; }
     else if (p.k === 'zz') { ctx.globalAlpha = Math.sin(u * Math.PI); D.text(ctx, 'Z', p.x, p.y, p.s, { color: '#fff', stroke: '#7a6ee0', sw: 5 }); ctx.globalAlpha = 1; }
     else if (p.k === 'drop') { ctx.fillStyle = 'rgba(120,200,255,.85)'; D.ell(ctx, p.x, p.y, 5, 11); ctx.fill(); }
     else if (p.k === 'pop') { ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; D.circ(ctx, p.x, p.y, p.s * (1 + u)); ctx.stroke(); ctx.globalAlpha = 1; }
+    else if (p.k === 'conf') { ctx.save(); ctx.globalAlpha = 1 - u * u; ctx.translate(p.x, p.y); ctx.rotate(p.rot + p.t * 8); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); }
+    else if (p.k === 'crumb') { ctx.fillStyle = p.c || '#c98b55'; D.circ(ctx, p.x, p.y, p.s); ctx.fill(); }
+    else if (p.k === 'steam') { ctx.globalAlpha = 0.35 * Math.sin(u * Math.PI); ctx.fillStyle = '#fff'; D.circ(ctx, p.x, p.y, 20 + u * 40); ctx.fill(); ctx.globalAlpha = 1; }
   }
 }
 
-// ---------- ホテルの ならびかた ----------
+// ---------- ホテルの ならびかた（よこに ひろがる。2かいだて）----------
+const SLOTS = [[1, 0], [-1, 0], [0, 1], [1, 1], [-1, 1], [2, 0], [2, 1], [-2, 0], [-2, 1]];
 function hotelLayout() {
-  const n = save.rooms.length, locked = n < MAX_ROOMS ? 1 : 0;
-  const slots = 1 + n + locked, floors = Math.ceil(slots / 2);
-  const top = 100, roofH = 110, groundH = 70, pad = 14;
-  const availH = H - top - roofH - groundH - 6;
-  let ch = Math.min(250, (availH - pad * (floors + 1)) / floors), cw = ch * 1.6;
-  if (2 * cw + 3 * pad > W - 40) { cw = (W - 40 - 3 * pad) / 2; ch = cw / 1.6; }
-  const bw = 2 * cw + 3 * pad, bh = floors * ch + (floors + 1) * pad;
-  const bx = (W - bw) / 2, by = H - groundH - bh;
-  const cells = [];
-  for (let i = 0; i < slots; i++) {
-    const f = Math.floor(i / 2), col = i % 2;
-    const rect = { x: bx + pad + col * (cw + pad), y: by + bh - pad - (f + 1) * ch - f * pad, w: cw, h: ch };
-    cells.push(i === 0 ? { kind: 'lobby', rect } : i <= n ? { kind: 'room', idx: i - 1, rect } : { kind: 'locked', rect });
-  }
-  return { bx, by, bw, bh, pad, roofH, floors, cw, ch, cells };
+  const n = save.rooms.length;
+  const cells = [{ kind: 'lobby', col: 0, row: 0 }];
+  for (let i = 0; i < n; i++) cells.push({ kind: 'room', idx: i, col: SLOTS[i][0], row: SLOTS[i][1] });
+  if (n < MAX_ROOMS) cells.push({ kind: 'locked', col: SLOTS[n][0], row: SLOTS[n][1] });
+  const minC = Math.min(...cells.map(c => c.col)), maxC = Math.max(...cells.map(c => c.col));
+  const floors = Math.max(...cells.map(c => c.row)) + 1;
+  for (let col = minC; col <= maxC; col++) for (let row = 0; row < floors; row++) if (!cells.some(c => c.col === col && c.row === row)) cells.push({ kind: 'facade', col, row });
+  const top = 100, roofH = 80, groundH = 66, pad = 14;
+  const availH = H - top - roofH - groundH - 10;
+  let ch = Math.min(290, (availH - pad * 3) / 2), cw = ch * 1.6;
+  const fitW = (W - 40 - pad * 4) / 3;
+  if (cw > fitW) { cw = Math.max(fitW, 300); ch = cw / 1.6; }
+  const cols = maxC - minC + 1;
+  const bw = cols * (cw + pad) + pad, bh = floors * (ch + pad) + pad;
+  const maxPan = Math.max(0, (bw - (W - 40)) / 2);
+  camX = clamp(camX, -maxPan, maxPan);
+  const bx = (W - bw) / 2 - camX, groundY = H - groundH, by = groundY - bh;
+  for (const c of cells) c.rect = { x: bx + pad + (c.col - minC) * (cw + pad), y: by + bh - pad - (c.row + 1) * ch - c.row * pad, w: cw, h: ch };
+  const lobby = cells[0].rect;
+  return { bx, by, bw, bh, pad, roofH, floors, ch, cw, cells, groundY, maxPan, signX: lobby.x + lobby.w / 2, minC };
+}
+const cellOf = (L, idx) => L.cells.find(c => c.kind === 'room' && c.idx === idx);
+function focusCell(idx) {
+  const L = hotelLayout(), c = idx < 0 ? L.cells[0] : cellOf(L, idx);
+  if (!c) return;
+  camTarget = camX + (c.rect.x + c.rect.w / 2 - W / 2);
 }
 
 function roomRect() {
@@ -181,75 +254,162 @@ function roomRect() {
 }
 
 // へやの ざひょう → がめんの ざひょう
-function actorScreen(gi, rect) {
-  const a = actors[gi], g = guests()[gi], s = rect.w / ROOM.w;
+function screenOf(a, species, rect, toff = 0) {
+  const s = rect.w / ROOM.w;
   const r = R_BASE * D.depth(a.y) * a.pop * s;
-  const x = rect.x + a.x * s, y = rect.y + a.y * s;
-  const bc = D.bodyCenter(g.species, x, y, r, { t: T + gi * 1.7, sq: a.sq, puff: a.puff });
+  const x = rect.x + a.x * s, y = rect.y + (a.y - a.lift - jumpOff(a)) * s;
+  const bc = D.bodyCenter(species, x, y, r, { t: T + toff, sq: a.sq, puff: a.puff });
   return { x, y, r, bc, head: { x: bc.x, y: bc.y - r * a.puff - 8 } };
+}
+const actorScreen = (gi, rect) => screenOf(actors[gi], guests()[gi].species, rect, gi * 1.7);
+function guestScreenAnywhere(gi) {
+  const g = guests()[gi];
+  if (scene === 'room' && curRoom === g.room && g.room >= 0) return actorScreen(gi, roomRect());
+  const L = hotelLayout(), c = g.room < 0 ? L.cells[0] : cellOf(L, g.room);
+  return actorScreen(gi, c.rect);
 }
 
 // ---------- かく ----------
+function creatureExtra(a, species, toff, st) {
+  return { y: a.y, draw: c => D.drawCreature(c, species, a.x, a.y - a.lift - jumpOff(a), R_BASE * D.depth(a.y) * a.pop, st) };
+}
+
 function drawRoomCell(idx, rect, big) {
   const gi = C.guestAt(save, idx);
   const extras = [];
-  if (gi >= 0 && actors[gi]) {
-    const g = guests()[gi], a = actors[gi];
-    extras.push({ y: a.y, draw: c => D.drawCreature(c, g.species, a.x, a.y, R_BASE * D.depth(a.y) * a.pop, stOf(gi)) });
+  const a = gi >= 0 ? actors[gi] : null, g = gi >= 0 ? guests()[gi] : null;
+  if (a && !(guestDrag && guestDrag.gi === gi)) extras.push(creatureExtra(a, g.species, gi * 1.7, stOf(gi)));
+  if (big && care?.type === 'play' && care.toy === 'ball' && care.ball.state !== 'carried') {
+    const b = care.ball;
+    extras.push({ y: Math.max(b.floorY ?? 600, 400) + 1, draw: c => { c.fillStyle = 'rgba(58,42,74,.15)'; D.ell(c, b.x, 606, 26, 7); c.fill(); D.drawBall(c, b.x, b.y, 30, b.rot); } });
   }
   D.drawRoom(ctx, save.rooms[idx], rect, {
     t: T, night: night > 0.5, extras, hide: drag?.item,
     after: c => {
-      if (gi < 0 || !actors[gi]) return;
-      const a = actors[gi], g = guests()[gi], r = R_BASE * D.depth(a.y) * a.pop;
-      const topY = a.y - D.hoverOf(g.species, r, T + gi * 1.7) - r * 2 * a.puff;
+      if (!a) return;
+      const r = R_BASE * D.depth(a.y) * a.pop;
+      const topY = a.y - a.lift - jumpOff(a) - D.hoverOf(g.species, r, T + gi * 1.7) - r * 2 * a.puff;
+      if (big && care?.type === 'play' && care.toy === 'ball' && care.ball.state === 'carried') D.drawBall(c, a.x, topY - 10, 30);
+      if (big && care?.type === 'play' && care.toy === 'bubble') for (const b of care.bubbles) D.drawBubble(c, b.x, b.y, b.r);
       const need = showNeed(gi);
-      if (need && scene !== 'bath' && !(big && T < a.sayUntil)) {
+      if (need && scene !== 'bath' && !(big && T < a.sayUntil) && !care) {
         const bx = a.x + r * 0.95, by = topY + 40, size = big ? 100 : 140;
         D.drawNeedBubble(c, bx, by, NEEDS[need].icon, size, Math.max(0, Math.sin(T * 4)));
         if (need === 'pet' && a.pet > 0) {
           c.strokeStyle = '#ff6f91'; c.lineWidth = size * 0.09; c.lineCap = 'round';
           c.beginPath(); c.arc(bx, by - size * 0.62, size * 0.55, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, a.pet)); c.stroke();
         }
-      } else if (C.isHappy(g) && night < 0.5 && Math.sin(T * 2 + gi) > 0.2) {
+      } else if (C.isHappy(g) && !a.asleep && night < 0.5 && Math.sin(T * 2 + gi) > 0.2) {
         D.text(c, '♪', a.x + r * 0.9, topY + 10 - Math.sin(T * 2 + gi) * 14, big ? 48 : 70, { color: '#ff6f91', stroke: '#fff', sw: 8 });
       }
+      if (a.asleep && !big) D.text(c, 'Zz', a.x + r * 0.9, topY + 20 + Math.sin(T * 2) * 10, 80, { color: '#fff', stroke: '#7a6ee0', sw: 10 });
     },
   });
   ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = big ? 8 : 4; D.rr(ctx, rect.x, rect.y, rect.w, rect.h, big ? 16 : 8); ctx.stroke();
-  if (gi >= 0 && actors[gi]) {
-    const a = actors[gi];
-    if (a.say && T < a.sayUntil) { const p = actorScreen(gi, rect); speeches.push({ x: p.head.x, y: p.head.y, text: a.say, size: big ? 34 : 26 }); }
-    if (night > 0.5 && Math.random() < 0.012) { const p = actorScreen(gi, rect); parts.push({ k: 'zz', x: p.head.x + p.r * 0.5, y: p.head.y, vx: 20, vy: -30, t: 0, life: 2, s: big ? 40 : 24 }); }
+  if (a) {
+    const p = actorScreen(gi, rect);
+    if (a.say && T < a.sayUntil) speeches.push({ x: p.head.x, y: p.head.y, text: a.say, size: big ? 34 : 26 });
+    if ((a.asleep || night > 0.5) && Math.random() < (big ? 0.03 : 0.012)) parts.push({ k: 'zz', x: p.head.x + p.r * 0.5, y: p.head.y, vx: 20, vy: -30, t: 0, life: 2, s: big ? 40 : 24 });
   }
+}
+
+function drawLobbyCell(cell) {
+  const rect = cell.rect, s = rect.w / ROOM.w;
+  const extras = [{ y: 420, draw: c => D.drawCreature(c, 'punyu', 530, 420, 88, { t: T, sq: punyu.sq, mood: night > 0.5 ? 'sleep' : 'happy' }) }];
+  guests().forEach((g, gi) => {
+    if (g.room >= 0 || (guestDrag && guestDrag.gi === gi)) return;
+    const st = stOf(gi);
+    extras.push(creatureExtra(actors[gi], g.species, gi * 1.7, st));
+  });
+  for (const l of leavers) extras.push(creatureExtra(l.a, l.species, 0, { t: T, sq: l.a.sq, mood: 'happy', alpha: l.a.alpha, suitcase: true, look: -0.6 }));
+  D.drawLobby(ctx, rect, {
+    night: night > 0.5, extras,
+    after: c => { if (selected >= 0 && guests()[selected]?.room < 0) { const a = actors[selected]; c.strokeStyle = '#ffd84a'; c.lineWidth = 10; D.ell(c, a.x, a.y + 4, 120, 30); c.stroke(); } },
+  });
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 4; D.rr(ctx, rect.x, rect.y, rect.w, rect.h, 8); ctx.stroke();
+  // おきゃくさんの おねがい / さようなら
+  guests().forEach((g, gi) => {
+    if (g.room >= 0 || (guestDrag && guestDrag.gi === gi)) return;
+    const a = actors[gi], p = actorScreen(gi, rect);
+    const text = a.say && T < a.sayUntil ? a.say : Math.abs(a.x - a.tx) < 10 ? TAGS[g.wish].wish : '';
+    if (text) speeches.push({ x: p.head.x, y: p.head.y, text, size: 24 });
+    if (!guestDrag && (save.tips.checkins || 0) < 3 && Math.abs(a.x - a.tx) < 10) {
+      const L = hotelLayout(), free = C.freeRooms(save).map(i => cellOf(L, i)).filter(Boolean)[0];
+      if (free) {
+        const u = (T % 2.2) / 1.6, e = Math.min(1, u);
+        const hx = p.bc.x + (free.rect.x + free.rect.w / 2 - p.bc.x) * e, hy = p.bc.y + (free.rect.y + free.rect.h / 2 - p.bc.y) * e;
+        if (u < 1.2) { ctx.globalAlpha = 0.85; D.emoji(ctx, '👆', hx + 20, hy + 40, 64); ctx.globalAlpha = 1; }
+      }
+    }
+  });
+  for (const l of leavers) if (l.a.say && T < l.a.sayUntil) { const p = screenOf(l.a, l.species, rect); speeches.push({ x: p.head.x, y: p.head.y, text: l.a.say, size: 24 }); }
+  const tip = currentTip();
+  if (tip && scene === 'hotel' && C.waitingGuest(save) < 0) speeches.push({ x: rect.x + 530 * s, y: rect.y + 240 * s, text: tip, size: 26 });
 }
 
 function drawHotel() {
   const L = hotelLayout();
   D.drawSky(ctx, W, H, night, T);
-  D.drawGround(ctx, W, H, L.by + L.bh - 4, night);
+  D.drawGround(ctx, W, H, L.groundY - 4, night);
   D.drawHotelShell(ctx, L, night);
   for (const cell of L.cells) {
-    if (cell.kind === 'lobby') {
-      const s = cell.rect.w / ROOM.w;
-      D.drawLobby(ctx, cell.rect, { night: night > 0.5, extras: [{ y: 420, draw: c => D.drawCreature(c, 'punyu', 530, 420, 88, { t: T, sq: punyu.sq, mood: night > 0.5 ? 'sleep' : 'happy' }) }] });
-      ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 4; D.rr(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 8); ctx.stroke();
-      const tip = currentTip();
-      if (tip && scene === 'hotel') speeches.push({ x: cell.rect.x + 530 * s, y: cell.rect.y + 240 * s, text: tip, size: 26 });
-    } else if (cell.kind === 'room') drawRoomCell(cell.idx, cell.rect, false);
-    else D.drawLockedCell(ctx, cell.rect, C.nextRoomHearts(save), save.hearts);
+    if (cell.kind === 'lobby') drawLobbyCell(cell);
+    else if (cell.kind === 'room') {
+      drawRoomCell(cell.idx, cell.rect, false);
+      if (pendingBuild.has(cell.idx)) D.drawScaffold(ctx, cell.rect, 0, T);
+      else if (building?.idx === cell.idx) D.drawScaffold(ctx, cell.rect, clamp((T - building.t0) / 2, 0, 1), T);
+      if (guestDrag) {
+        const free = C.guestAt(save, cell.idx) < 0;
+        ctx.strokeStyle = free ? (inRect(guestDrag.p, cell.rect) ? '#ffd84a' : 'rgba(255,216,74,.7)') : 'rgba(90,61,85,.25)';
+        ctx.lineWidth = inRect(guestDrag.p, cell.rect) && free ? 12 : 6; D.rr(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 10); ctx.stroke();
+      }
+    } else if (cell.kind === 'locked') D.drawLockedCell(ctx, cell.rect, C.nextRoomHearts(save), save.hearts);
+    else D.drawFacade(ctx, cell.rect, night);
+  }
+  if (guestDrag) {
+    const g = guests()[guestDrag.gi], a = actors[guestDrag.gi];
+    D.drawCreature(ctx, g.species, guestDrag.p.x, guestDrag.p.y + 60, 64, { t: T, mood: 'happy', suitcase: true, sq: a.sq });
+  }
+  // ひろい ホテルは よこに うごかせる
+  if (L.maxPan > 0 && scene === 'hotel') {
+    ctx.globalAlpha = 0.8;
+    if (camX > -L.maxPan + 5) D.text(ctx, '◀', 36, H / 2, 44, { color: '#fff', stroke: 'rgba(90,61,85,.4)' });
+    if (camX < L.maxPan - 5) D.text(ctx, '▶', W - 36, H / 2, 44, { color: '#fff', stroke: 'rgba(90,61,85,.4)' });
+    ctx.globalAlpha = 1;
   }
 }
 
 function currentTip() {
   if (!save.today || night > 0.3) return '';
-  if (C.allDone(save)) return 'みんな まんぞく！\nおやすみ しようね';
+  if (C.allDone(save)) return 'みんな ねたよ。\nおやすみ しようね';
   if (T < tipUntil) return tipText;
   const started = guests().some(g => g.done > 0);
-  if (save.day === 1 && !started) return 'ふきだしの ある へやを\nタッチしてね';
+  if (save.day === 1 && !started && guests().some(g => g.room >= 0)) return 'ふきだしの ある へやを\nタッチしてね';
   return '';
 }
-const HINTS = ['へやを かざると\nおきゃくさんが よろこぶよ', 'すきな たべものが\nあるみたい', 'なでると よろこぶ\nところが あるよ', 'ハートを あつめると\nへやが ふえるよ', 'ずかんも みてみてね'];
+const HINTS = ['へやを かざると\nおきゃくさんが よろこぶよ', 'おてがみに ヒントが\nかいてあるかも', 'なでると よろこぶ\nところが あるよ', 'ハートを あつめると\nへやが ふえるよ', 'すきな おもちゃが\nあるみたい'];
+
+// へやの がめんの みぎうえ：おきゃくさんの かお（タッチで へやを いどう）
+function faceSlots() {
+  return guests().map((g, gi) => ({ gi, x: W - 64 - gi * 96, y: 58, r: 40 }));
+}
+function drawFaces() {
+  for (const f of faceSlots()) {
+    const g = guests()[f.gi], a = actors[f.gi], cur = g.room === curRoom && g.room >= 0;
+    ctx.fillStyle = cur ? '#fff3a8' : '#fff'; D.circ(ctx, f.x, f.y, f.r); ctx.fill();
+    ctx.lineWidth = cur ? 7 : 4; ctx.strokeStyle = cur ? '#ffc93c' : '#f0c3d2'; ctx.stroke();
+    ctx.save(); D.circ(ctx, f.x, f.y, f.r - 3); ctx.clip();
+    D.drawCreature(ctx, g.species, f.x, f.y + f.r * 0.95, f.r * 0.62, { t: T + f.gi, mood: a.asleep ? 'sleep' : 'normal' });
+    ctx.restore();
+    const need = showNeed(f.gi);
+    const badge = g.room < 0 ? '🛎️' : a.asleep ? '💤' : need && !cur ? NEEDS[need].icon : null;
+    if (badge) {
+      ctx.fillStyle = '#fff'; D.circ(ctx, f.x - f.r * 0.75, f.y + f.r * 0.7, 20); ctx.fill();
+      ctx.strokeStyle = '#ff8fab'; ctx.lineWidth = 3; ctx.stroke();
+      D.emoji(ctx, badge, f.x - f.r * 0.75, f.y + f.r * 0.7, 24 + (need && !cur ? Math.sin(T * 6) * 3 : 0));
+    }
+  }
+}
 
 function drawRoomView() {
   ctx.fillStyle = '#ffe0ea'; ctx.fillRect(0, 0, W, H);
@@ -258,7 +418,6 @@ function drawRoomView() {
   const rect = roomRect();
   drawRoomCell(curRoom, rect, true);
   const gi = C.guestAt(save, curRoom);
-  // なまえ
   if (gi >= 0) {
     const sp = SPECIES[guests()[gi].species];
     const ny = rect.y + rect.h - 80, nx = rect.x + rect.w - 286;
@@ -269,30 +428,64 @@ function drawRoomView() {
     D.text(ctx, 'あきべや', rect.x + rect.w / 2, rect.y + rect.h * 0.4, 40, { color: '#fff', stroke: 'rgba(90,61,85,.4)' });
     D.text(ctx, '「かざる」で すきに かざってね', rect.x + rect.w / 2, rect.y + rect.h * 0.4 + 56, 28, { color: '#fff', stroke: 'rgba(90,61,85,.4)' });
   }
-  // おさら
-  if (plate && gi >= 0) {
-    const pc = plateCenter(rect);
-    ctx.fillStyle = 'rgba(90,61,85,.15)'; D.ell(ctx, pc.x, pc.y + 14, rect.w * 0.13, rect.w * 0.035); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#ffc2d3'; ctx.lineWidth = 6;
-    D.ell(ctx, pc.x, pc.y, rect.w * 0.13, rect.w * 0.04); ctx.fill(); ctx.stroke();
-    FOODS.forEach((f, i) => {
-      if (foodDrag?.i === i) return;
-      const h = foodHome(rect, i);
-      D.emoji(ctx, f.icon, h.x, h.y + Math.sin(T * 3 + i) * 3, rect.w * 0.07);
-    });
-    if (foodDrag) D.emoji(ctx, FOODS[foodDrag.i].icon, foodDrag.x, foodDrag.y, rect.w * 0.085);
+  if (care?.type === 'food' && gi >= 0) drawPlate(rect);
+  if (care?.type === 'play' && gi >= 0 && !care.toy) drawToyChoice(rect);
+  if (care?.type === 'play' && care.toy === 'bubble') {
+    const h = toyHome(rect, 0); D.drawWand(ctx, h.x, h.y, 90 + Math.sin(T * 4) * 4);
+    if (!care.bubbles.length && T > care.hintAt) D.emoji(ctx, '👆', h.x + 30, h.y + 60 + Math.sin(T * 5) * 8, 56);
   }
-  // なでかたの おてほん
+  if (care?.type === 'play' && care.toy) {
+    const txt = `${'●'.repeat(care.count)}${'○'.repeat(Math.max(0, care.goal - care.count))}`;
+    D.text(ctx, txt, rect.x + rect.w / 2, rect.y + 40, 36, { color: '#ff6f91', stroke: '#fff', sw: 8 });
+    if (care.toy === 'ball' && care.ball.state === 'rest' && T > care.hintAt) {
+      const s = rect.w / ROOM.w;
+      D.emoji(ctx, '👆', rect.x + (care.ball.x + 30) * s, rect.y + (care.ball.y + 60) * s + Math.sin(T * 5) * 8, 56);
+      D.text(ctx, 'なげてね！', rect.x + care.ball.x * s, rect.y + (care.ball.y - 70) * s, 30, { color: '#fff', stroke: '#ff6f91' });
+    }
+  }
+  if (care?.type === 'sleep' && gi >= 0 && T > care.hintAt) {
+    const p = actorScreen(gi, rect);
+    D.emoji(ctx, '👆', p.bc.x + 20, p.bc.y + 10 + Math.abs(Math.sin(T * 5)) * 20, 60);
+    D.text(ctx, 'トントン してね', p.bc.x, p.head.y - 30, 30, { color: '#fff', stroke: '#7a6ee0' });
+  }
+  if (eating) {
+    const p = actorScreen(eating.gi, rect), u = (T - eating.t0) / 0.9;
+    const k = u < 0.3 ? 1 : u < 0.55 ? 0.66 : u < 0.8 ? 0.33 : 0;
+    if (k > 0) D.emoji(ctx, eating.icon, p.bc.x, p.bc.y + p.r * 0.35, rect.w * 0.07 * k);
+  }
   if (T < handHint && gi >= 0) {
     const p = actorScreen(gi, rect), u = (handHint - T) * 3;
     D.emoji(ctx, '👆', p.bc.x + Math.sin(u * 2.2) * p.r * 0.5, p.bc.y - p.r * 0.2 + 40, 70);
   }
-  // かざりつけで ひっぱっている もの
   if (drag) drawDragged(rect);
+  if (!decor) drawFaces();
 }
 
 const plateCenter = rect => ({ x: rect.x + rect.w * 0.2, y: rect.y + rect.h * 0.86 });
 const foodHome = (rect, i) => { const c = plateCenter(rect); return { x: c.x + (i - 1) * rect.w * 0.08, y: c.y - rect.w * 0.025 }; };
+const toyHome = (rect, i) => { const c = plateCenter(rect); return { x: c.x + (i - 0.5) * rect.w * 0.12, y: c.y - rect.w * 0.03 }; };
+function drawPlate(rect) {
+  const pc = plateCenter(rect);
+  ctx.fillStyle = 'rgba(90,61,85,.15)'; D.ell(ctx, pc.x, pc.y + 14, rect.w * 0.13, rect.w * 0.035); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#ffc2d3'; ctx.lineWidth = 6;
+  D.ell(ctx, pc.x, pc.y, rect.w * 0.13, rect.w * 0.04); ctx.fill(); ctx.stroke();
+  FOODS.forEach((f, i) => {
+    if (foodDrag?.i === i || (care.back === i && T < care.backUntil)) return;
+    const h = foodHome(rect, i);
+    D.emoji(ctx, f.icon, h.x, h.y + Math.sin(T * 3 + i) * 3, rect.w * 0.07);
+  });
+  if (foodDrag) D.emoji(ctx, FOODS[foodDrag.i].icon, foodDrag.x, foodDrag.y, rect.w * 0.085);
+}
+function drawToyChoice(rect) {
+  const pc = plateCenter(rect);
+  ctx.fillStyle = 'rgba(255,255,255,.85)'; D.rr(ctx, pc.x - rect.w * 0.14, pc.y - rect.w * 0.1, rect.w * 0.28, rect.w * 0.13, 30); ctx.fill();
+  const b = toyHome(rect, 0), w = toyHome(rect, 1), s = rect.w / ROOM.w;
+  D.drawBall(ctx, w.x, w.y + Math.sin(T * 3) * 4, 40 * s * 1.1);
+  D.drawWand(ctx, b.x, b.y + 20 + Math.sin(T * 3 + 1) * 4, 90 * s);
+  D.text(ctx, 'しゃぼんだま', b.x, b.y + rect.w * 0.07, 20, {});
+  D.text(ctx, 'ボール', w.x, w.y + rect.w * 0.07, 20, {});
+  D.text(ctx, 'どれで あそぶ？', pc.x, pc.y - rect.w * 0.13, 30, { color: '#fff', stroke: '#ff6f91' });
+}
 
 function drawDragged(rect) {
   const s = rect.w / ROOM.w, d = ITEMS[drag.id];
@@ -315,11 +508,10 @@ function drawDragged(rect) {
 }
 
 function dragRoomPos(rect) {
-  const s = rect.w / ROOM.w, d = ITEMS[drag.id];
+  const s = rect.w / ROOM.w;
   const drawerTop = $('drawer').getBoundingClientRect().top / S;
   const inside = drag.p.y < drawerTop - 10 && drag.p.x > rect.x - 40 && drag.p.x < rect.x + rect.w + 40 && drag.p.y > rect.y - 60;
   const it = C.clampItem({ id: drag.id, x: (drag.p.x - rect.x) / s + drag.off.x, y: (drag.p.y - rect.y) / s + drag.off.y });
-  void d;
   return { inside, x: it.x, y: it.y };
 }
 
@@ -330,7 +522,7 @@ function bathGeom() {
 }
 function startBath(gi) {
   const g = guests()[gi], a = actors[gi], sp = SPECIES[g.species];
-  scene = 'bath'; plate = null;
+  scene = 'bath'; care = null;
   bath = { gi, phase: 'soap', foam: [], shower: null, rub: 0 };
   if (!a.dirt) a.dirt = genDirt();
   a.dirt.forEach(d => { d.a = 1; });
@@ -347,31 +539,25 @@ function bathBody(gi) {
 function drawBath() {
   const gi = bath.gi, g = guests()[gi], a = actors[gi];
   const { bc, r, G } = bathBody(gi);
-  // タイルの かべ
   ctx.fillStyle = '#d7f0ff'; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#bfe3f7'; ctx.lineWidth = 4;
   for (let x = 0; x < W; x += 90) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
   for (let y = 0; y < H; y += 90) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   ctx.fillStyle = '#aee0f5'; ctx.fillRect(0, H * 0.8, W, H * 0.2);
-  // あひる
   D.emoji(ctx, '🐥', G.cx + G.tubW * 0.36, G.tubTop - 18 + Math.sin(T * 2) * 5, 64);
-  // おゆの うしろがわ
   ctx.fillStyle = '#e9f7ff'; D.ell(ctx, G.cx, G.tubTop, G.tubW / 2, 40); ctx.fill();
-  D.drawCreature(ctx, g.species, G.cx, G.feet, G.r, { ...stOf(gi), dirt: a.dirt });
-  // あわ
+  D.drawCreature(ctx, g.species, G.cx, G.feet, G.r, { ...stOf(gi), dirt: a.dirt, blanket: false });
   for (const f of bath.foam) {
     const x = bc.x + f.x * r, y = bc.y + f.y * r, s = f.s * r * (f.grow < 1 ? f.grow : 1);
     ctx.fillStyle = 'rgba(255,255,255,.95)'; D.circ(ctx, x, y, s); ctx.fill();
     ctx.strokeStyle = 'rgba(180,215,240,.8)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = 'rgba(200,230,255,.9)'; D.circ(ctx, x - s * 0.35, y - s * 0.35, s * 0.2); ctx.fill();
   }
-  // おふろおけ（まえ）
   ctx.fillStyle = '#ffffff'; D.rr(ctx, G.cx - G.tubW / 2, G.tubTop, G.tubW, H - G.tubTop + 40, 60); ctx.fill();
   ctx.fillStyle = '#ffb3c8'; D.rr(ctx, G.cx - G.tubW / 2, G.tubTop + 40, G.tubW, 26, 13); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d6ecf7'; ctx.lineWidth = 6;
   D.ell(ctx, G.cx, G.tubTop, G.tubW / 2 + 10, 26); ctx.stroke();
   for (let i = 0; i < 9; i++) { D.circ(ctx, G.cx - G.tubW * 0.42 + i * G.tubW * 0.105, G.tubTop - 4 + Math.sin(T * 3 + i) * 3, 22 + (i % 3) * 6); ctx.fill(); }
-  // シャワー
   if (bath.phase === 'rinse') {
     const sh = bath.shower || { x: G.cx + G.r * 1.8 + Math.sin(T * 3) * 10, y: bc.y - r * 1.6 };
     ctx.save(); ctx.translate(sh.x, sh.y);
@@ -382,11 +568,10 @@ function drawBath() {
     if (!bath.shower) D.emoji(ctx, '👆', sh.x + 30, sh.y + 60 + Math.sin(T * 5) * 8, 56);
   }
   if (a.say && T < a.sayUntil) speeches.push({ x: bc.x, y: bc.y - r - 10, text: a.say, size: 34 });
-  const msg = bath.phase === 'soap' ? 'ゴシゴシ こすって あわあわ！' : bath.phase === 'rinse' ? 'シャワーで あわを ながそう！' : 'ピカピカ！';
+  const msg = bath.phase === 'soap' ? 'ゴシゴシ こすって あわあわ！' : bath.phase === 'rinse' ? 'シャワーで あわを ながそう！' : bath.phase === 'dry' ? 'ふきふき…' : 'ピカピカ！';
   D.text(ctx, msg, W / 2, H * 0.17, 46, { color: '#fff', stroke: '#5cb8e8', sw: 12 });
 }
 
-function bathDown(p) { bath.last = p; bathMove(p); }
 function bathMove(p) {
   const gi = bath.gi, a = actors[gi], g = guests()[gi];
   const { bc, r, G } = bathBody(gi);
@@ -405,9 +590,7 @@ function bathMove(p) {
     sound.play('scrub', 0.08);
     if (Math.random() < 0.1) poke(a, 0.06);
     if (g.species === 'gorota') setMood(a, 'bliss', 0.4);
-    if (a.dirt.every(s => s.a < 0.05) && bath.foam.length >= 16) {
-      bath.phase = 'rinse'; sound.play('ok');
-    }
+    if (a.dirt.every(s => s.a < 0.05) && bath.foam.length >= 16) { bath.phase = 'rinse'; sound.play('ok'); }
   } else if (bath.phase === 'rinse') {
     bath.shower = { x: p.x, y: Math.min(p.y, bc.y - r * 1.25) };
   }
@@ -415,7 +598,8 @@ function bathMove(p) {
 function updateBath(dt) {
   if (!bath) return;
   for (const f of bath.foam) f.grow = Math.min(1, (f.grow || 0) + dt * 5);
-  const gi = bath.gi, a = actors[gi], g = guests()[gi];
+  const gi = bath.gi, a = actors[gi], g = guests()[gi], G = bathGeom();
+  if (Math.random() < dt * 4) parts.push({ k: 'steam', x: G.cx + rand(-G.tubW * 0.45, G.tubW * 0.45), y: G.tubTop - 10, vx: 0, vy: -60, t: 0, life: 2.2, s: rand(0, 6) });
   if (bath.phase === 'rinse' && bath.shower && pointerId !== null) {
     const { bc, r } = bathBody(gi), sh = bath.shower;
     for (let i = 0; i < 3; i++) parts.push({ k: 'drop', x: sh.x + rand(-40, 40), y: sh.y + 10, vx: rand(-20, 20), vy: rand(200, 400), t: 0, life: 0.6 });
@@ -431,16 +615,20 @@ function updateBath(dt) {
     }
     bath.foam = bath.foam.filter(f => !f.dead);
     if (!bath.foam.length) {
-      bath.phase = 'done';
-      a.puffT = 1; sound.play('shine');
-      const sp = SPECIES[g.species];
-      setMood(a, 'happy', 3); say(a, sp.say.bathEnd, 2.4);
+      // タオルで ふきふき → ピカピカ
+      bath.phase = 'dry'; a.puffT = 1; a.towel = T + 1.4;
       if (g.species === 'fuwari') a.shake = 1.2;
-      poke(a, 0.3);
-      sparkles(bc.x, bc.y, 14, r);
-      later(2.3, finishBath);
+      setMood(a, 'bliss', 1.4); sound.play('scrub');
+      later(1.4, () => {
+        if (!bath) return;
+        bath.phase = 'done'; sound.play('shine');
+        const sp = SPECIES[g.species], { bc: c2, r: r2 } = bathBody(gi);
+        setMood(a, 'happy', 3); say(a, sp.say.bathEnd, 2.4); jump(a);
+        sparkles(c2.x, c2.y, 16, r2);
+        later(2, finishBath);
+      });
     }
-  } else if (bath.phase !== 'done') a.puffT = 1;
+  } else if (bath.phase === 'soap' || bath.phase === 'rinse') a.puffT = 1;
 }
 function finishBath() {
   if (!bath) return;
@@ -451,69 +639,196 @@ function finishBath() {
   later(0.2, () => { reward(gi, res.hearts); if (res.learned) toast('📖 ずかんに かいたよ！'); });
 }
 
+// ---------- あそぶ ----------
+function startPlay(gi) {
+  care = { type: 'play', gi, toy: null, count: 0, goal: 3, hintAt: T + 1.5 };
+  sound.play('pop');
+  firstTip('play', 'どれで あそぶか えらんでね');
+}
+function chooseToy(toy) {
+  care.toy = toy; care.count = 0; care.hintAt = T + 1.2;
+  care.goal = toy === 'ball' ? 3 : 6;
+  care.ball = { x: 200, y: 560, vx: 0, vy: 0, state: 'rest', rot: 0, floorY: 600 };
+  care.bubbles = [];
+  const a = actors[care.gi], sp = SPECIES[guests()[care.gi].species];
+  if (toy === sp.toy) { say(a, sp.say.toyFav, 2); setMood(a, 'happy', 2); jump(a); sound.play('like'); }
+  else { say(a, 'いいよ〜', 1.5); sound.play('pop'); }
+}
+function updatePlay(dt) {
+  if (care?.type !== 'play' || !care.toy || scene !== 'room') return;
+  const gi = care.gi, a = actors[gi];
+  if (care.toy === 'ball') {
+    const b = care.ball;
+    if (b.state === 'fly') {
+      b.vy += 1800 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.rot += b.vx * dt * 0.02;
+      if (b.x < 40) { b.x = 40; b.vx = Math.abs(b.vx) * 0.6; }
+      if (b.x > 960) { b.x = 960; b.vx = -Math.abs(b.vx) * 0.6; }
+      if (b.y > 580) {
+        b.y = 580; b.vy = -Math.abs(b.vy) * 0.45; b.vx *= 0.8;
+        if (Math.abs(b.vy) > 120) sound.play('drop', 0.1);
+        if (Math.abs(b.vy) < 80) { b.vy = 0; b.state = 'ground'; }
+      }
+      care.targetX = b.x;
+    } else if (b.state === 'ground') {
+      b.vx *= Math.pow(0.2, dt); b.x += b.vx * dt; b.rot += b.vx * dt * 0.02;
+      care.targetX = b.x;
+      if (Math.abs(a.x - b.x) < 50) { b.state = 'carried'; poke(a, 0.2); sound.play('pick'); care.targetX = 560; }
+    } else if (b.state === 'carried') {
+      care.targetX = 560;
+      if (Math.abs(a.x - 560) < 12) {
+        care.count++; b.state = 'rest'; b.x = 200; b.y = 560; care.hintAt = T + 2;
+        jump(a); notes(guestScreenAnywhere(gi).head.x, guestScreenAnywhere(gi).head.y);
+        sound.play('ok');
+        if (care.count >= care.goal) finishPlay();
+      }
+    } else care.targetX = 560;
+  } else {
+    // しゃぼんだま：ふわふわ とぶ あわを ぴょんと わる
+    const headY = a.baseY - 2 * R_BASE * D.depth(a.baseY);
+    for (const b of care.bubbles) {
+      b.t += dt; b.x += b.vx * dt + Math.sin(b.t * 2 + b.ph) * 30 * dt; b.y += b.vy * dt;
+      b.vy = Math.min(b.vy + 8 * dt, 25);
+      if (b.x < 60 || b.x > 940) b.vx *= -1;
+    }
+    const target = care.bubbles.slice().sort((p, q) => Math.abs(p.x - a.x) - Math.abs(q.x - a.x))[0];
+    care.targetX = target ? target.x : 560;
+    if (target && Math.abs(target.x - a.x) < 60 && target.y > headY - 120 && T - a.jumpT > 0.6) {
+      jump(a);
+      later(0.25, () => popBubble(target));
+    }
+    care.bubbles = care.bubbles.filter(b => b.t < 9 && !b.dead);
+  }
+}
+function popBubble(b) {
+  if (!care || care.type !== 'play' || b.dead) return;
+  b.dead = true;
+  const rect = roomRect(), s = rect.w / ROOM.w;
+  parts.push({ k: 'pop', x: rect.x + b.x * s, y: rect.y + b.y * s, vx: 0, vy: 0, t: 0, life: 0.35, s: b.r * s });
+  sound.play('bubble');
+  care.count++;
+  if (care.count >= care.goal) finishPlay();
+}
+function blowBubbles() {
+  const h = { x: 200, y: 470 };
+  for (let i = 0; i < 4; i++) care.bubbles.push({ x: h.x + rand(-20, 20), y: h.y - rand(0, 40), vx: rand(80, 220), vy: rand(-90, -40), r: rand(26, 40), t: 0, ph: rand(0, 6) });
+  sound.play('bubble'); care.hintAt = T + 4;
+}
+function finishPlay() {
+  const gi = care.gi, a = actors[gi], sp = SPECIES[guests()[gi].species];
+  const res = C.playDone(save, gi, care.toy);
+  care = null;
+  if (res.result === 'notNow') return;
+  say(a, res.result === 'fav' ? 'たのしかった〜！' : sp.say.toyOk, 2);
+  sound.play(res.result === 'fav' ? 'fav' : 'ok');
+  reward(gi, res.hearts);
+  if (res.learned) later(0.8, () => toast('📖 すきな あそびが わかった！'));
+}
+
+// ---------- ねかしつけ ----------
+function startSleep(gi) {
+  care = { type: 'sleep', gi, taps: 0, hintAt: T + 1.6 };
+  const a = actors[gi];
+  if (!C.bedOf(save.rooms[guests()[gi].room])) say(a, 'ベッドが ないなぁ… ゆかで ねるね', 2.4);
+  else say(a, 'ふわぁ〜', 1.5);
+  sound.play('pop');
+  firstTip('sleep', 'やさしく トントン してね');
+}
+const LULLABY = [659, 587, 523, 587, 659, 659, 659];
+function tapSleep(gi, p) {
+  const a = actors[gi];
+  if (Math.abs(a.x - a.tx) > 12) return;
+  care.taps++; care.hintAt = T + 3;
+  sound.tone?.(LULLABY[(care.taps - 1) % LULLABY.length], 0.5, { type: 'sine', vol: 0.18 });
+  poke(a, 0.12); setMood(a, 'bliss', 1.2);
+  notes(p.x, p.y - 20, 1);
+  if (care.taps >= 5) {
+    const res = C.sleepDone(save, gi);
+    care = null;
+    a.asleep = true;
+    say(a, SPECIES[guests()[gi].species].say.sleepEnd, 2);
+    sound.play('night');
+    reward(gi, res.hearts);
+  }
+}
+
 // ---------- おせわの けっか ----------
 function reward(gi, hearts) {
   const a = actors[gi], g = guests()[gi];
-  let pos;
-  if (scene === 'room' && curRoom === g.room) pos = actorScreen(gi, roomRect()).head;
-  else { const cell = hotelLayout().cells.find(c => c.kind === 'room' && c.idx === g.room); pos = cell ? actorScreen(gi, cell.rect).head : { x: W / 2, y: H / 2 }; }
+  const pos = guestScreenAnywhere(gi).head;
   burstHearts(pos.x, pos.y, hearts);
   sparkles(pos.x, pos.y + 40, 6, 60);
-  poke(a, 0.3);
+  if (!a.asleep) jump(a);
   a.needAt = T + 1.8;
   a.pet = 0; a.favD = 0; a.allD = 0;
   persist();
   if (C.isHappy(g) && !a.thanked) {
     a.thanked = true;
-    later(1.2, () => { say(a, 'ありがとう！ だいまんぞく！', 2.4); setMood(a, 'happy', 2.4); sound.play('like'); });
-    if (C.allDone(save)) later(2.2, () => { toast('みんな まんぞく！ 🌙'); });
+    later(1.4, () => { confetti(pos.x, pos.y); sound.play('like'); });
+    if (C.allDone(save)) later(2.2, () => { toast('みんな ねたよ 🌙 おやすみ しよう'); });
   }
 }
+function refuse(gi, str) { const a = actors[gi]; sound.play('no'); a.shake = 0.7; say(a, str, 1.6); }
 
-function refuse(gi, str) {
-  const a = actors[gi]; sound.play('no'); a.shake = 0.7; say(a, str, 1.6);
-}
-
-// ごはん
 function feed(gi, food) {
   const a = actors[gi], g = guests()[gi], sp = SPECIES[g.species];
   const res = C.feed(save, gi, food);
   a.mouth = 1; setMood(a, 'eat', 0.4);
   if (res.result === 'dislike') {
     sound.play('yuck'); setMood(a, 'yuck', 1.6); a.shake = 1.1; say(a, sp.say.dislike, 2.2); a.look = -1; a.lookUntil = T + 1.5;
+    care.back = FOODS.findIndex(f => f.id === food); care.backUntil = T + 0.6;
     if (res.learned) { persist(); later(0.8, () => toast('📖 にがてな たべものが わかった！')); }
     return;
   }
-  sound.play('munch');
-  plate = null;
-  later(0.45, () => {
+  care = null;
+  // もぐもぐ：3かいで たべおわる
+  eating = { gi, icon: FOODS.find(f => f.id === food).icon, t0: T };
+  const crumbs = () => {
+    const p = guestScreenAnywhere(gi);
+    for (let i = 0; i < 5; i++) parts.push({ k: 'crumb', x: p.bc.x + rand(-20, 20), y: p.bc.y + p.r * 0.35, vx: rand(-160, 160), vy: rand(-250, -80), t: 0, life: 0.8, s: rand(3, 6), c: food === 'apple' ? '#fff1c9' : food === 'ame' ? '#ff9fc0' : '#c98b55' });
+    poke(a, 0.12); a.mouth = 1; setMood(a, 'eat', 0.3); sound.play('munch');
+  };
+  [0, 0.3, 0.55].forEach(t => later(t, crumbs));
+  later(0.9, () => {
+    eating = null;
     const fav = res.result === 'fav';
-    setMood(a, fav ? 'happy' : 'happy', 2); say(a, fav ? sp.say.fav : sp.say.ok, 2.4); sound.play(fav ? 'fav' : 'ok');
+    setMood(a, 'happy', 2); say(a, fav ? sp.say.fav : sp.say.ok, 2.4); sound.play(fav ? 'fav' : 'ok');
+    if (fav) a.shake = 0.4;
     reward(gi, res.hearts);
     if (res.learned) later(0.8, () => toast('📖 すきな たべものが わかった！'));
   });
 }
 
 // ---------- ゆび の そうさ ----------
-function hitGuest(p) {
+function hitGuest(p, rect = roomRect()) {
   const gi = C.guestAt(save, curRoom); if (gi < 0) return null;
-  const s = actorScreen(gi, roomRect());
+  const s = actorScreen(gi, rect);
   const dx = (p.x - s.bc.x) / (s.r * actors[gi].puff), dy = (p.y - s.bc.y) / (s.r * actors[gi].puff);
   return dx * dx + dy * dy < 1.25 ? { gi, dx, dy, r: s.r } : null;
+}
+function hitWaitingGuest(p) {
+  const L = hotelLayout(), rect = L.cells[0].rect;
+  for (let gi = guests().length - 1; gi >= 0; gi--) {
+    if (guests()[gi].room >= 0) continue;
+    const s = actorScreen(gi, rect);
+    if (Math.hypot(p.x - s.bc.x, p.y - s.bc.y) < s.r * 1.4) return gi;
+  }
+  return -1;
 }
 
 function onDown(p) {
   if (scene === 'hotel') {
-    const cell = hotelLayout().cells.find(c => p.x >= c.rect.x && p.x <= c.rect.x + c.rect.w && p.y >= c.rect.y && p.y <= c.rect.y + c.rect.h);
-    if (!cell) return;
-    if (cell.kind === 'room') enterRoom(cell.idx);
-    else if (cell.kind === 'lobby') { punyu.v += 2.5; sound.play('bell'); tipText = HINTS[hintIdx++ % HINTS.length]; tipUntil = T + 3.5; }
-    else { sound.play('tap'); toast('ハートを あつめると へやが ふえるよ'); }
+    const wg = hitWaitingGuest(p);
+    if (wg >= 0) { guestDrag = { gi: wg, p, start: p, moved: false }; poke(actors[wg], 0.2); sound.play('pick'); return; }
+    down = { p, cam0: camX, panned: false };
     return;
   }
-  if (scene === 'bath') { bathDown(p); return; }
+  if (scene === 'bath') { bath.last = p; bathMove(p); return; }
   if (scene !== 'room') return;
   const rect = roomRect();
+  if (!decor) {
+    const f = faceSlots().find(f => Math.hypot(p.x - f.x, p.y - f.y) < f.r + 6);
+    if (f) { goToGuest(f.gi); return; }
+  }
   if (decor) {
     const s = rect.w / ROOM.w, u = (p.x - rect.x) / s, v = (p.y - rect.y) / s;
     const items = save.rooms[curRoom].items;
@@ -527,26 +842,55 @@ function onDown(p) {
     return;
   }
   const gi = C.guestAt(save, curRoom);
-  if (gi < 0) return;
-  if (plate) {
+  if (gi < 0 || eating) return;
+  const s = rect.w / ROOM.w;
+  if (care?.type === 'food') {
     for (let i = 0; i < FOODS.length; i++) {
       const h = foodHome(rect, i);
       if (Math.hypot(p.x - h.x, p.y - h.y) < rect.w * 0.05) { foodDrag = { i, x: p.x, y: p.y }; sound.play('pick'); return; }
     }
   }
-  const hg = hitGuest(p);
-  if (hg) { petting = { gi, last: p }; poke(actors[gi], 0.15); }
+  if (care?.type === 'play' && !care.toy) {
+    const b = toyHome(rect, 0), w = toyHome(rect, 1);
+    if (Math.hypot(p.x - b.x, p.y - b.y) < rect.w * 0.06) { chooseToy('bubble'); return; }
+    if (Math.hypot(p.x - w.x, p.y - w.y) < rect.w * 0.06) { chooseToy('ball'); return; }
+  }
+  if (care?.type === 'play' && care.toy === 'ball' && care.ball.state === 'rest') {
+    const b = care.ball;
+    if (Math.hypot(p.x - (rect.x + b.x * s), p.y - (rect.y + b.y * s)) < 70 * s + 30) { care.ballDrag = { hist: [{ p, t: T }] }; b.state = 'hold'; sound.play('pick'); return; }
+  }
+  if (care?.type === 'play' && care.toy === 'bubble') {
+    const h = toyHome(rect, 0);
+    if (Math.hypot(p.x - h.x, p.y - h.y) < rect.w * 0.07) { blowBubbles(); return; }
+    const hitB = care.bubbles.find(b => Math.hypot(p.x - (rect.x + b.x * s), p.y - (rect.y + b.y * s)) < b.r * s + 20);
+    if (hitB) { popBubble(hitB); return; }
+  }
+  const hg = hitGuest(p, rect);
+  if (hg && sleepCareOn(gi)) { tapSleep(gi, p); return; }
+  if (hg && !actors[gi].asleep) { petting = { gi, last: p }; poke(actors[gi], 0.15); }
 }
 
 function onMove(p) {
+  if (guestDrag) { guestDrag.p = p; if (Math.hypot(p.x - guestDrag.start.x, p.y - guestDrag.start.y) > 14) guestDrag.moved = true; return; }
+  if (down && scene === 'hotel') {
+    const dx = p.x - down.p.x;
+    if (Math.abs(dx) > 14) down.panned = true;
+    if (down.panned) { camX = down.cam0 - dx; camTarget = null; }
+    return;
+  }
   if (scene === 'bath' && bath) { bathMove(p); return; }
   if (drag) { drag.p = p; return; }
+  if (care?.ballDrag) {
+    const rect = roomRect(), s = rect.w / ROOM.w, b = care.ball;
+    b.x = clamp((p.x - rect.x) / s, 40, 960); b.y = clamp((p.y - rect.y) / s, 200, 580);
+    care.ballDrag.hist.push({ p, t: T }); if (care.ballDrag.hist.length > 6) care.ballDrag.hist.shift();
+    return;
+  }
   if (foodDrag) {
     foodDrag.x = p.x; foodDrag.y = p.y;
     const gi = C.guestAt(save, curRoom); if (gi < 0) return;
     const s = actorScreen(gi, roomRect()), a = actors[gi];
-    const mouth = { x: s.bc.x, y: s.bc.y + s.r * 0.26 };
-    const dist = Math.hypot(p.x - mouth.x, p.y - mouth.y);
+    const dist = Math.hypot(p.x - s.bc.x, p.y - (s.bc.y + s.r * 0.26));
     a.mouth = clamp(1.5 - dist / (s.r * 1.8), 0, 1);
     if (a.mouth > 0.05 && T > a.moodUntil - 0.2) setMood(a, 'eat', 0.3);
     a.look = clamp((p.x - s.bc.x) / (s.r * 3), -1, 1); a.lookUntil = T + 0.3;
@@ -567,7 +911,7 @@ function onMove(p) {
       a.favRub += d;
       if (a.favRub > hg.r * 1.6 && !a.spotSaid) {
         a.spotSaid = true; say(a, sp.say.spot, 2);
-        for (let i = 0; i < 4; i++) parts.push({ k: 'note', x: p.x + rand(-40, 40), y: p.y - 30, vx: rand(-30, 30), vy: -80, t: -i * 0.15, life: 1.2, s: 40 });
+        notes(p.x, p.y - 30, 4);
         if (C.learnSpot(save, g.species)) { persist(); later(0.6, () => toast('📖 なでると よろこぶ ところが わかった！')); }
       }
     }
@@ -585,6 +929,25 @@ function onMove(p) {
 }
 
 function onUp(p, cancel) {
+  if (guestDrag) {
+    const gd = guestDrag; guestDrag = null;
+    if (cancel) return;
+    const L = hotelLayout();
+    if (!gd.moved) {
+      // タッチだけ → えらんで、へやを タッチ
+      selected = gd.gi; say(actors[gd.gi], TAGS[guests()[gd.gi].wish].wish.replace('\n', ''), 2.2);
+      toast('つれていく へやを タッチしてね'); return;
+    }
+    const cell = L.cells.find(c => c.kind === 'room' && inRect(p, c.rect));
+    if (cell) tryCheckIn(gd.gi, cell.idx); else sound.play('no');
+    return;
+  }
+  if (down && scene === 'hotel') {
+    const d = down; down = null;
+    if (d.panned || cancel) return;
+    hotelTap(p);
+    return;
+  }
   if (scene === 'bath' && bath) { bath.last = null; if (bath.phase === 'rinse') bath.shower = null; return; }
   if (drag) {
     const rect = roomRect(), pos = dragRoomPos(rect);
@@ -592,11 +955,21 @@ function onUp(p, cancel) {
       if (drag.fromDrawer) C.placeItem(save, curRoom, drag.id, pos.x, pos.y);
       else { drag.item.x = pos.x; drag.item.y = pos.y; C.clampItem(drag.item); }
       sound.play('drop');
-      decorChanged();
+      decorChanged({ kind: 'item', id: drag.id });
     } else if (!cancel && !drag.fromDrawer) {
-      C.removeItem(save, curRoom, drag.item); sound.play('pick'); decorChanged();
+      C.removeItem(save, curRoom, drag.item); sound.play('pick'); decorChanged(null);
     }
     drag = null;
+    return;
+  }
+  if (care?.ballDrag) {
+    const h = care.ballDrag.hist, b = care.ball, rect = roomRect(), s = rect.w / ROOM.w;
+    care.ballDrag = null;
+    const a0 = h[0], a1 = h[h.length - 1], dt = Math.max(0.016, a1.t - a0.t);
+    let vx = (a1.p.x - a0.p.x) / s / dt, vy = (a1.p.y - a0.p.y) / s / dt;
+    if (Math.hypot(vx, vy) < 200) { vx = 650; vy = -700; }
+    b.vx = clamp(vx, -1600, 1600); b.vy = clamp(vy, -1500, 600); b.state = 'fly';
+    sound.play('pop');
     return;
   }
   if (foodDrag) {
@@ -611,29 +984,65 @@ function onUp(p, cancel) {
   petting = null;
 }
 
-canvas.addEventListener('pointerdown', e => {
-  sound.unlock();
-  if (pointerId !== null) return;
-  pointerId = e.pointerId;
-  onDown(toV(e));
-});
-addEventListener('pointermove', e => { if (e.pointerId === pointerId) onMove(toV(e)); });
-const up = e => { if (e.pointerId !== pointerId) return; pointerId = null; onUp(toV(e), e.type === 'pointercancel'); };
-addEventListener('pointerup', up);
-addEventListener('pointercancel', up);
+function hotelTap(p) {
+  const L = hotelLayout();
+  const cell = L.cells.find(c => inRect(p, c.rect));
+  if (!cell) return;
+  if (cell.kind === 'room') {
+    if (selected >= 0 && guests()[selected]?.room < 0) { tryCheckIn(selected, cell.idx); return; }
+    enterRoom(cell.idx);
+  } else if (cell.kind === 'lobby') { punyu.v += 2.5; sound.play('bell'); tipText = HINTS[hintIdx++ % HINTS.length]; tipUntil = T + 3.5; }
+  else if (cell.kind === 'locked') { sound.play('tap'); toast('ハートを あつめると へやが ふえるよ'); }
+}
+
+function tryCheckIn(gi, roomIdx) {
+  const g = guests()[gi], a = actors[gi], sp = SPECIES[g.species];
+  if (C.guestAt(save, roomIdx) >= 0) { sound.play('no'); toast('そこは ほかの おきゃくさんが いるよ'); return; }
+  const res = C.checkIn(save, gi, roomIdx);
+  if (!res) return;
+  selected = -1;
+  save.tips.checkins = (save.tips.checkins || 0) + 1;
+  persist();
+  a.x = 500; a.tx = 500; a.y = a.baseY; a.pop = 0; a.needAt = T + 2.4; a.lastComment = T;
+  sound.play('door');
+  if (res.liked.length) {
+    later(0.4, () => { say(a, `${res.liked.map(t => TAGS[t].icon).join('')} ${sp.say.room}`, 2.6); setMood(a, 'happy', 2.5); sound.play('like'); reward(gi, res.hearts); a.needAt = T + 2.4; });
+    later(1.4, () => toast('📖 すきな かざりが わかった！'));
+  } else {
+    later(0.4, () => { say(a, sp.say.roomMeh, 2.6); setMood(a, 'pout', 2); });
+    if (!save.tips.meh) { save.tips.meh = true; later(3, () => toast('かざりを たすと よろこぶかも！')); }
+  }
+}
+
+function goToGuest(gi) {
+  const g = guests()[gi];
+  sound.play('tap');
+  if (g.room < 0) { leaveRoom(); focusCell(-1); return; }
+  if (g.room !== curRoom) enterRoom(g.room);
+}
 
 // ---------- がめんの きりかえ ----------
 function enterRoom(idx) {
-  scene = 'room'; curRoom = idx; decor = false; plate = null; sound.play('door');
+  scene = 'room'; curRoom = idx; decor = false; care = null; eating = null; sound.play('door');
   const gi = C.guestAt(save, idx);
   if (gi >= 0) {
-    const a = actors[gi], sp = SPECIES[guests()[gi].species];
-    if (!a.greeted) { a.greeted = true; later(0.3, () => say(a, sp.say.hello, 2.2)); }
+    const a = actors[gi];
+    if (!a.asleep && T - a.lastComment > 25) { a.lastComment = T; later(0.4, () => roomComment(gi)); }
     if (showNeed(gi)) firstTip('tool', 'ひかっている ボタンを おしてね');
   } else firstTip('empty', 'ここは あきべや。 かざって みよう！');
 }
+// へやの かんそう（すきな 家具を なまえで いう）
+function roomComment(gi) {
+  const g = guests()[gi], a = actors[gi], sp = SPECIES[g.species], room = save.rooms[g.room];
+  const items = C.likedItems(room, g.species);
+  if (items.length) { const it = items[Math.floor(Math.random() * items.length)]; say(a, `${ITEMS[it.id].name}、すてき！`, 2.2); setMood(a, 'happy', 1.5); }
+  else if (C.likedTags(room, g.species).length) say(a, sp.say.room, 2.2);
+  else if (room.items.length <= 2) say(a, 'ちょっと さみしい へや…', 2.2);
+  else say(a, 'いい へや だね', 2);
+}
 function leaveRoom() {
-  scene = 'hotel'; decor = false; plate = null; foodDrag = null; drag = null; sound.play('tap');
+  scene = 'hotel'; decor = false; care = null; foodDrag = null; drag = null; eating = null; sound.play('tap');
+  focusCell(curRoom);
 }
 
 $('backBtn').onclick = () => {
@@ -641,35 +1050,135 @@ $('backBtn').onclick = () => {
   if (scene === 'bath') { bath = null; scene = 'room'; actors.forEach(a => { a.puffT = 1; }); return; }
   leaveRoom();
 };
-$('decorBtn').onclick = () => { decor = true; plate = null; tab = 'item'; sound.play('pop'); renderDrawer(); firstTip('decor', 'かぐを ゆびで はこんでね'); };
+$('decorBtn').onclick = () => { decor = true; care = null; tab = 'item'; sound.play('pop'); renderDrawer(); firstTip('decor', 'かぐを ゆびで はこんでね'); };
 $('decorDone').onclick = () => { decor = false; drag = null; sound.play('ok'); };
 for (const b of document.querySelectorAll('.dtabs button')) b.onclick = () => { tab = b.dataset.tab; sound.play('tap'); renderDrawer(); };
 
+const REFUSE = { food: 'いまは おなか すいてないよ', bath: 'いまは きれいだよ', play: 'いまは あそばない〜', sleep: 'まだ ねむくないよ' };
 for (const b of document.querySelectorAll('.tool')) b.onclick = () => {
   sound.unlock();
-  const gi = C.guestAt(save, curRoom); if (gi < 0 || scene !== 'room') return;
-  const need = showNeed(gi), tool = b.dataset.tool;
-  if (tool === 'food') {
-    if (need === 'food') { plate = plate ? null : true; sound.play('pop'); if (plate) firstTip('food', 'たべものを くちまで はこんでね'); }
-    else refuse(gi, C.isHappy(guests()[gi]) ? 'おなか いっぱい〜' : 'いまは おなか すいてないよ');
-  } else if (tool === 'bath') {
-    if (need === 'bath') startBath(gi);
-    else refuse(gi, 'いまは きれいだよ');
-  } else {
-    handHint = T + 2; sound.play('tap');
-  }
+  const gi = C.guestAt(save, curRoom); if (gi < 0 || scene !== 'room' || eating) return;
+  const need = showNeed(gi), tool = b.dataset.tool, a = actors[gi];
+  if (a.asleep) { say(a, 'すやすや…', 1.4); sound.play('tap'); return; }
+  if (tool === 'pet') { handHint = T + 2; sound.play('tap'); return; }
+  if (care?.type === tool) { care = null; sound.play('tap'); return; }
+  if (need !== tool) { refuse(gi, C.isHappy(guests()[gi]) ? 'もう まんぞく〜' : REFUSE[tool]); return; }
+  if (tool === 'food') { care = { type: 'food', gi }; sound.play('pop'); firstTip('food', 'たべものを くちまで はこんでね'); }
+  else if (tool === 'bath') startBath(gi);
+  else if (tool === 'play') startPlay(gi);
+  else if (tool === 'sleep') startSleep(gi);
 };
 
+// ---------- よる → あさ（チェックアウト・おてがみ・ぞうちく）----------
 $('sleepBtn').onclick = () => {
   if (!C.allDone(save) || scene !== 'hotel') return;
   sound.play('night');
-  scene = 'night'; nightTarget = 1;
-  later(3.4, () => {
+  scene = 'night'; nightTarget = 1; selected = -1;
+  later(3, () => {
+    const departing = guests().map((g, gi) => ({ species: g.species, a: actors[gi], room: g.room }));
     const res = C.endDay(save);
     persist();
-    showMorning(res);
+    actors = [];
+    morning(departing, res);
   });
 };
+
+function morning(departing, res) {
+  scene = 'morning'; nightTarget = 0;
+  pendingBuild = new Set(res.unlocked);
+  focusCell(-1);
+  sound.play('morning');
+  let t = 1.4;
+  departing.forEach(d => {
+    later(t, () => {
+      const a = d.a; a.asleep = false; a.x = 820; a.tx = DOOR_X; a.y = LOBBY_Y; a.ty = LOBBY_Y; a.lift = 0; a.liftT = 0; a.alpha = 1; a.pop = 1;
+      leavers.push({ species: d.species, a });
+      say(a, SPECIES[d.species].say.bye, 2.4); sound.play('pop');
+      later(2.4, () => sound.play('door'));
+    });
+    t += 2.8;
+  });
+  later(t + 0.4, () => showLetters(res.letters, 0, () => buildRooms([...res.unlocked])));
+}
+
+function buildRooms(list) {
+  if (!list.length) { beginDay(); return; }
+  const idx = list.shift();
+  focusCell(idx);
+  later(0.6, () => {
+    pendingBuild.delete(idx);
+    building = { idx, t0: T };
+    sound.play('scrub');
+    const knock = setInterval(() => sound.play('drop'), 250);
+    later(2, () => {
+      clearInterval(knock);
+      const c = cellOf(hotelLayout(), idx);
+      if (c) { sparkles(c.rect.x + c.rect.w / 2, c.rect.y + c.rect.h / 2, 20, c.rect.w * 0.4); confetti(c.rect.x + c.rect.w / 2, c.rect.y + c.rect.h / 2); }
+      building = null; sound.play('unlock'); toast('🏨 あたらしい へやが できたよ！', 2.4);
+      later(2.4, () => buildRooms(list));
+    });
+  });
+}
+
+function beginDay() {
+  leavers = [];
+  const gi = C.startDay(save);
+  persist();
+  actors = [];
+  syncActors();
+  scene = 'hotel'; curRoom = -1; focusCell(-1);
+  if (gi >= 0) arrivalFx(gi);
+}
+function arrivalFx(gi) {
+  const g = guests()[gi], a = actors[gi];
+  sound.play('bell');
+  later(0.5, () => { say(a, SPECIES[g.species].say.arrive, 2.2); sound.play('door'); });
+  if (scene === 'room' || scene === 'bath') toast('🛎️ おきゃくさんが きたよ！', 2.2);
+}
+
+// ---------- おてがみ ----------
+function letterCard(l) {
+  const el = document.createElement('div'); el.className = 'letter';
+  const stamp = thumb(g => D.drawCreature(g, l.species, 50, 86, 30, { t: 1, mood: 'happy' }));
+  stamp.className = 'stamp';
+  el.append(stamp);
+  const body = document.createElement('div'); body.className = 'lines';
+  l.lines.forEach((line, i) => { const p = document.createElement('p'); p.textContent = line; if (i === 0) p.className = 'to'; if (i === l.lines.length - 1) p.className = 'from'; body.append(p); });
+  el.append(body);
+  if (l.gift) {
+    const gift = document.createElement('div'); gift.className = 'giftbox';
+    gift.append(l.gift.kind === 'item' ? itemThumb(l.gift.id) : decoThumb(l.gift.kind, l.gift.id));
+    const name = l.gift.kind === 'item' ? ITEMS[l.gift.id].name : l.gift.kind === 'wall' ? `かべがみ「${WALLS[l.gift.id].name}」` : `ゆか「${FLOORS[l.gift.id].name}」`;
+    gift.insertAdjacentHTML('beforeend', `<small>おみやげ</small><b>${name}</b>`);
+    el.append(gift);
+  }
+  return el;
+}
+function showLetters(list, i, done) {
+  if (i >= list.length) { showScreen(null); done && done(); return; }
+  const l = list[i];
+  const box = $('letterBox'); box.innerHTML = ''; box.append(letterCard(l));
+  $('letterTitle').textContent = done ? '💌 おてがみが とどいたよ！' : '💌 おてがみ';
+  $('letterNext').textContent = i < list.length - 1 ? 'つぎの おてがみ' : done ? 'よんだ！' : 'とじる';
+  l.read = true;
+  const saved = save.letters.find(x => x === l || (x.species === l.species && x.day === l.day && x.lines.join() === l.lines.join()));
+  if (saved) saved.read = true;
+  persist();
+  showScreen('letterView');
+  sound.play(done ? 'gift' : 'tap');
+  $('letterNext').onclick = () => { sound.play('tap'); showLetters(list, i + 1, done); if (!done && i + 1 >= list.length) showScreen('letters'); };
+}
+function renderLetters() {
+  const box = $('letterList'); box.innerHTML = '';
+  if (!save.letters.length) { box.innerHTML = '<p class="note">まだ おてがみは ないよ。<br>おきゃくさんが かえるときに くれるよ。</p>'; return; }
+  [...save.letters].reverse().forEach(l => {
+    const el = document.createElement('button'); el.className = 'mini' + (l.read ? '' : ' new');
+    el.append(thumb(g => D.drawCreature(g, l.species, 50, 88, 30, { t: 1, mood: 'happy' })));
+    el.insertAdjacentHTML('beforeend', `<small>${l.day}にちめ</small><b>${SPECIES[l.species].name}</b>`);
+    el.onclick = () => { showLetters([l], 0, null); };
+    box.append(el);
+  });
+}
 
 function thumb(draw, px = 100) {
   const c = document.createElement('canvas'); c.width = c.height = px * 2;
@@ -689,56 +1198,26 @@ const decoThumb = (kind, id) => thumb(g => {
   g.strokeStyle = '#e4c9d4'; g.lineWidth = 3; D.rr(g, 6, 6, 88, 88, 16); g.stroke();
 });
 
-function showMorning(res) {
-  scene = 'morning';
-  const list = $('giftList'); list.innerHTML = '';
-  for (const gf of res.gifts) {
-    const el = document.createElement('div'); el.className = 'gift';
-    const name = gf.kind === 'item' ? ITEMS[gf.id].name : gf.kind === 'wall' ? `かべがみ「${WALLS[gf.id].name}」` : `ゆか「${FLOORS[gf.id].name}」`;
-    el.append(gf.kind === 'item' ? itemThumb(gf.id) : decoThumb(gf.kind, gf.id));
-    el.insertAdjacentHTML('beforeend', `<div class="from">${SPECIES[gf.species].name} から おみやげ</div><div class="what">${name}</div>`);
-    list.append(el);
-  }
-  $('unlockLine').hidden = !res.unlocked.length;
-  $('morningTitle').textContent = 'あさに なったよ！';
-  showScreen('morning');
-  sound.play('gift');
-  if (res.unlocked.length) later(0.8, () => sound.play('unlock'));
-}
-
-$('nextDayBtn').onclick = () => {
-  showScreen(null);
-  beginDay();
-};
-
-function beginDay() {
-  const events = C.startDay(save);
-  persist();
-  resetActors();
-  actors.forEach(a => { a.pop = 0; a.needAt = T + 2.2; });
-  nightTarget = 0; scene = 'hotel'; curRoom = -1;
-  sound.play('morning');
-  later(0.6, () => sound.play('door'));
-  events.forEach((ev, i) => later(1.4 + i * 0.8, () => {
-    const a = actors[ev.guest], sp = SPECIES[guests()[ev.guest].species];
-    if (!a) return;
-    say(a, sp.say.room, 2.4); setMood(a, 'happy', 2.4); sound.play('like');
-    reward(ev.guest, ev.hearts);
-    if (!save.tips.likeRoom) { save.tips.likeRoom = true; later(0.8, () => toast('へやの かざりが すきみたい！')); }
-  }));
-}
-
-function decorChanged() {
+// ---------- かざりつけ ----------
+function decorChanged(what) {
   persist();
   renderDrawer();
+  const gi = C.guestAt(save, curRoom);
+  if (gi < 0 || !what) return;
+  const a = actors[gi], g = guests()[gi], sp = SPECIES[g.species];
   const r = C.decorReact(save, curRoom);
-  if (!r) return;
-  const a = actors[r.guest], sp = SPECIES[guests()[r.guest].species];
-  later(0.3, () => {
-    say(a, `わあ！ ${r.tags.map(t => TAGS[t].icon).join('')} すき！`, 2.4); setMood(a, 'happy', 2); sound.play('like');
-    reward(r.guest, r.hearts);
-    toast('📖 すきな かざりが わかった！');
-  });
+  const name = what.kind === 'item' ? ITEMS[what.id].name : what.kind === 'wall' ? 'この かべ' : 'この ゆか';
+  if (r) {
+    later(0.3, () => {
+      say(a, `わあ！ ${name}、だいすき！`, 2.4); setMood(a, 'happy', 2); sound.play('like');
+      reward(r.guest, r.hearts);
+      toast('📖 すきな かざりが わかった！');
+    });
+    return;
+  }
+  const tags = what.kind === 'item' ? ITEMS[what.id].tags : what.kind === 'wall' ? WALLS[what.id].tags : FLOORS[what.id].tags;
+  if (tags.some(t => sp.likes.includes(t))) later(0.3, () => { say(a, `${name}、いいね！`, 1.8); jump(a); });
+  else if (Math.random() < 0.4) later(0.3, () => { notes(guestScreenAnywhere(gi).head.x, guestScreenAnywhere(gi).head.y, 1); });
 }
 
 function renderDrawer() {
@@ -770,7 +1249,7 @@ function renderDrawer() {
       el.insertAdjacentHTML('beforeend', `<div class="dname">${table[id].name}</div>`);
       el.onclick = () => {
         if (tab === 'wall') room.wall = id; else room.floor = id;
-        sound.play('pop'); decorChanged();
+        sound.play('pop'); decorChanged({ kind: tab, id });
       };
       box.append(el);
     }
@@ -778,6 +1257,7 @@ function renderDrawer() {
 }
 
 // ---------- ずかん・せってい ----------
+const TOY_ICON = { ball: '⚽', bubble: '🫧' };
 function renderZukan() {
   const box = $('zukanCards'); box.innerHTML = '';
   for (const [id, sp] of Object.entries(SPECIES)) {
@@ -798,6 +1278,7 @@ function renderZukan() {
         <dt>とまった かず</dt><dd>${z.met}</dd>
         <dt>すきな たべもの</dt><dd>${z.fav ? `<span class="fi">${food(sp.fav).icon}</span>` : q}</dd>
         <dt>にがてな たべもの</dt><dd>${z.dislike ? `<span class="fi">${food(sp.dislike).icon}</span>` : q}</dd>
+        <dt>すきな あそび</dt><dd>${z.toy ? `<span class="fi">${TOY_ICON[sp.toy]}</span>` : q}</dd>
         <dt>なでると よろこぶ</dt><dd>${z.spot ? SPOTS[sp.spot] : q}</dd>
         <dt>おふろ</dt><dd>${z.bath ? (sp.bath === 'daisuki' ? 'だいすき' : 'にがて') : q}</dd>
         <dt>すきな かざり</dt><dd>${tags}</dd>
@@ -809,9 +1290,10 @@ function renderZukan() {
 let overlay = null;
 function showScreen(id) {
   overlay = id;
-  for (const s of ['title', 'settings', 'zukan', 'morning']) $(s).hidden = s !== id;
+  for (const s of ['title', 'settings', 'zukan', 'letters', 'letterView']) $(s).hidden = s !== id;
 }
 $('zukanBtn').onclick = () => { sound.play('tap'); renderZukan(); showScreen('zukan'); };
+$('letterBtn').onclick = () => { sound.play('tap'); renderLetters(); showScreen('letters'); };
 $('setBtn').onclick = () => { sound.play('tap'); paintSettings(); showScreen('settings'); };
 for (const b of document.querySelectorAll('.back')) b.onclick = () => { sound.play('tap'); showScreen(scene === 'title' ? 'title' : null); };
 function paintSettings() {
@@ -828,7 +1310,7 @@ $('resetBtn').onclick = () => {
   if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'ほんとうに けす？ もういちど おしてね'; return; }
   const snd = save.sound;
   save = C.newSave(); save.sound = snd; persist();
-  shownHearts = 0; parts = []; timers = [];
+  shownHearts = 0; parts = []; timers = []; leavers = []; care = null; camX = 0;
   showScreen(null); beginDay();
 };
 
@@ -836,7 +1318,7 @@ $('playBtn').onclick = () => {
   sound.unlock(); sound.startBgm(); sound.play('bell');
   showScreen(null);
   if (!save.today) beginDay();
-  else { resetActors(); scene = 'hotel'; }
+  else { resetActors(); scene = 'hotel'; focusCell(-1); }
 };
 
 // ---------- DOM の ひょうじ ----------
@@ -845,7 +1327,9 @@ function syncUI() {
   const gi = scene === 'room' ? C.guestAt(save, curRoom) : -1;
   const need = gi >= 0 ? showNeed(gi) : null;
   const hudMode = scene === 'hotel' ? 'hotel' : scene === 'bath' ? 'bath' : decor ? 'decor' : 'room';
-  const key = [scene, decor, overlay, gi, need, shownHearts, save.day, C.allDone(save), hudMode].join('|');
+  const unread = save.letters.filter(l => !l.read).length;
+  const asleep = gi >= 0 && actors[gi]?.asleep;
+  const key = [scene, decor, overlay, gi, need, shownHearts, save.day, C.allDone(save), hudMode, unread, care?.type, asleep].join('|');
   if (key === uiKey) return;
   uiKey = key;
   const inGame = scene === 'hotel' || scene === 'room' || scene === 'bath';
@@ -853,8 +1337,13 @@ function syncUI() {
   $('hud').className = hudMode;
   $('heartCount').textContent = shownHearts;
   $('dayPill').textContent = `${save.day}にちめ`;
+  $('letterBtn').classList.toggle('new', unread > 0);
   $('tools').hidden = !(scene === 'room' && !decor && gi >= 0);
-  for (const b of document.querySelectorAll('.tool')) b.classList.toggle('want', b.dataset.tool === need);
+  $('tools').classList.toggle('asleep', !!asleep);
+  for (const b of document.querySelectorAll('.tool')) {
+    b.classList.toggle('want', b.dataset.tool === need && !care);
+    b.classList.toggle('on', b.dataset.tool === care?.type);
+  }
   $('drawer').hidden = !(scene === 'room' && decor);
   $('sleepBtn').hidden = !(scene === 'hotel' && C.allDone(save) && !overlay);
 }
@@ -863,11 +1352,26 @@ function syncUI() {
 function update(dt) {
   T += dt;
   night += (nightTarget - night) * Math.min(1, dt * 1.5);
+  if (camTarget !== null) { camX += (camTarget - camX) * Math.min(1, dt * 5); if (Math.abs(camTarget - camX) < 1) camTarget = null; }
   const due = timers.filter(t => t.at <= T); timers = timers.filter(t => t.at > T);
   due.forEach(t => t.fn());
+  // つぎの おきゃくさん
+  if ((scene === 'hotel' || scene === 'room' || scene === 'bath') && C.canArrive(save)) {
+    const gi = C.arrive(save); persist(); syncActors(); arrivalFx(gi);
+  }
   updateActors(dt);
   updateBath(dt);
+  updatePlay(dt);
   updateParts(dt);
+  // ときどき ひとりごと
+  if (scene === 'hotel' && T > idleAt) {
+    idleAt = T + rand(7, 12);
+    const cands = guests().map((g, gi) => gi).filter(gi => guests()[gi].room >= 0 && !actors[gi].asleep && T > actors[gi].sayUntil);
+    if (cands.length) {
+      const gi = cands[Math.floor(Math.random() * cands.length)], need = showNeed(gi), sp = SPECIES[guests()[gi].species];
+      say(actors[gi], need ? NEEDS[need].say : sp.say.idle[Math.floor(Math.random() * sp.say.idle.length)], 2.2);
+    }
+  }
   if (scene === 'night' && Math.random() < dt * 3) parts.push({ k: 'zz', x: rand(W * 0.3, W * 0.7), y: H * 0.5, vx: rand(-20, 20), vy: -50, t: 0, life: 2, s: 40 });
 }
 
@@ -888,24 +1392,44 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+canvas.addEventListener('pointerdown', e => {
+  sound.unlock();
+  if (pointerId !== null) return;
+  pointerId = e.pointerId;
+  onDown(toV(e));
+});
+addEventListener('pointermove', e => { if (e.pointerId === pointerId) onMove(toV(e)); });
+const up = e => { if (e.pointerId !== pointerId) return; pointerId = null; onUp(toV(e), e.type === 'pointercancel'); };
+addEventListener('pointerup', up);
+addEventListener('pointercancel', up);
+
 // ---------- テスト用 ----------
 if (DEBUG) {
   const dbg = $('debug'); dbg.hidden = false;
   const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; dbg.append(b); };
   btn('❤+10', () => { save.hearts += 10; shownHearts = save.hearts; persist(); });
-  btn('ぜんぶ おせわ', () => { for (const g of guests()) { g.done = g.needs.length; } actors.forEach(a => { a.thanked = true; }); persist(); });
+  btn('ぜんぶ おせわ', () => {
+    for (const [gi, g] of guests().entries()) { if (g.room < 0) C.checkIn(save, gi, C.freeRooms(save)[0]); g.done = g.needs.length; }
+    while (C.canArrive(save) || save.today?.queue.length) { if (guests().some(g => g.room < 0)) break; const gi = C.arrive(save); syncActors(); const g = guests()[gi]; C.checkIn(save, gi, C.freeRooms(save)[0]); g.done = g.needs.length; }
+    syncActors(); actors.forEach(a => { a.thanked = true; a.asleep = true; }); persist();
+  });
   btn('データけす', () => { localStorage.removeItem(STORE); location.reload(); });
   window.__save = () => save;
-  window.__state = () => ({ scene, curRoom, decor, bath, T, plate });
+  window.__state = () => ({ scene, curRoom, decor, bath, T, care: care && { ...care }, camX, overlay });
   // がめんの ばしょ（CSS ピクセル）。じどう テストで つかう
   window.__geom = () => {
     const px = p => ({ x: p.x * S, y: p.y * S });
-    const out = { cells: hotelLayout().cells.map(c => ({ kind: c.kind, idx: c.idx, ...px({ x: c.rect.x + c.rect.w / 2, y: c.rect.y + c.rect.h / 2 }) })) };
+    const L = hotelLayout();
+    const out = { cells: L.cells.map(c => ({ kind: c.kind, idx: c.idx, ...px({ x: c.rect.x + c.rect.w / 2, y: c.rect.y + c.rect.h / 2 }) })) };
+    out.waiting = guests().map((g, gi) => (g.room < 0 ? { gi, ...px(actorScreen(gi, L.cells[0].rect).bc) } : null)).filter(Boolean);
     if (scene === 'room') {
       const rect = roomRect(); out.room = { ...px(rect), w: rect.w * S, h: rect.h * S };
       const gi = C.guestAt(save, curRoom);
       if (gi >= 0) { const a = actorScreen(gi, rect); out.body = px(a.bc); out.r = a.r * S; out.mouth = px({ x: a.bc.x, y: a.bc.y + a.r * 0.26 }); }
       out.foods = FOODS.map((_, i) => px(foodHome(rect, i)));
+      out.toys = [0, 1].map(i => px(toyHome(rect, i)));
+      if (care?.type === 'play' && care.toy) { const s = rect.w / ROOM.w; out.ball = px({ x: rect.x + care.ball.x * s, y: rect.y + care.ball.y * s }); out.bubbles = care.bubbles.map(b => px({ x: rect.x + b.x * s, y: rect.y + b.y * s })); }
+      out.faces = faceSlots().map(f => ({ gi: f.gi, ...px(f) }));
     }
     if (scene === 'bath' && bath) { const b = bathBody(bath.gi); out.body = px(b.bc); out.r = b.r * S; }
     return out;
