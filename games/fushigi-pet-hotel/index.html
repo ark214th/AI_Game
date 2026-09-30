@@ -27,15 +27,18 @@
     </div>
     <div id="heartPill" class="pill hearts"><span class="h">❤</span><b id="heartCount">0</b></div>
     <div class="hud-right">
+      <button id="letterBtn" class="chip badge">💌 おてがみ</button>
       <button id="zukanBtn" class="chip">📖 ずかん</button>
       <button id="setBtn" class="chip icon" aria-label="せってい">⚙️</button>
     </div>
   </header>
 
   <div id="tools" hidden>
-    <button class="tool" data-tool="food"><span>🍎</span><small>ごはん</small></button>
+    <button class="tool" data-tool="food"><span>🍽️</span><small>ごはん</small></button>
     <button class="tool" data-tool="bath"><span>🫧</span><small>おふろ</small></button>
     <button class="tool" data-tool="pet"><span>🤲</span><small>なでる</small></button>
+    <button class="tool" data-tool="play"><span>⚽</span><small>あそぶ</small></button>
+    <button class="tool" data-tool="sleep"><span>🌙</span><small>ねんね</small></button>
   </div>
 
   <button id="sleepBtn" class="big sleep" hidden>🌙 おやすみ</button>
@@ -78,12 +81,19 @@
     </div>
   </section>
 
-  <section id="morning" class="screen shade" hidden>
+  <section id="letters" class="screen shade" hidden>
     <div class="panel wide">
-      <h2 class="yay" id="morningTitle">あさに なったよ！</h2>
-      <div id="giftList" class="gifts"></div>
-      <div id="unlockLine" class="unlock" hidden>🏨 あたらしい へやが できたよ！</div>
-      <button id="nextDayBtn" class="big">つぎの ひへ</button>
+      <h2>💌 おてがみ</h2>
+      <div id="letterList" class="minis"></div>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="letterView" class="screen shade" hidden>
+    <div class="panel letter-panel">
+      <h2 class="yay" id="letterTitle">💌 おてがみが とどいたよ！</h2>
+      <div id="letterBox"></div>
+      <button id="letterNext" class="big">よんだ！</button>
     </div>
   </section>
 

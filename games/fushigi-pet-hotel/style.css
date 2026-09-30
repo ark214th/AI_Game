@@ -21,6 +21,8 @@ html, body {
 #game { position: fixed; inset: 0; }
 #world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action: manipulation; }
+/* ことばの あいだの スペースで かいぎょうする（ことばの とちゅうで きらない） */
+#game { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
 
 /* ---------- 上の バー ---------- */
 #hud {
@@ -56,9 +58,11 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   position: absolute; z-index: 3; display: flex; gap: 2vh;
   right: var(--safe-r); top: 50%; transform: translateY(-40%); flex-direction: column;
 }
+#tools { --tool: 13vh; gap: 1.4vh; transform: translateY(-45%); }
 @media (max-aspect-ratio: 16/10) {
-  #tools { right: auto; top: auto; left: 50%; bottom: var(--safe-b); transform: translateX(-50%); flex-direction: row; gap: 4vh; }
+  #tools { --tool: 14vh; right: auto; top: auto; left: 50%; bottom: var(--safe-b); transform: translateX(-50%); flex-direction: row; gap: 2.4vh; }
 }
+#tools.asleep .tool { opacity: .5; }
 .tool {
   width: var(--tool); height: var(--tool); border-radius: 50%; background: #fff; box-shadow: 0 .8vh 0 #e4c9d4;
   display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;
@@ -67,6 +71,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .tool span { font-size: calc(var(--tool) * .42); }
 .tool small { font-size: max(12px, calc(var(--tool) * .16)); font-weight: 900; margin-top: .4vh; }
 .tool:active { transform: translateY(.6vh); box-shadow: 0 .2vh 0 #e4c9d4; }
+.tool.on { background: #ffd6e2; box-shadow: 0 .8vh 0 #ff9fb8; }
 .tool.want { background: #fff3a8; box-shadow: 0 .8vh 0 #e8c43a, 0 0 0 .8vh rgba(255, 228, 92, .5); animation: want 1s ease-in-out infinite; }
 @keyframes want { 50% { transform: scale(1.08); } }
 
@@ -187,6 +192,35 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .gift .what { font-size: max(15px, 3.8vh); font-weight: 900; text-align: center; }
 .unlock { font-size: max(18px, 5vh); font-weight: 900; color: #ff6f91; animation: pop .5s .6s cubic-bezier(.3, 1.8, .5, 1) both; }
 @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* おてがみ */
+.chip.badge { position: relative; }
+.chip.badge.new::after {
+  content: ''; position: absolute; top: -.2em; right: -.1em; width: .7em; height: .7em; border-radius: 50%;
+  background: #ff5d86; box-shadow: 0 0 0 3px #fff; animation: want 1s ease-in-out infinite;
+}
+.letter-panel { max-width: 96vw; gap: 1.6vh; padding-top: 2.4vh; padding-bottom: 2.6vh; }
+.letter-panel .big { font-size: max(20px, 6vh); padding: .3em 1.2em; }
+.letter {
+  position: relative; width: min(84vw, 110vh); background: #fffdf5 repeating-linear-gradient(0deg, transparent 0 4.8vh, #f2e3cf 4.8vh calc(4.8vh + 2px));
+  border-radius: 2vh; padding: 2.6vh 3vh 2.6vh 3vh; box-shadow: 0 .6vh 0 #e4c9d4; display: flex; gap: 2.4vh; align-items: center;
+  animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both;
+}
+.letter .stamp { position: absolute; top: -2vh; right: -1.4vh; width: 12vh; height: 12vh; background: #ffe0ea; border-radius: 1.4vh; border: .5vh dashed #ff9fb8; transform: rotate(6deg); }
+.letter .lines { flex: 1; }
+.letter p { margin: 0; font-size: max(14px, 3.4vh); line-height: 4.8vh; font-weight: 800; }
+.letter p.to { color: #a08596; font-size: max(13px, 3vh); }
+.letter p.from { text-align: right; color: #ff6f91; }
+.giftbox { flex: 0 0 auto; width: 20vh; background: #fff; border-radius: 2vh; padding: 1.2vh; display: flex; flex-direction: column; align-items: center; gap: .4vh; box-shadow: 0 .4vh 0 #e4c9d4; }
+.giftbox canvas { width: 13vh; height: 13vh; }
+.giftbox small { font-size: max(11px, 2.4vh); color: #a08596; font-weight: 800; }
+.giftbox b { font-size: max(13px, 2.8vh); text-align: center; }
+.minis { display: flex; flex-wrap: wrap; gap: 2vh; justify-content: center; max-height: 58vh; overflow: auto; padding: 1vh; }
+.mini { position: relative; width: 17vh; background: #fff; border-radius: 2vh; padding: 1vh; box-shadow: 0 .5vh 0 #e4c9d4; display: flex; flex-direction: column; align-items: center; }
+.mini canvas { width: 11vh; height: 11vh; }
+.mini small { font-size: max(11px, 2.4vh); color: #a08596; font-weight: 800; }
+.mini b { font-size: max(13px, 3vh); }
+.mini.new::after { content: 'NEW'; position: absolute; top: -1vh; right: -1vh; background: #ff5d86; color: #fff; font-size: max(9px, 2vh); font-weight: 900; padding: .2vh .8vh; border-radius: 999px; }
 
 /* ---------- たてもち・よみこみ ---------- */
 #rotate { display: none; }
