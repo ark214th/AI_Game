@@ -58,9 +58,10 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   position: absolute; z-index: 3; display: flex; gap: 2vh;
   right: var(--safe-r); top: 50%; transform: translateY(-40%); flex-direction: column;
 }
-#tools { --tool: 13vh; gap: 1.4vh; transform: translateY(-45%); }
+/* よこながの がめん：みぎに 2れつ */
+#tools { --tool: 14vh; display: grid; grid-template-columns: repeat(2, var(--tool)); gap: 1.6vh; transform: translateY(-42%); }
 @media (max-aspect-ratio: 16/10) {
-  #tools { --tool: 14vh; right: auto; top: auto; left: 50%; bottom: var(--safe-b); transform: translateX(-50%); flex-direction: row; gap: 2.4vh; }
+  #tools { --tool: 12.5vh; display: flex; right: auto; top: auto; left: 50%; bottom: var(--safe-b); transform: translateX(-50%); flex-direction: row; gap: 1.6vh; }
 }
 #tools.asleep .tool { opacity: .5; }
 .tool {
@@ -165,16 +166,16 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .toggle.on { background: #7ee0a1; color: #fff; box-shadow: 0 4px 0 #4fbf7a; }
 
 /* ずかん */
-.cards { display: flex; gap: 3vh; flex-wrap: wrap; justify-content: center; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(210px, 36vh), 1fr)); gap: 1.6vh; max-height: 64vh; overflow: auto; padding: .5vh; width: min(94vw, 150vh); }
 .card {
-  width: min(40vw, 360px); min-width: 230px; background: #fff; border-radius: 3vh; padding: 2vh; box-shadow: 0 .6vh 0 #e4c9d4;
+  min-width: 0; background: #fff; border-radius: 2.4vh; padding: 1.4vh; box-shadow: 0 .6vh 0 #e4c9d4;
   display: flex; flex-direction: column; align-items: center; gap: .8vh;
 }
-.card canvas { width: 15vh; height: 13vh; }
-.card .name { font-size: max(18px, 5vh); font-weight: 900; }
-.card .kind { font-size: max(12px, 3vh); font-weight: 800; color: #a08596; margin-top: -1vh; }
-.card dl { margin: 0; width: 100%; display: grid; grid-template-columns: 1fr auto; gap: .6vh 1.4vh; font-size: max(12px, 2.8vh); font-weight: 800; }
-.card dt, .card dd { white-space: nowrap; }
+.card canvas { width: 12vh; height: 11vh; }
+.card .name { font-size: max(15px, 3.8vh); font-weight: 900; }
+.card .kind { font-size: max(10px, 2.3vh); font-weight: 800; color: #a08596; margin-top: -.6vh; }
+.card dl { margin: 0; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3vh 1vh; font-size: max(10px, 2.2vh); font-weight: 800; }
+.card dd { white-space: nowrap; }
 .card dt { color: #a08596; }
 .card dd { margin: 0; text-align: right; }
 .card .q { color: #d0bfc9; }

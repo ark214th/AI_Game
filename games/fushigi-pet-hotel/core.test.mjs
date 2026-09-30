@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as C from './core.mjs';
-import { SPECIES, ITEMS, FOODS, TAGS, WALLS, FLOORS, NEEDS, TOYS, ROOM_HEARTS, MAX_ROOMS } from './data.mjs';
+import { SPECIES, ITEMS, FOODS, TAGS, WALLS, FLOORS, NEEDS, TOYS, ACCS, SPECIALS, ROOM_HEARTS, MAX_ROOMS, SUITE_HEARTS, NORMAL_IDS, BIG_IDS } from './data.mjs';
 
 const seq = (...v) => { let i = 0; return () => v[i++ % v.length]; };
 const rng = seq(0.1, 0.7, 0.3, 0.9, 0.5);
@@ -15,6 +15,8 @@ function careOne(s, gi) {
     else if (n === 'bath') C.bathDone(s, gi);
     else if (n === 'pet') C.petDone(s, gi, 1);
     else if (n === 'play') C.playDone(s, gi, sp.toy);
+    else if (n === 'dress') C.dressDone(s, gi, sp.acc);
+    else if (n === 'special') C.specialDone(s, gi);
     else C.sleepDone(s, gi);
   }
 }
@@ -23,7 +25,7 @@ function careOne(s, gi) {
 function playDay(s, r = rng) {
   let gi = C.startDay(s, r);
   while (gi >= 0) {
-    const free = C.freeRooms(s);
+    const free = C.freeRooms(s, s.today.guests[gi].species);
     const best = free.map(i => ({ i, n: C.likedTags(s.rooms[i], s.today.guests[gi].species).length })).sort((a, b) => b.n - a.n)[0];
     assert.ok(C.checkIn(s, gi, best.i));
     careOne(s, gi);
@@ -48,7 +50,7 @@ test('1にちを さいごまで あそべる（ひとりずつ くる）', () =
   assert.equal(C.canArrive(s), false, 'あんない するまで つぎは こない');
   C.checkIn(s, 0, 1);
   assert.equal(C.canArrive(s), false, 'おせわを 1つ するまで こない');
-  C.bathDone(s, 0); C.feed(s, 0, 'apple'); C.petDone(s, 0, 0); C.playDone(s, 0, 'ball');
+  careOne(s, 0);
   assert.equal(C.canArrive(s), true);
   assert.equal(C.endDay(s, rng), null, 'ぜんいん おわるまで よるに ならない');
   const s2 = C.newSave();
@@ -64,12 +66,17 @@ test('チェックイン：ほかの 子が いる へやには はいれない'
   C.startDay(s, rng);
   assert.ok(C.checkIn(s, 0, 0));
   assert.equal(C.checkIn(s, 0, 1), null, '2かい はいれない');
-  C.feed(s, 0, 'apple'); C.bathDone(s, 0); C.petDone(s, 0, 0); C.playDone(s, 0, 'ball');
+  careOne(s, 0);
   const gi = C.arrive(s, rng);
   assert.equal(C.checkIn(s, gi, 0), null);
   assert.equal(C.checkIn(s, gi, 9), null);
   assert.ok(C.checkIn(s, gi, 1));
   assert.deepEqual(C.freeRooms(s), []);
+  // スイートは おおきな お客さん だけ
+  s.hearts = SUITE_HEARTS; s.rooms.push({ wall: 'cream', floor: 'wood', items: [], suite: true });
+  assert.equal(C.roomFits(s, 'fuwari', 2), false);
+  assert.equal(C.roomFits(s, 'dora', 2), true);
+  assert.equal(C.roomFits(s, 'dora', 0), false);
 });
 
 test('すきな かざりの へやに あんないすると よろこぶ', () => {
@@ -81,12 +88,20 @@ test('すきな かざりの へやに あんないすると よろこぶ', () =
   const r = C.checkIn(s, gi, 1);
   assert.deepEqual(r.liked, ['mizu']);
   assert.equal(r.hearts, 1);
+  assert.equal(r.full, false);
   assert.ok(s.zukan.fuwari.tags.includes('mizu'));
   // くもの ものを おくと もう1かい よろこぶ。おなじ しるしは 1にち 1かい
   s.owned.kumobed = 1;
   C.placeItem(s, 1, 'kumobed', 500, 500);
   assert.deepEqual(C.decorReact(s, 1).tags, ['kumo']);
   assert.equal(C.decorReact(s, 1), null);
+  // ぜんぶ そろうと ボーナス
+  s.owned.hoshilamp = 1;
+  C.placeItem(s, 1, 'hoshilamp', 800, 500);
+  const full = C.decorReact(s, 1);
+  assert.equal(full.full, true);
+  assert.equal(full.hearts, 1 + 2);
+  assert.ok(C.writeLetter(s, s.today.guests[gi], null).lines.some(l => l.includes('ぜんぶ')));
 });
 
 test('ごはん：すき=ハート2、ふつう=1、にがて=たべない', () => {
@@ -126,6 +141,71 @@ test('あそぶ・ねる：すきな おもちゃ と ベッド', () => {
   assert.ok(C.isHappy(g));
 });
 
+test('おしゃれ・その子だけの おせわ', () => {
+  const s = C.newSave();
+  C.startDay(s, rng);
+  const g = s.today.guests[0], sp = SPECIES[g.species];
+  C.checkIn(s, 0, 0);
+  g.needs = ['dress', 'special', 'dress', 'sleep'];
+  const other = Object.keys(ACCS).find(a => a !== sp.acc);
+  assert.equal(C.dressDone(s, 0, other).hearts, 1);
+  assert.equal(g.acc, other);
+  assert.equal(C.specialDone(s, 0).hearts, 2);
+  assert.equal(C.dressDone(s, 0, sp.acc).hearts, 2);
+  assert.ok(s.zukan[g.species].acc);
+  assert.equal(C.specialDone(s, 0).result, 'notNow');
+});
+
+test('ホテルが おおきく なると あたらしい 子が くる', () => {
+  const s = C.newSave();
+  assert.deepEqual(C.availableSpecies(s).sort(), ['fuwari', 'gorota']);
+  const met = new Set();
+  let days = 0;
+  while (days < 40) { playDay(s); days++; for (const id of NORMAL_IDS) if (s.zukan[id].met) met.add(id); if (met.size === NORMAL_IDS.length) break; }
+  assert.equal(met.size, NORMAL_IDS.length, `${days}にち で ぜんいん きた`);
+  assert.ok(days <= 20, `ぜんいん くるまで ${days}にち`);
+});
+
+test('スイートルームと おおきな お客さん', () => {
+  const s = C.newSave();
+  let days = 0, bigs = new Set(), suiteAt = null;
+  while (days < 40) {
+    const gi0 = C.startDay(s, rng); void gi0;
+    if (C.suiteIdx(s) >= 0 && suiteAt === null) suiteAt = s.day;
+    for (const q of s.today.queue) if (SPECIES[q].big) bigs.add(q);
+    // のこりを あそぶ
+    let gi = 0;
+    while (gi >= 0) {
+      const g = s.today.guests[gi];
+      assert.ok(C.checkIn(s, gi, C.freeRooms(s, g.species)[0]), g.species);
+      careOne(s, gi);
+      gi = C.canArrive(s) ? C.arrive(s, rng) : -1;
+    }
+    const res = C.endDay(s, rng);
+    days++;
+    if (res.suite >= 0) assert.equal(s.rooms[res.suite].suite, true);
+    if (bigs.size === BIG_IDS.length) break;
+  }
+  assert.ok(C.suiteIdx(s) >= 0, 'スイートが できる');
+  assert.deepEqual([...bigs].sort(), [...BIG_IDS].sort(), 'おおきな お客さんが ふたりとも くる');
+  const big = SPECIES[BIG_IDS[0]];
+  assert.ok(big.likes.length >= 2);
+});
+
+test('いろがえ と おさらの たべもの', () => {
+  const it = C.clampItem({ id: 'sofa', x: 500, y: 500 });
+  assert.equal(it.c, 0);
+  for (let i = 0; i < ITEMS.sofa.colors.length; i++) C.recolor(it);
+  assert.equal(it.c, 0, 'ひとまわり すると もとの いろ');
+  assert.equal(C.recolor(C.clampItem({ id: 'iwa', x: 500, y: 500 })), false);
+  for (const id of NORMAL_IDS) {
+    const f = C.plateFoods(id, rng);
+    assert.equal(f.length, 4);
+    assert.ok(f.includes(SPECIES[id].fav) && f.includes(SPECIES[id].dislike));
+    assert.equal(new Set(f).size, 4);
+  }
+});
+
 test('なでる ばしょの はんてい', () => {
   assert.equal(C.spotAt(0, -0.7), 'atama');
   assert.equal(C.spotAt(0.7, 0.1), 'hoppe');
@@ -152,8 +232,8 @@ test('おてがみ：へやの かんそうと ヒント', () => {
 test('ハートが たまると へやが ふえる（さいだいまで）', () => {
   const s = C.newSave();
   let days = 0;
-  while (s.rooms.length < MAX_ROOMS && days < 200) { playDay(s); days++; }
-  assert.equal(s.rooms.length, MAX_ROOMS);
+  while (C.regularCount(s) < MAX_ROOMS && days < 200) { playDay(s); days++; }
+  assert.equal(C.regularCount(s), MAX_ROOMS);
   assert.ok(days <= 30, `へやが ぜんぶ そろうまで ${days}にち`);
   assert.ok(s.hearts >= ROOM_HEARTS[MAX_ROOMS - 1]);
   assert.ok(s.letters.length <= 60);
@@ -214,7 +294,13 @@ test('データの ととのい：しるし・がめんの 字', () => {
       assert.ok(reachable, t);
     }
   }
-  const texts = JSON.stringify({ SPECIES, ITEMS, WALLS, FLOORS, TAGS, FOODS, NEEDS, TOYS });
+  for (const sp of Object.values(SPECIES)) {
+    assert.ok(FOODS.some(f => f.id === sp.fav) && FOODS.some(f => f.id === sp.dislike) && sp.fav !== sp.dislike);
+    assert.ok(ACCS[sp.acc]);
+    if (!sp.big) assert.ok(SPECIALS[sp.special], sp.name);
+    for (const g of sp.gifts) { const [k, id] = g.includes(':') ? g.split(':') : ['item', g]; assert.ok((k === 'wall' ? WALLS : k === 'floor' ? FLOORS : ITEMS)[id], g); }
+  }
+  const texts = JSON.stringify({ SPECIES, ITEMS, WALLS, FLOORS, TAGS, FOODS, NEEDS, TOYS, ACCS, SPECIALS });
   assert.ok(!/[一-鿿]/.test(texts), 'データに 漢字が ある');
   // ごはんの ふきだしは たべものの えに しない
   assert.ok(!FOODS.some(f => f.icon === NEEDS.food.icon));
