@@ -168,7 +168,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 /* ずかん */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(210px, 36vh), 1fr)); gap: 1.6vh; max-height: 64vh; overflow: auto; padding: .5vh; width: min(94vw, 150vh); }
 .card {
-  width: min(40vw, 360px); min-width: 230px; background: #fff; border-radius: 3vh; padding: 2vh; box-shadow: 0 .6vh 0 #e4c9d4;
+  min-width: 0; background: #fff; border-radius: 2.4vh; padding: 1.4vh; box-shadow: 0 .6vh 0 #e4c9d4;
   display: flex; flex-direction: column; align-items: center; gap: .8vh;
 }
 .card canvas { width: 12vh; height: 11vh; }
