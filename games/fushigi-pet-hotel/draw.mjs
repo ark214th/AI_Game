@@ -44,7 +44,26 @@ export function text(ctx, str, x, y, size, { color = INK, align = 'center', base
   if (stroke) { ctx.lineJoin = 'round'; ctx.lineWidth = sw || size * 0.22; ctx.strokeStyle = stroke; ctx.strokeText(str, x, y); }
   ctx.fillStyle = color; ctx.fillText(str, x, y);
 }
+// おさらと フォーク・ナイフ（🍽️ の えもじは iPad で ぶひんが ずれて みえるので ずけいで かく）
+export function drawDish(ctx, x, y, size) {
+  const k = size / 100;
+  ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#b9c7d9'; ctx.lineWidth = 5;
+  circ(ctx, 0, 0, 34); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#d6e0ec'; ctx.lineWidth = 4; circ(ctx, 0, 0, 22); ctx.stroke();
+  ctx.fillStyle = '#8f9bb0'; ctx.strokeStyle = '#8f9bb0'; ctx.lineCap = 'round';
+  // フォーク
+  ctx.lineWidth = 5;
+  for (const dx of [-8, 0, 8]) { ctx.beginPath(); ctx.moveTo(-52 + dx * 0.6, -40); ctx.lineTo(-52 + dx * 0.6, -18); ctx.stroke(); }
+  rr(ctx, -58, -22, 12, 12, 5); ctx.fill();
+  rr(ctx, -55.5, -16, 7, 58, 3.5); ctx.fill();
+  // ナイフ
+  ctx.beginPath(); ctx.moveTo(48, -40); ctx.quadraticCurveTo(60, -30, 56, -2); ctx.lineTo(48, -2); ctx.closePath(); ctx.fill();
+  rr(ctx, 48.5, -6, 7, 48, 3.5); ctx.fill();
+  ctx.restore();
+}
 export function emoji(ctx, str, x, y, size) {
+  if (str === '🍽️') { drawDish(ctx, x, y, size * 0.95); return; }
   ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",${FONT}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000';
   ctx.fillText(str, x, y + size * 0.05);

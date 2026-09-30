@@ -34,7 +34,7 @@
   </header>
 
   <div id="tools" hidden>
-    <button class="tool" data-tool="food"><span>🍽️</span><small>ごはん</small></button>
+    <button class="tool" data-tool="food"><span class="dish" aria-hidden="true"><svg viewBox="-62 -48 124 96"><circle r="34" fill="#fff" stroke="#b9c7d9" stroke-width="5"/><circle r="22" fill="none" stroke="#d6e0ec" stroke-width="4"/><g fill="#8f9bb0" stroke="#8f9bb0" stroke-linecap="round"><path d="M-56.8 -40V-18M-52 -40V-18M-47.2 -40V-18" stroke-width="5"/><rect x="-58" y="-22" width="12" height="12" rx="5" stroke="none"/><rect x="-55.5" y="-16" width="7" height="58" rx="3.5" stroke="none"/><path d="M48 -40Q60 -30 56 -2H48Z" stroke="none"/><rect x="48.5" y="-6" width="7" height="48" rx="3.5" stroke="none"/></g></svg></span><small>ごはん</small></button>
     <button class="tool" data-tool="bath"><span>🫧</span><small>おふろ</small></button>
     <button class="tool" data-tool="pet"><span>🤲</span><small>なでる</small></button>
     <button class="tool" data-tool="play"><span>⚽</span><small>あそぶ</small></button>
@@ -51,7 +51,9 @@
       <button data-tab="wall">🖼️<small>かべ</small></button>
       <button data-tab="floor">🟫<small>ゆか</small></button>
     </div>
+    <button id="drawerL" class="darrow" aria-label="まえ">◀</button>
     <div id="drawerItems"></div>
+    <button id="drawerR" class="darrow" aria-label="つぎ">▶</button>
     <button id="decorDone" class="done">できた！</button>
   </div>
 

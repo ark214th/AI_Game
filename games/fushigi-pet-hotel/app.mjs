@@ -391,6 +391,11 @@ function drawHotel() {
     D.drawCreature(ctx, g.species, guestDrag.p.x, guestDrag.p.y + 60, 64 * sizeOf(g.species), { t: T, mood: 'happy', suitcase: true, sq: a.sq });
   }
   // ひろい ホテルは よこに うごかせる
+  if (L.maxPan > 0 && scene === 'hotel' && guestDrag) {
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    if (camX > -L.maxPan + 5) { ctx.fillRect(0, 0, 150, H); }
+    if (camX < L.maxPan - 5) { ctx.fillRect(W - 150, 0, 150, H); }
+  }
   if (L.maxPan > 0 && scene === 'hotel') {
     ctx.globalAlpha = 0.8;
     if (camX > -L.maxPan + 5) D.text(ctx, '◀', 36, H / 2, 44, { color: '#fff', stroke: 'rgba(90,61,85,.4)' });
@@ -537,7 +542,8 @@ function drawDragged(rect) {
 function dragRoomPos(rect) {
   const s = rect.w / ROOM.w;
   const drawerTop = $('drawer').getBoundingClientRect().top / S;
-  const inside = drag.p.y < drawerTop - 10 && drag.p.x > rect.x - 40 && drag.p.x < rect.x + rect.w + 40 && drag.p.y > rect.y - 60;
+  // ひきだしより うえなら へやの 中に おく（はしで はなしても へやの はしに おさまる）
+  const inside = drag.p.y < drawerTop - 10;
   const it = C.clampItem({ id: drag.id, x: (drag.p.x - rect.x) / s + drag.off.x, y: (drag.p.y - rect.y) / s + drag.off.y });
   return { inside, x: it.x, y: it.y };
 }
@@ -1172,6 +1178,8 @@ function onUp(p, cancel) {
 
 function hotelTap(p) {
   const L = hotelLayout();
+  const canL = camX > -L.maxPan + 5, canR = camX < L.maxPan - 5;
+  if (L.maxPan > 0 && Math.abs(p.y - H / 2) < 60 && ((p.x < 64 && canL) || (p.x > W - 64 && canR))) { sound.play('tap'); camTarget = clamp(camX + Math.sign(p.x - W / 2) * (L.cw + L.pad) * 1.5, -L.maxPan, L.maxPan); return; }
   const cell = L.cells.find(c => inRect(p, c.rect));
   if (!cell) return;
   if (cell.kind === 'room') {
@@ -1247,9 +1255,9 @@ $('backBtn').onclick = () => {
   if (scene === 'bath') { bath = null; scene = 'room'; actors.forEach(a => { a.puffT = 1; }); return; }
   leaveRoom();
 };
-$('decorBtn').onclick = () => { decor = true; care = null; tab = 'item'; sound.play('pop'); renderDrawer(); if (save.tips.decor && !save.tips.recolor) firstTip('recolor', 'かぐを タッチすると いろが かわるよ'); firstTip('decor', 'かぐを ゆびで はこんでね'); };
+$('decorBtn').onclick = () => { decor = true; care = null; tab = 'item'; sound.play('pop'); renderDrawer(); requestAnimationFrame(paintArrows); if (save.tips.decor && !save.tips.recolor) firstTip('recolor', 'かぐを タッチすると いろが かわるよ'); firstTip('decor', 'かぐを うえに ひっぱって はこんでね'); };
 $('decorDone').onclick = () => { decor = false; drag = null; sound.play('ok'); };
-for (const b of document.querySelectorAll('.dtabs button')) b.onclick = () => { tab = b.dataset.tab; sound.play('tap'); renderDrawer(); };
+for (const b of document.querySelectorAll('.dtabs button')) b.onclick = () => { tab = b.dataset.tab; sound.play('tap'); renderDrawer(); $('drawerItems').scrollLeft = 0; paintArrows(); };
 
 const REFUSE = { food: 'いまは おなか すいてないよ', bath: 'いまは きれいだよ', play: 'いまは あそばない〜', sleep: 'まだ ねむくないよ', dress: 'いまは このままで いいよ', special: 'いまは だいじょうぶ〜' };
 for (const b of document.querySelectorAll('.tool')) b.onclick = () => {
@@ -1430,34 +1438,75 @@ function renderDrawer() {
   const box = $('drawerItems'); box.innerHTML = '';
   const room = save.rooms[curRoom]; if (!room) return;
   if (tab === 'item') {
-    for (const id of Object.keys(ITEMS).filter(id => save.owned[id] > 0)) {
+    for (const id of Object.keys(ITEMS).filter(id => save.owned[id] > 0 && !(id === 'bigbed' && !room.suite))) {
       const n = C.available(save, id);
-      const el = document.createElement('div'); el.className = 'ditem' + (n ? '' : ' empty');
+      const el = document.createElement('div'); el.className = 'ditem' + (n ? '' : ' empty'); el.dataset.id = id;
       el.append(itemThumb(id));
       el.insertAdjacentHTML('beforeend', `<div class="dname">${ITEMS[id].name}</div><div class="count">${n}</div>`);
-      el.addEventListener('pointerdown', e => {
-        sound.unlock(); e.preventDefault();
-        if (pointerId !== null) return;
-        if (!C.available(save, id)) { sound.play('no'); return; }
-        pointerId = e.pointerId;
-        const d = ITEMS[id];
-        drag = { id, item: null, fromDrawer: true, off: { x: 0, y: d.zone === 'floor' && !d.flat ? d.h * 0.45 : 0 }, p: toV(e) };
-        sound.play('pick');
-      });
       box.append(el);
     }
   } else {
     const list = tab === 'wall' ? save.walls : save.floors, table = tab === 'wall' ? WALLS : FLOORS;
     for (const id of list) {
-      const el = document.createElement('button'); el.className = 'ditem' + ((tab === 'wall' ? room.wall : room.floor) === id ? ' on' : '');
+      const el = document.createElement('div'); el.className = 'ditem' + ((tab === 'wall' ? room.wall : room.floor) === id ? ' on' : ''); el.dataset.id = id;
       el.append(decoThumb(tab, id));
       el.insertAdjacentHTML('beforeend', `<div class="dname">${table[id].name}</div>`);
-      el.onclick = () => {
-        if (tab === 'wall') room.wall = id; else room.floor = id;
-        sound.play('pop'); decorChanged({ kind: tab, id });
-      };
       box.append(el);
     }
+  }
+  paintArrows();
+}
+
+// ひきだし：よこに スワイプで スクロール、うえに ひっぱると 家具を もつ、タッチで おく
+let press = null;
+function paintArrows() {
+  const box = $('drawerItems');
+  $('drawerL').classList.toggle('off', box.scrollLeft <= 2);
+  $('drawerR').classList.toggle('off', box.scrollLeft + box.clientWidth >= box.scrollWidth - 2);
+}
+$('drawerItems').addEventListener('scroll', paintArrows);
+$('drawerL').onclick = () => { sound.play('tap'); $('drawerItems').scrollBy({ left: -$('drawerItems').clientWidth * 0.8, behavior: 'smooth' }); };
+$('drawerR').onclick = () => { sound.play('tap'); $('drawerItems').scrollBy({ left: $('drawerItems').clientWidth * 0.8, behavior: 'smooth' }); };
+$('drawerItems').addEventListener('pointerdown', e => {
+  sound.unlock(); e.preventDefault();
+  if (pointerId !== null) return;
+  pointerId = e.pointerId;
+  const el = e.target.closest('.ditem');
+  press = { x0: e.clientX, y0: e.clientY, sx: $('drawerItems').scrollLeft, id: el?.dataset.id || null, kind: tab, mode: null };
+});
+function startItemDrag(id, e) {
+  if (!C.available(save, id)) { sound.play('no'); return false; }
+  const d = ITEMS[id];
+  drag = { id, item: null, fromDrawer: true, off: { x: 0, y: d.zone === 'floor' && !d.flat ? d.h * 0.45 : 0 }, p: toV(e) };
+  sound.play('pick');
+  return true;
+}
+function drawerMove(e) {
+  const dx = e.clientX - press.x0, dy = e.clientY - press.y0;
+  if (!press.mode) {
+    if (press.kind === 'item' && press.id && dy < -12 && Math.abs(dy) > Math.abs(dx) * 0.7) {
+      const id = press.id; press = null;
+      if (!startItemDrag(id, e)) press = { mode: 'none' };
+      return;
+    }
+    if (Math.abs(dx) > 8) press.mode = 'scroll';
+  }
+  if (press.mode === 'scroll') $('drawerItems').scrollLeft = press.sx - dx;
+}
+function drawerUp() {
+  const p = press; press = null;
+  if (p.mode || !p.id) return;
+  const room = save.rooms[curRoom]; if (!room) return;
+  // タッチだけ：家具は へやに おく／かべがみ・ゆかは かえる
+  if (p.kind === 'item') {
+    const d = ITEMS[p.id];
+    if (!C.available(save, p.id)) { sound.play('no'); return; }
+    const y = d.zone === 'wall' ? rand(130, 230) : d.flat ? rand(500, 560) : rand(470, 600);
+    C.placeItem(save, curRoom, p.id, rand(220, 780), y);
+    sound.play('drop'); decorChanged({ kind: 'item', id: p.id });
+  } else {
+    if (p.kind === 'wall') room.wall = p.id; else room.floor = p.id;
+    sound.play('pop'); decorChanged({ kind: p.kind, id: p.id });
   }
 }
 
@@ -1565,6 +1614,11 @@ function update(dt) {
   T += dt;
   night += (nightTarget - night) * Math.min(1, dt * 1.5);
   if (camTarget !== null) { camX += (camTarget - camX) * Math.min(1, dt * 5); if (Math.abs(camTarget - camX) < 1) camTarget = null; }
+  if (scene === 'hotel' && guestDrag) {
+    const edge = 150, x = guestDrag.p.x;
+    if (x < edge) { camX -= (edge - x) / edge * 900 * dt; camTarget = null; }
+    else if (x > W - edge) { camX += (x - (W - edge)) / edge * 900 * dt; camTarget = null; }
+  }
   const due = timers.filter(t => t.at <= T); timers = timers.filter(t => t.at > T);
   due.forEach(t => t.fn());
   // つぎの おきゃくさん
@@ -1610,8 +1664,8 @@ canvas.addEventListener('pointerdown', e => {
   pointerId = e.pointerId;
   onDown(toV(e));
 });
-addEventListener('pointermove', e => { if (e.pointerId === pointerId) onMove(toV(e)); });
-const up = e => { if (e.pointerId !== pointerId) return; pointerId = null; onUp(toV(e), e.type === 'pointercancel'); };
+addEventListener('pointermove', e => { if (e.pointerId !== pointerId) return; if (press) { if (press.mode !== 'none') drawerMove(e); return; } onMove(toV(e)); });
+const up = e => { if (e.pointerId !== pointerId) return; pointerId = null; if (press) { if (press.mode !== 'none' && e.type !== 'pointercancel') drawerUp(); press = null; return; } onUp(toV(e), e.type === 'pointercancel'); };
 addEventListener('pointerup', up);
 addEventListener('pointercancel', up);
 
