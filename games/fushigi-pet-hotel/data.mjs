@@ -412,7 +412,7 @@ export const FLOORS = {
 export const ROOM = { w: 1000, h: 625, wallBottom: 380, floorTop: 400, floorBottom: 610, wallTop: 50, wallLow: 330 };
 
 // へやが ふえる ハートの数（0,1 ばんめは はじめから ある）
-export const ROOM_HEARTS = [0, 0, 12, 30, 55, 85, 120, 160, 205];
+export const ROOM_HEARTS = [0, 0, 12, 30, 55, 85, 120, 160, 205, 255, 310, 370, 435, 505, 580, 660];
 export const MAX_ROOMS = ROOM_HEARTS.length;
 export const SUITE_HEARTS = 70;      // スイートルームが できる
 export const BIG_EVERY = 3;          // おおきな おきゃくさんが くる ひの まわりかた

@@ -223,24 +223,30 @@ function drawParts() {
 }
 
 // ---------- ホテルの ならびかた（よこに ひろがる。2かいだて）----------
-const SLOTS = [[1, 0], [-1, 0], [0, 1], [1, 1], [-1, 1], [2, 0], [2, 1], [-2, 0], [-2, 1]];
+// ふつうの へやの ならびかた [れつ, かい]。10へやめから 3がい。れつ 3・4 は スイートの うえ
+const SLOTS = [[1, 0], [-1, 0], [0, 1], [1, 1], [-1, 1], [2, 0], [2, 1], [-2, 0], [-2, 1], [0, 2], [1, 2], [-1, 2], [2, 2], [-2, 2], [3, 2], [4, 2]];
 function hotelLayout() {
   const regular = C.regularCount(save), si = C.suiteIdx(save);
   const cells = [{ kind: 'lobby', col: 0, row: 0 }];
   save.rooms.forEach((r, i) => { if (!r.suite) { const k = C.regularOrder(save, i); cells.push({ kind: 'room', idx: i, col: SLOTS[k][0], row: SLOTS[k][1] }); } });
   if (regular < MAX_ROOMS) cells.push({ kind: 'locked', col: SLOTS[regular][0], row: SLOTS[regular][1] });
-  const minC = Math.min(...cells.map(c => c.col));
-  let maxC = Math.max(...cells.map(c => c.col));
-  const floors = 2;
+  const main = cells.filter(c => c.col < 3);
+  const minC = Math.min(...main.map(c => c.col));
+  let maxC = Math.max(...main.map(c => c.col));
+  const floors = Math.max(2, ...cells.map(c => c.row + 1));
   for (let col = minC; col <= maxC; col++) for (let row = 0; row < floors; row++) if (!cells.some(c => c.col === col && c.row === row)) cells.push({ kind: 'facade', col, row });
   // スイートルーム（2かい ぶん × 2へや ぶんの おおきな へや）。へやが 4つに なったら こうじの ばしょが でる
   const suiteCol = maxC + 1;
+  for (const c of cells) if (c.col >= 3 && c.kind !== 'facade') c.col = suiteCol + (c.col - 3);
   if (si >= 0) cells.push({ kind: 'room', idx: si, suite: true, col: suiteCol, row: 0, span: 2 });
   else if (regular >= 4) cells.push({ kind: 'suiteLocked', col: suiteCol, row: 0, span: 2 });
-  if (si >= 0 || regular >= 4) maxC = suiteCol + 1;
+  if (si >= 0 || regular >= 4) {
+    maxC = suiteCol + 1;
+    for (let col = suiteCol; col <= maxC; col++) for (let row = 2; row < floors; row++) if (!cells.some(c => c.col === col && c.row === row)) cells.push({ kind: 'facade', col, row });
+  }
   const top = 100, roofH = 80, groundH = 66, pad = 14;
   const availH = H - top - roofH - groundH - 10;
-  let ch = Math.min(290, (availH - pad * 3) / 2), cw = ch * 1.6;
+  let ch = Math.min(290, (availH - pad * (floors + 1)) / floors), cw = ch * 1.6;
   const fitW = (W - 40 - pad * 4) / 3;
   if (cw > fitW) { cw = Math.max(fitW, 300); ch = cw / 1.6; }
   const cols = maxC - minC + 1;
@@ -377,7 +383,7 @@ function drawHotel() {
     else if (cell.kind === 'room') {
       drawRoomCell(cell.idx, cell.rect, false);
       if (pendingBuild.has(cell.idx)) D.drawScaffold(ctx, cell.rect, 0, T);
-      else if (building?.idx === cell.idx) D.drawScaffold(ctx, cell.rect, clamp((T - building.t0) / 2, 0, 1), T);
+      else if (building?.idx === cell.idx) D.drawScaffold(ctx, cell.rect, clamp((T - building.t0) / (building.dur || 2), 0, 1), T);
       if (guestDrag) {
         const free = C.guestAt(save, cell.idx) < 0 && C.roomFits(save, guests()[guestDrag.gi].species, cell.idx);
         ctx.strokeStyle = free ? (inRect(guestDrag.p, cell.rect) ? '#ffd84a' : 'rgba(255,216,74,.7)') : 'rgba(90,61,85,.25)';
@@ -1496,18 +1502,21 @@ function buildRooms(list, res) {
     return;
   }
   const idx = list.shift();
+  // いちどに たくさん できる ときは テンポよく
+  const quick = list.length >= 1 && !save.rooms[idx]?.suite, dur = quick ? 1.1 : 2, gap = quick ? 1 : 2.4;
+  const third = !save.rooms[idx]?.suite && C.regularOrder(save, idx) === 9;
   focusCell(idx);
   later(0.6, () => {
     pendingBuild.delete(idx);
-    building = { idx, t0: T };
+    building = { idx, t0: T, dur };
     sound.play('scrub');
     const knock = setInterval(() => sound.play('drop'), 250);
-    later(2, () => {
+    later(dur, () => {
       clearInterval(knock);
       const c = cellOf(hotelLayout(), idx);
       if (c) { sparkles(c.rect.x + c.rect.w / 2, c.rect.y + c.rect.h / 2, 20, c.rect.w * 0.4); confetti(c.rect.x + c.rect.w / 2, c.rect.y + c.rect.h / 2); }
-      building = null; sound.play('unlock'); toast(save.rooms[idx]?.suite ? '👑 スイートルームが できたよ！' : '🏨 あたらしい へやが できたよ！', 2.4);
-      later(2.4, () => buildRooms(list, res));
+      building = null; sound.play('unlock'); toast(save.rooms[idx]?.suite ? '👑 スイートルームが できたよ！' : third ? '🏨 3がいが できたよ！' : '🏨 あたらしい へやが できたよ！', third ? 2.4 : gap + 0.2);
+      later(third ? 2.4 : gap, () => buildRooms(list, res));
     });
   });
 }

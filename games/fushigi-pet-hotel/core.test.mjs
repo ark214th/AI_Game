@@ -284,7 +284,7 @@ test('ハートが たまると へやが ふえる（さいだいまで）', ()
   let days = 0;
   while (C.regularCount(s) < MAX_ROOMS && days < 200) { playDay(s); days++; }
   assert.equal(C.regularCount(s), MAX_ROOMS);
-  assert.ok(days <= 30, `へやが ぜんぶ そろうまで ${days}にち`);
+  assert.ok(days <= 45, `へやが ぜんぶ そろうまで ${days}にち`);
   assert.ok(s.hearts >= ROOM_HEARTS[MAX_ROOMS - 1]);
   assert.ok(s.letters.length <= 60);
 });
@@ -356,4 +356,19 @@ test('データの ととのい：しるし・がめんの 字', () => {
   assert.ok(!/[一-鿿]/.test(texts), 'データに 漢字が ある');
   // ごはんの ふきだしは たべものの えに しない
   assert.ok(!FOODS.some(f => f.icon === NEEDS.food.icon));
+});
+
+test('16へやの ホテル：まえの セーブ（9へや＋スイート）から ふえる', () => {
+  assert.equal(MAX_ROOMS, 16);
+  const s = C.newSave();
+  while (C.regularCount(s) < 9) s.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
+  s.rooms.push({ wall: 'cream', floor: 'wood', items: [], suite: true });
+  const t = C.normalize(JSON.parse(JSON.stringify({ ...s, hearts: 1693 })));
+  assert.equal(C.regularCount(t), 9);
+  C.startDay(t, rng);
+  while (true) { const gi = t.today.guests.findIndex(g => g.room < 0); if (gi < 0 && !C.canArrive(t)) break; const i = gi >= 0 ? gi : C.arrive(t, rng); C.checkIn(t, i, C.freeRooms(t, t.today.guests[i].species)[0]); careOne(t, i); }
+  const res = C.endDay(t, rng);
+  assert.equal(C.regularCount(t), 16, 'ハートが たくさん あれば 7へや ふえる');
+  assert.equal(res.unlocked.length, 7);
+  assert.equal(C.suiteIdx(t), 9, 'スイートは そのまま');
 });
