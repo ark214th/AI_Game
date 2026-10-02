@@ -163,7 +163,7 @@ test('ホテルが おおきく なると あたらしい 子が くる', () => 
   let days = 0;
   while (days < 40) { playDay(s); days++; for (const id of NORMAL_IDS) if (s.zukan[id].met) met.add(id); if (met.size === NORMAL_IDS.length) break; }
   assert.equal(met.size, NORMAL_IDS.length, `${days}にち で ぜんいん きた`);
-  assert.ok(days <= 20, `ぜんいん くるまで ${days}にち`);
+  assert.ok(days <= 30, `ぜんいん くるまで ${days}にち`);
 });
 
 test('スイートルームと おおきな お客さん', () => {
@@ -187,9 +187,31 @@ test('スイートルームと おおきな お客さん', () => {
     if (bigs.size === BIG_IDS.length) break;
   }
   assert.ok(C.suiteIdx(s) >= 0, 'スイートが できる');
+  // あって いない おおきな お客さんは つづけて くる（3にちを またない）
+  assert.ok(days <= 14, `おおきな お客さんが ぜんいん くるまで ${days}にち`);
   assert.deepEqual([...bigs].sort(), [...BIG_IDS].sort(), 'おおきな お客さんが ふたりとも くる');
   const big = SPECIES[BIG_IDS[0]];
   assert.ok(big.likes.length >= 2);
+});
+
+test('ぷにゅランドの ともだちは ホテルが おおきい と すぐ くる', () => {
+  const s = C.newSave();
+  for (let i = 0; i < 7; i++) s.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
+  for (const id of ['fuwari', 'gorota', 'pokari', 'chapu', 'popuri', 'kirara']) s.zukan[id].met = 10;
+  const landNormal = NORMAL_IDS.filter(id => SPECIES[id].land);
+  assert.equal(landNormal.length, 4);
+  assert.ok(landNormal.every(id => C.availableSpecies(s).includes(id)));
+  C.startDay(s, rng);
+  const first = [s.today.guests[0].species, ...s.today.queue];
+  assert.ok(first.every(id => SPECIES[id].land), `あたらしい こが さきに くる: ${first}`);
+  // スイートが ある なら、でかもやもやが つぎの ひに くる
+  const t = C.newSave();
+  for (let i = 0; i < 7; i++) t.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
+  t.rooms.push({ wall: 'cream', floor: 'wood', items: [], suite: true });
+  for (const id of ['dora', 'ku']) t.zukan[id].met = 3;
+  t.bigDay = t.day + 2;
+  C.startDay(t, rng);
+  assert.ok(t.today.queue.includes('moya'));
 });
 
 test('いろがえ と おさらの たべもの', () => {
@@ -241,7 +263,9 @@ test('ハートが たまると へやが ふえる（さいだいまで）', ()
 
 test('おみやげで いつかは ぜんぶ そろう', () => {
   const s = C.newSave();
-  for (let d = 0; d < 60; d++) playDay(s, Math.random);
+  // きまった らんすう（まいかい おなじ けっか）で 100にち
+  let seed = 12345; const r = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let d = 0; d < 100; d++) playDay(s, r);
   for (const sp of Object.values(SPECIES)) for (const g of sp.gifts) {
     const [k, id] = g.includes(':') ? g.split(':') : ['item', g];
     if (k === 'wall') assert.ok(s.walls.includes(id), id);

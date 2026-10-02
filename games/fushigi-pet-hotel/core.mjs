@@ -192,8 +192,12 @@ export function startDay(s, rng = Math.random) {
   const met = shuffle(avail.filter(id => s.zukan[id].met), rng).sort((a, b) => (s.seen[a] ?? -1) - (s.seen[b] ?? -1));
   const order = [...unmet, ...met];
   const queue = [];
+  // まだ あって いない おおきな お客さんが いれば、つぎの ひに すぐ くる
+  const bigUnmet = BIG_IDS.filter(id => !s.zukan[id].met);
+  if (suiteIdx(s) >= 0 && bigUnmet.length && s.bigDay !== null && s.bigDay > s.day) s.bigDay = s.day;
   if (isBigDay(s)) {
-    queue.push(order[0], BIG_IDS[s.bigTurn % BIG_IDS.length]);
+    const bigs = bigUnmet.length ? bigUnmet : [...BIG_IDS].sort((a, b) => (s.seen[a] ?? -1) - (s.seen[b] ?? -1));
+    queue.push(order[0], bigs[0]);
     s.bigTurn++;
     s.bigDay = s.day + BIG_EVERY;
   } else for (let i = 0; i < GUESTS_PER_DAY; i++) queue.push(order[i % order.length]);

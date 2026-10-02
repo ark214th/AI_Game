@@ -76,7 +76,7 @@ function makeActor(g, arriving = false) {
     mood: 'normal', moodUntil: 0, say: '', sayUntil: 0, look: 0, lookUntil: 0, shake: 0, puff: 1, puffT: 1, mouth: 0,
     needAt: T + 1.5, lastNeed: null, dirt: null, pet: 0, favD: 0, allD: 0, favRub: 0, spotSaid: false, wanderAt: 0, pop: 1,
     asleep: C.isHappy(g), thanked: C.isHappy(g), lastComment: -99, towel: 0,
-    fluff: 0, flame: 0.35, bloom: 0.3, shine: 0.3, rollT: -9, rollDir: 1,
+    fluff: 0, flame: 0.35, bloom: 0.3, shine: 0.3, rollT: -9, rollDir: 1, cream: 0,
   };
 }
 function syncActors() {
@@ -107,7 +107,7 @@ const stOf = gi => {
     t: T + gi * 1.7, sq: a.sq, mood: moodOf(gi), look: a.look, mouth: a.mouth, alpha: a.alpha,
     dirt: C.needOf(g) === 'bath' ? a.dirt : null, puff: a.puff, shake: a.shake,
     blanket: a.asleep || (sleepCareOn(gi) && Math.abs(a.x - a.tx) < 8), towel: T < a.towel, suitcase: g.room < 0,
-    acc: g.acc, fluff: g.log?.special ? 1 : a.fluff, flame: g.log?.special ? 1.2 : a.flame, bloom: g.log?.special ? 1 : a.bloom, shine: g.log?.special ? 1 : a.shine,
+    acc: g.acc, fluff: g.log?.special ? 1 : a.fluff, flame: g.log?.special ? 1.2 : a.flame, bloom: g.log?.special ? 1 : a.bloom, shine: g.log?.special ? 1 : a.shine, cream: g.log?.special ? 5 : a.cream,
     rot: rollAngle(a),
   };
 }
@@ -814,9 +814,13 @@ function dropAcc(gi, id, p) {
 function startSpecial(gi) {
   const g = guests()[gi], kind = SPECIES[g.species].special;
   if (!kind) return;
-  care = { type: 'special', gi, kind, prog: 0, count: 0, goal: { fan: 8, roll: 4, shell: 3 }[kind] || 1, hintAt: T + 1.2 };
+  care = { type: 'special', gi, kind, prog: 0, count: 0, goal: { fan: 8, roll: 4, shell: 3, cream: 5, stars: 5, janken: 3 }[kind] || 1, hintAt: T + 1.2 };
   if (kind === 'shell') care.shells = [[170, 585], [860, 590], [330, 600]].map(([x, y]) => ({ x: x + rand(-30, 30), y, found: false, t0: 0 }));
+  if (kind === 'stars') care.stars = [[140, 110], [310, 230], [820, 120], [700, 300], [460, 90]].map(([x, y], i) => ({ x: x + rand(-30, 30), y: y + rand(-20, 20), found: false, t0: 0, ph: i }));
+  if (kind === 'janken') care.jk = { phase: 'choose', until: 0 };
+  if (kind === 'pinwheel') { care.ang = 0; care.spin = 0; }
   const a = actors[gi];
+  if (kind === 'cream') a.cream = 0;
   if (kind === 'fan') a.flame = 0.35;
   sound.play('pop');
   say(a, SPECIALS[kind].need, 2);
@@ -828,6 +832,7 @@ function specialProgress(gi, amount, p) {
   if (k === 'fluff') { a.fluff = care.prog; if (Math.random() < 0.3) parts.push({ k: 'steam', x: p.x + rand(-30, 30), y: p.y, vx: rand(-40, 40), vy: -60, t: 0, life: 0.8, s: 1 }); sound.play('scrub', 0.08); }
   if (k === 'water') { a.bloom = 0.3 + care.prog * 0.7; sound.play('splash', 0.06); }
   if (k === 'polish') { a.shine = 0.3 + care.prog * 0.7; if (Math.random() < 0.3) sparkles(p.x, p.y, 1, 20); sound.play('scrub', 0.08); }
+  if (k === 'pinwheel') { sound.play('splash', 0.1); if (Math.random() < 0.05) say(a, 'ひゅるる〜！', 0.8); }
   if (Math.random() < 0.06) poke(a, 0.06);
   setMood(a, 'bliss', 0.4);
   if (care.prog >= 1) finishSpecial();
@@ -837,15 +842,48 @@ function finishSpecial() {
   const res = C.specialDone(save, gi);
   care = null;
   if (res.result === 'notNow') return;
-  a.fluff = 1; a.flame = 1.2; a.bloom = 1; a.shine = 1;
+  a.fluff = 1; a.flame = 1.2; a.bloom = 1; a.shine = 1; a.cream = 5;
   const p = guestScreenAnywhere(gi);
   sparkles(p.bc.x, p.bc.y, 14, p.r); sound.play('fav');
   say(a, SPECIALS[kind].done, 2.4); setMood(a, 'happy', 2.4);
   reward(gi, res.hearts);
 }
+const JANKEN = ['✊', '✌️', '✋'];
+const jankenHome = (rect, i) => { const c = plateCenter(rect); return { x: c.x + (i - 1) * rect.w * 0.085, y: c.y - rect.w * 0.04 }; };
+const pinwheelPos = (rect) => { const sc = rect.w / ROOM.w; return { x: rect.x + 300 * sc, y: rect.y + 300 * sc, r: 85 * sc }; };
 function specialDown(p, rect) {
   const gi = care.gi, s = actorScreen(gi, rect), k = care.kind, sc = rect.w / ROOM.w;
   care.hintAt = T + 3;
+  if (k === 'cream') {
+    if (Math.hypot(p.x - s.bc.x, p.y - (s.bc.y - s.r * 0.75)) > s.r * 0.9) return true;
+    if (care.count >= care.goal) return true;
+    care.count++; actors[gi].cream = care.count;
+    sparkles(s.bc.x, s.bc.y - s.r * 0.9, 4, 30); sound.play('pop'); poke(actors[gi], 0.1);
+    if (care.count >= care.goal) later(0.5, () => { if (care?.kind === 'cream') finishSpecial(); });
+    return true;
+  }
+  if (k === 'stars') {
+    const st = care.stars.find(q => !q.found && Math.hypot(p.x - (rect.x + q.x * sc), p.y - (rect.y + q.y * sc)) < 50 * sc + 26);
+    if (st) {
+      st.found = true; st.t0 = T; care.count++; sound.tone?.([523, 587, 659, 698, 784][care.count - 1], 0.4, { type: 'triangle', vol: 0.2 });
+      sparkles(p.x, p.y, 6, 30); say(actors[gi], ['いち…', 'に…', 'さん…', 'よん…', 'ご…'][care.count - 1], 1);
+      if (care.count >= care.goal) later(0.9, () => { if (care?.kind === 'stars') finishSpecial(); });
+    }
+    return true;
+  }
+  if (k === 'janken') {
+    if (care.jk.phase !== 'choose') return true;
+    const i = JANKEN.findIndex((_, i) => { const h = jankenHome(rect, i); return Math.hypot(p.x - h.x, p.y - h.y) < rect.w * 0.04; });
+    if (i < 0) return true;
+    const them = Math.floor(Math.random() * 3);
+    const res = i === them ? 'あいこ！' : (i - them + 3) % 3 === 2 ? 'かち！' : 'まけ〜';
+    care.jk = { phase: 'show', mine: i, them, res, until: T + 1.6 };
+    say(actors[gi], `じゃんけん ぽん！ ${JANKEN[them]}`, 1.5); sound.play(res === 'かち！' ? 'like' : 'pop'); jump(actors[gi]);
+    care.count++;
+    later(1.6, () => { if (care?.kind !== 'janken') return; if (care.count >= care.goal) finishSpecial(); else care.jk = { phase: 'choose' }; });
+    return true;
+  }
+  if (k === 'pinwheel') { care.rub = { last: p }; return true; }
   if (k === 'fan') {
     const tp = tailPos(gi, rect);
     if (Math.hypot(p.x - tp.x, p.y - tp.y) > tp.r * 1.3 && Math.hypot(p.x - s.bc.x, p.y - s.bc.y) > s.r * 1.2) return true;
@@ -881,6 +919,11 @@ function specialMove(p, rect) {
   if (!care.rub) return;
   const d = Math.hypot(p.x - care.rub.last.x, p.y - care.rub.last.y);
   care.rub.last = p; care.toolP = p;
+  if (k === 'pinwheel') {
+    const pw = pinwheelPos(rect);
+    if (Math.hypot(p.x - pw.x, p.y - pw.y) < pw.r * 1.8) { care.spin = Math.min(30, care.spin + d * 0.06); specialProgress(gi, d / (s.r * 12), p); }
+    return;
+  }
   if (k === 'fluff' && Math.hypot(p.x - s.bc.x, p.y - s.bc.y) < s.r * 1.25) specialProgress(gi, d / (s.r * 10), p);
   if (k === 'polish') { const tp = tailPos(gi, rect); if (Math.hypot(p.x - tp.x, p.y - tp.y) < tp.r * 0.9) specialProgress(gi, d / (s.r * 7), p); }
   if (k === 'water') {
@@ -896,6 +939,30 @@ function drawSpecial(rect) {
   const bw = rect.w * 0.3, bx = rect.x + rect.w / 2 - bw / 2, by = rect.y + 70, u = care.goal > 1 ? care.count / care.goal : care.prog;
   ctx.fillStyle = 'rgba(255,255,255,.85)'; D.rr(ctx, bx, by, bw, 22, 11); ctx.fill();
   ctx.fillStyle = '#ff8fab'; D.rr(ctx, bx, by, Math.max(22, bw * u), 22, 11); ctx.fill();
+  if (k === 'stars') for (const q of care.stars) {
+    let x = rect.x + q.x * sc, y = rect.y + q.y * sc;
+    if (q.found) { const t = clamp((T - q.t0) / 0.6, 0, 1); x += (s.head.x - x) * t; y += (s.head.y - y) * t; if (t >= 1) continue; }
+    const tw = 1 + Math.sin(T * 5 + q.ph) * 0.2;
+    const g = ctx.createRadialGradient(x, y, 2, x, y, 50 * sc + 20); g.addColorStop(0, 'rgba(255,240,150,.7)'); g.addColorStop(1, 'rgba(255,240,150,0)');
+    ctx.fillStyle = g; D.circ(ctx, x, y, 50 * sc + 20); ctx.fill();
+    ctx.fillStyle = '#ffe45c'; ctx.strokeStyle = '#ffb21e'; ctx.lineWidth = 3; D.star(ctx, x, y, (28 * sc + 12) * tw); ctx.fill(); ctx.stroke();
+  }
+  if (k === 'janken') {
+    const c = plateCenter(rect);
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; D.rr(ctx, c.x - rect.w * 0.14, c.y - rect.w * 0.09, rect.w * 0.28, rect.w * 0.1, 30); ctx.fill();
+    JANKEN.forEach((h, i) => { const q = jankenHome(rect, i); const on = care.jk.phase === 'show' && care.jk.mine === i; D.emoji(ctx, h, q.x, q.y + (on ? -10 : Math.sin(T * 3 + i) * 3), rect.w * (on ? 0.07 : 0.055)); });
+    if (care.jk.phase === 'show') D.text(ctx, care.jk.res, s.bc.x, s.head.y - 90, 52, { color: '#fff', stroke: care.jk.res === 'かち！' ? '#ff6f91' : '#7fc7ff', sw: 12 });
+  }
+  if (k === 'pinwheel') {
+    const pw = pinwheelPos(rect);
+    care.ang += care.spin * (1 / 60); care.spin *= 0.985;
+    ctx.save(); ctx.fillStyle = '#c98b55'; D.rr(ctx, pw.x - 6, pw.y, 12, pw.r * 2.2, 6); ctx.fill();
+    ctx.translate(pw.x, pw.y); ctx.rotate(care.ang);
+    const cols = ['#ff8fab', '#7fc7ff', '#ffd84a', '#8fd36a'];
+    for (let i = 0; i < 4; i++) { ctx.rotate(Math.PI / 2); ctx.fillStyle = cols[i]; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -pw.r); ctx.quadraticCurveTo(pw.r * 0.75, -pw.r * 0.7, 0, 0); ctx.fill(); }
+    ctx.fillStyle = '#fff'; D.circ(ctx, 0, 0, pw.r * 0.12); ctx.fill();
+    ctx.restore();
+  }
   if (k === 'shell') for (const q of care.shells) {
     let x = rect.x + q.x * sc, y = rect.y + q.y * sc;
     if (q.found) { const t = clamp((T - q.t0) / 0.5, 0, 1); x += (s.bc.x - x) * t; y += (s.bc.y + s.r * 0.6 - y) * t - Math.sin(t * Math.PI) * 80; if (t >= 1) continue; }
@@ -920,7 +987,10 @@ function drawSpecial(rect) {
     const tp = tailPos(gi, rect);
     const at = k === 'fan' || k === 'polish' ? tp : k === 'water' ? { x: s.bc.x + 60, y: s.bc.y - s.r * 1.1 } : s.bc;
     if (k === 'roll') D.emoji(ctx, '👉', s.bc.x - 120 + ((T * 180) % 240), s.bc.y + s.r * 0.8, 60);
-    else if (k !== 'shell') D.emoji(ctx, '👆', at.x + 20 + (k === 'fan' ? 0 : Math.sin(T * 6) * 30), at.y + 40 + (k === 'fan' ? Math.abs(Math.sin(T * 6)) * 20 : 0), 60);
+    else if (k === 'pinwheel') { const pw = pinwheelPos(rect); D.emoji(ctx, '👆', pw.x + Math.cos(T * 4) * pw.r * 0.7, pw.y + 40 + Math.sin(T * 4) * pw.r * 0.7, 60); }
+    else if (k === 'cream') D.emoji(ctx, '👆', s.bc.x + 10, s.bc.y - s.r * 0.6 + Math.abs(Math.sin(T * 6)) * 20, 60);
+    else if (k === 'janken' && care.jk.phase === 'choose') { const q = jankenHome(rect, Math.floor(T) % 3); D.emoji(ctx, '👆', q.x + 20, q.y + 60, 50); }
+    else if (k !== 'shell' && k !== 'stars' && k !== 'janken') D.emoji(ctx, '👆', at.x + 20 + (k === 'fan' ? 0 : Math.sin(T * 6) * 30), at.y + 40 + (k === 'fan' ? Math.abs(Math.sin(T * 6)) * 20 : 0), 60);
   }
 }
 
@@ -1345,6 +1415,7 @@ function arrivalFx(gi) {
   sound.play('bell');
   later(0.5, () => { say(a, SPECIES[g.species].say.arrive, 2.2); sound.play('door'); });
   if (SPECIES[g.species].big) { later(0.9, () => { sound.play('unlock'); toast('✨ おおきな おきゃくさんが きたよ！ 👑スイートへ', 2.8); }); focusCell(-1); }
+  if (SPECIES[g.species].land && save.zukan[g.species].met <= 1) later(SPECIES[g.species].big ? 3.8 : 1, () => { punyu.v += 3; sound.play('like'); toast('🌟 ぷにゅランドから ともだちが きたよ！', 2.8); tipText = 'わあ！ ぷにゅランドの\nともだちだ〜！'; tipUntil = T + 4; });
   if (scene === 'room' || scene === 'bath') toast('🛎️ おきゃくさんが きたよ！', 2.2);
 }
 
@@ -1700,6 +1771,9 @@ if (DEBUG) {
       out.faces = faceSlots().map(f => ({ gi: f.gi, ...px(f) }));
       out.accs = ACC_IDS.map((_, i) => px(accHome(rect, i)));
       if (gi >= 0) { const tp = tailPos(gi, rect); out.tail = px(tp); out.head = px(actorScreen(gi, rect).head); }
+      if (care?.type === 'special' && care.stars) { const s2 = rect.w / ROOM.w; out.stars = care.stars.map(q => px({ x: rect.x + q.x * s2, y: rect.y + q.y * s2 })); }
+      if (care?.type === 'special' && care.kind === 'janken') out.janken = [0, 1, 2].map(i => px(jankenHome(rect, i)));
+      if (care?.type === 'special' && care.kind === 'pinwheel') out.pinwheel = px(pinwheelPos(rect));
       if (care?.type === 'special' && care.shells) { const s2 = rect.w / ROOM.w; out.shells = care.shells.map(q => px({ x: rect.x + q.x * s2, y: rect.y + q.y * s2 })); }
     }
     if (scene === 'bath' && bath) { const b = bathBody(bath.gi); out.body = px(b.bc); out.r = b.r * S; }

@@ -76,6 +76,8 @@ export function emoji(ctx, str, x, y, size) {
 export function hoverOf(sp, r, t) {
   if (sp === 'fuwari') return r * (0.05 + Math.sin(t * 2.2) * 0.04);
   if (sp === 'ku') return r * (0.12 + Math.sin(t * 1.6) * 0.06);
+  if (sp === 'kumokumo') return r * (0.14 + Math.sin(t * 1.4) * 0.05);
+  if (sp === 'kaze') return r * (0.1 + Math.sin(t * 2.6) * 0.07);
   if (sp === 'dora') return r * (0.04 + Math.max(0, Math.sin(t * 3)) * 0.1);
   return 0;
 }
@@ -91,6 +93,7 @@ const ACC_AT = {
   fuwari: { x: 0.42, y: -0.86, s: 1 }, gorota: { x: 0.12, y: 0.06, s: 0.6, neck: 0.86, nw: 0.42 }, pokari: { x: 0.02, y: -0.9, s: 1 },
   chapu: { x: 0.42, y: -0.62, s: 0.9 }, popuri: { x: 0, y: -0.98, s: 1 }, kirara: { x: 0.02, y: -0.9, s: 0.95 },
   dora: { x: 0, y: -0.98, s: 1.1 }, ku: { x: 0.45, y: -0.78, s: 1.1 }, punyu: { x: 0.4, y: -0.8, s: 1 },
+  pururun: { x: -0.5, y: -0.62, s: 0.9 }, kumokumo: { x: -0.55, y: -0.6, s: 0.9 }, kani: { x: 0.35, y: -0.72, s: 0.9 }, kaze: { x: -0.45, y: -0.82, s: 1 }, moya: { x: -0.62, y: -0.7, s: 1 },
 };
 
 export function drawCreature(ctx, sp, x, y, r, st = {}) {
@@ -335,6 +338,105 @@ const BODIES = {
     },
     front(ctx) { ctx.fillStyle = '#ff8fab'; ell(ctx, 0, 0.14, 0.06, 0.045); ctx.fill(); whiskers(ctx, '#5a5fb0'); },
   },
+  // ぷにゅランドの ぷるるんゼリー
+  pururun: {
+    main(ctx, t, st) {
+      const wob = Math.sin(t * 4) * 0.03;
+      const g = ctx.createLinearGradient(0, -0.8, 0, 1); g.addColorStop(0, 'rgba(255,170,215,.95)'); g.addColorStop(1, 'rgba(255,110,180,.95)');
+      ctx.fillStyle = g; ctx.strokeStyle = '#f06aa8'; ctx.lineWidth = 0.05;
+      ctx.beginPath(); ctx.moveTo(-1.1, 0.95); ctx.bezierCurveTo(-1.12 - wob, 0.2, -0.95, -0.6, -0.55, -0.68); ctx.quadraticCurveTo(0, -0.8, 0.55, -0.68);
+      ctx.bezierCurveTo(0.95, -0.6, 1.12 + wob, 0.2, 1.1, 0.95); ctx.quadraticCurveTo(0, 1.06, -1.1, 0.95); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 0.08;
+      for (const x of [-0.7, -0.25, 0.25, 0.7]) { ctx.beginPath(); ctx.moveTo(x * 0.9, -0.55); ctx.quadraticCurveTo(x * 1.12, 0.2, x * 1.05, 0.9); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ell(ctx, -0.55, -0.35, 0.1, 0.22, 0.3); ctx.fill();
+      // クリーム と さくらんぼ
+      const cream = [[0, -0.78, 0.36], [-0.3, -0.68, 0.24], [0.3, -0.68, 0.24]];
+      const extra = [[-0.62, -0.5, 0.17], [0.62, -0.5, 0.17], [-0.42, -0.9, 0.16], [0.42, -0.9, 0.16], [0, -1.05, 0.2]];
+      ctx.fillStyle = '#fffaf2'; ctx.strokeStyle = '#f3e3d0'; ctx.lineWidth = 0.03;
+      for (const [x, y, r] of [...cream, ...extra.slice(0, Math.round(st.cream || 0))]) { circ(ctx, x, y, r); ctx.fill(); ctx.stroke(); }
+      const cy = -0.98 - Math.min(5, Math.round(st.cream || 0)) * 0.05;
+      ctx.strokeStyle = '#5fae48'; ctx.lineWidth = 0.04; ctx.beginPath(); ctx.moveTo(0.05, cy - 0.12); ctx.quadraticCurveTo(0.12, cy - 0.32, 0.25, cy - 0.38); ctx.stroke();
+      ctx.fillStyle = '#ff2d5e'; circ(ctx, 0.04, cy, 0.15); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.8)'; circ(ctx, -0.01, cy - 0.05, 0.04); ctx.fill();
+    },
+  },
+  // ぷにゅランドの くもくもさん（ナイトキャップ）
+  kumokumo: {
+    main(ctx, t) {
+      const bumps = [[0, 0.1, 1.05, 0.82], [-0.6, -0.4, 0.52, 0.48], [0.1, -0.6, 0.58, 0.52], [0.65, -0.32, 0.5, 0.46], [-1.0, 0.15, 0.42, 0.38], [1.0, 0.15, 0.42, 0.38]];
+      ctx.lineWidth = 0.14; ctx.strokeStyle = '#d5ccf3';
+      for (const [x, y, rx, ry] of bumps) { ell(ctx, x, y, rx, ry); ctx.stroke(); }
+      const g = ctx.createLinearGradient(0, -1.1, 0, 1); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#ece6ff');
+      ctx.fillStyle = g; for (const [x, y, rx, ry] of bumps) { ell(ctx, x, y, rx, ry); ctx.fill(); }
+      // ナイトキャップ
+      const sw = Math.sin(t * 2) * 0.05;
+      ctx.fillStyle = '#7f8fe8';
+      ctx.beginPath(); ctx.moveTo(-0.55, -0.72); ctx.quadraticCurveTo(0.1, -1.6, 1.05 + sw, -1.15); ctx.quadraticCurveTo(0.55, -1.05, 0.55, -0.72); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#b8c3ff'; for (const u of [0.35, 0.65]) { circ(ctx, -0.2 + u * 1.1, -1.05 - Math.sin(u * Math.PI) * 0.2, 0.06); ctx.fill(); }
+      ctx.fillStyle = '#ffffff'; rr(ctx, -0.62, -0.82, 1.24, 0.16, 0.08); ctx.fill();
+      circ(ctx, 1.08 + sw, -1.12, 0.15); ctx.fill();
+    },
+  },
+  // ぷにゅランドの おおきなカニ
+  kani: {
+    back(ctx, t) {
+      ctx.strokeStyle = '#e8573f'; ctx.lineWidth = 0.09; ctx.lineCap = 'round';
+      for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(s * 0.8, 0.4 + k * 0.17); ctx.lineTo(s * (1.22 + k * 0.05), 0.55 + k * 0.2); ctx.lineTo(s * (1.28 + k * 0.05), 0.92); ctx.stroke(); }
+      const open = 0.2 + Math.max(0, Math.sin(t * 3)) * 0.25;
+      for (const s of [-1, 1]) {
+        ctx.strokeStyle = '#ff5c45'; ctx.lineWidth = 0.14; ctx.beginPath(); ctx.moveTo(s * 0.85, 0.05); ctx.quadraticCurveTo(s * 1.3, -0.05, s * 1.3, -0.55); ctx.stroke();
+        ctx.save(); ctx.translate(s * 1.3, -0.72);
+        ctx.fillStyle = '#ff5c45';
+        ctx.save(); ctx.rotate(-s * open); ell(ctx, -s * 0.06, -0.12, 0.2, 0.3, -s * 0.2); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.rotate(s * open * 0.6); ell(ctx, s * 0.1, -0.05, 0.13, 0.26, s * 0.3); ctx.fill(); ctx.restore();
+        ctx.restore();
+      }
+    },
+    main(ctx) {
+      const g = ctx.createLinearGradient(0, -0.8, 0, 1); g.addColorStop(0, '#ff9a7d'); g.addColorStop(1, '#ff6f50');
+      ctx.fillStyle = g; ctx.strokeStyle = '#e8573f'; ctx.lineWidth = 0.06;
+      ell(ctx, 0, 0.12, 1.12, 0.86); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffc2b0'; ctx.beginPath(); ctx.ellipse(0, 0.5, 0.75, 0.42, 0, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.5)'; for (const [x, y] of [[-0.55, -0.45], [0.5, -0.5], [0.05, -0.62]]) { circ(ctx, x, y, 0.06); ctx.fill(); }
+    },
+  },
+  // ぷにゅランドの いたずらかぜ
+  kaze: {
+    back(ctx, t) {
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 0.07; ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {
+        const u = ((t * 0.8 + k / 3) % 1), x = 1.0 + u * 0.6, y = -0.5 + k * 0.45;
+        ctx.globalAlpha = 1 - u; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 0.3, y - 0.1, x + 0.45, y + 0.08); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-x, y + 0.1); ctx.quadraticCurveTo(-x - 0.3, y, -x - 0.45, y + 0.18); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    },
+    main(ctx) {
+      const g = ctx.createLinearGradient(0, -1, 0, 1); g.addColorStop(0, '#cdbfff'); g.addColorStop(1, '#a896f2');
+      ctx.fillStyle = g; ctx.strokeStyle = '#8f7de0'; ctx.lineWidth = 0.06;
+      ell(ctx, 0, 0.04, 1.02, 0.96); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#efe8ff'; ctx.lineWidth = 0.14; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0.18, -1.0, 0.3, Math.PI * 0.9, Math.PI * 2.4); ctx.stroke();
+      ctx.lineWidth = 0.09; ctx.beginPath(); ctx.arc(0.18, -1.0, 0.13, Math.PI * 1.2, Math.PI * 2.6); ctx.stroke();
+    },
+    front(ctx) { ctx.fillStyle = 'rgba(255,170,215,.85)'; ell(ctx, -0.62, 0.22, 0.24, 0.17); ctx.fill(); ell(ctx, 0.62, 0.22, 0.24, 0.17); ctx.fill(); },
+  },
+  // ぷにゅランドの でかもやもや（おうさま）
+  moya: {
+    main(ctx, t) {
+      feet(ctx, '#8c63d9', [-0.5, 0.5], 0.92, 0.3, 0.14);
+      const g = ctx.createLinearGradient(0, -1, 0, 1); g.addColorStop(0, '#c9a8ff'); g.addColorStop(1, '#a57cf2');
+      ctx.fillStyle = g; ctx.strokeStyle = '#8c63d9'; ctx.lineWidth = 0.06;
+      ell(ctx, 0, 0.04, 1.12, 0.96); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ell(ctx, -0.45, -0.55, 0.2, 0.1, -0.5); ctx.fill();
+      // おうかん
+      ctx.fillStyle = '#ffd84a'; ctx.strokeStyle = '#e8b21e'; ctx.lineWidth = 0.04;
+      ctx.beginPath(); ctx.moveTo(-0.42, -0.82); ctx.lineTo(-0.48, -1.32); ctx.lineTo(-0.22, -1.05); ctx.lineTo(0, -1.42); ctx.lineTo(0.22, -1.05); ctx.lineTo(0.48, -1.32); ctx.lineTo(0.42, -0.82); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff5d86'; circ(ctx, 0, -0.98, 0.07); ctx.fill();
+      ctx.fillStyle = '#7fc7ff'; circ(ctx, -0.27, -0.95, 0.05); ctx.fill(); circ(ctx, 0.27, -0.95, 0.05); ctx.fill();
+      ctx.fillStyle = '#fff6c2'; star(ctx, 0, -1.48, 0.05 + Math.abs(Math.sin(t * 3)) * 0.03); ctx.fill();
+    },
+  },
   // ドラゴンの あかちゃん
   dora: {
     back(ctx, t) {
@@ -443,6 +545,9 @@ function drawFace(ctx, sp, st) {
       ctx.beginPath(); ctx.moveTo(ex - s * 0.1, ey - 0.09); ctx.lineTo(ex + s * 0.06, ey); ctx.lineTo(ex - s * 0.1, ey + 0.09); ctx.stroke();
     } else if (mood === 'sleep' || blink) {
       ctx.beginPath(); ctx.moveTo(ex - 0.1, ey + 0.02); ctx.quadraticCurveTo(ex, ey + 0.08, ex + 0.1, ey + 0.02); ctx.stroke();
+    } else if (sp === 'kumokumo' && mood === 'normal') {
+      ell(ctx, ex, ey + 0.03, 0.08, 0.06); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(ex - 0.12, ey - 0.01); ctx.lineTo(ex + 0.12, ey - 0.01); ctx.stroke();
     } else {
       ell(ctx, ex, ey, 0.085, 0.12); ctx.fill();
       ctx.fillStyle = '#fff'; circ(ctx, ex + 0.03, ey - 0.05, 0.035); ctx.fill(); ctx.fillStyle = ink;
@@ -489,7 +594,7 @@ export function itemBox(it) {
 
 export function drawWall(ctx, id) {
   const W = ROOM.w, H = ROOM.wallBottom;
-  const base = { cream: '#fff0d4', pink: '#ffd6e4', mizu: '#c7eaff', mori: '#d3ecbf', yozora: '#3d4687', renga: '#f0b08e', umi: '#8fd0f5', hana: '#fff6d8' }[id] || '#fff0d4';
+  const base = { cream: '#fff0d4', pink: '#ffd6e4', mizu: '#c7eaff', mori: '#d3ecbf', yozora: '#3d4687', renga: '#f0b08e', umi: '#8fd0f5', hana: '#fff6d8', okashi: '#ffe6f0' }[id] || '#fff0d4';
   ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
   if (id === 'cream') {
     ctx.fillStyle = '#f5d9a8';
@@ -528,6 +633,11 @@ export function drawWall(ctx, id) {
     ctx.fillStyle = 'rgba(255,255,255,.5)'; for (let i = 0; i < 14; i++) { circ(ctx, hash(i + 400) * W, hash(i + 420) * H, 4 + hash(i) * 6); ctx.fill(); }
     ctx.fillStyle = 'rgba(255,180,120,.8)';
     for (let i = 0; i < 4; i++) { const x = 120 + i * 230, y = 110 + (i % 2) * 120; ell(ctx, x, y, 22, 13); ctx.fill(); ctx.beginPath(); ctx.moveTo(x + 18, y); ctx.lineTo(x + 36, y - 11); ctx.lineTo(x + 36, y + 11); ctx.closePath(); ctx.fill(); }
+  } else if (id === 'okashi') {
+    for (let y = 40, row = 0; y < H; y += 85, row++) for (let x = row % 2 ? 85 : 30; x < W; x += 115) {
+      if ((row + Math.floor(x / 115)) % 2) { ctx.fillStyle = '#ffb36b'; circ(ctx, x, y, 18); ctx.fill(); ctx.fillStyle = '#ff8fc0'; circ(ctx, x, y, 14); ctx.fill(); ctx.fillStyle = '#ffe6f0'; circ(ctx, x, y, 6); ctx.fill(); }
+      else { ctx.fillStyle = '#fff'; rr(ctx, x - 3, y, 6, 22, 3); ctx.fill(); ctx.fillStyle = ['#7fc7ff', '#ffd84a', '#8fd36a'][row % 3]; circ(ctx, x, y - 4, 13); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y - 4, 7, 0, 5); ctx.stroke(); }
+    }
   } else if (id === 'hana') {
     const cols = ['#ffb3c8', '#ffd84a', '#c9b3ff', '#9fd3ff'];
     for (let y = 45, row = 0; y < H; y += 80, row++) for (let x = row % 2 ? 80 : 30; x < W; x += 110) {
@@ -542,7 +652,7 @@ export function drawWall(ctx, id) {
 
 export function drawFloor(ctx, id) {
   const W = ROOM.w, y0 = ROOM.wallBottom, H = ROOM.h - y0;
-  const base = { wood: '#e5b17a', carpet: '#ffa2c1', kusa: '#9fd676', kumo: '#eef6ff', iwa: '#d2ccd9', suna: '#f5dfae', hanaf: '#a8dc84', hoshicarpet: '#3f4690' }[id] || '#e5b17a';
+  const base = { wood: '#e5b17a', carpet: '#ffa2c1', kusa: '#9fd676', kumo: '#eef6ff', iwa: '#d2ccd9', suna: '#f5dfae', hanaf: '#a8dc84', hoshicarpet: '#3f4690', choco: '#8a5a3c' }[id] || '#e5b17a';
   ctx.fillStyle = base; ctx.fillRect(0, y0, W, H);
   if (id === 'wood') {
     ctx.strokeStyle = '#cc955e'; ctx.lineWidth = 3;
@@ -584,6 +694,8 @@ export function drawFloor(ctx, id) {
       ctx.fillStyle = cols[i % 4]; for (let k = 0; k < 5; k++) { const an = k * 1.2566; circ(ctx, x + Math.cos(an) * 6, y + Math.sin(an) * 4, 5); ctx.fill(); }
       ctx.fillStyle = '#ffb347'; circ(ctx, x, y, 3); ctx.fill();
     }
+  } else if (id === 'choco') {
+    for (let y = y0 + 6, row = 0; y < ROOM.h; y += 56, row++) for (let x = 6; x < W; x += 100) { ctx.fillStyle = '#9d6a49'; rr(ctx, x, y, 92, 48, 8); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.12)'; rr(ctx, x + 6, y + 6, 80, 10, 5); ctx.fill(); }
   } else if (id === 'hoshicarpet') {
     ctx.fillStyle = '#fff6c2'; for (let i = 0; i < 30; i++) { star(ctx, hash(i + 800) * W, y0 + 15 + hash(i + 830) * (H - 20), 4 + hash(i + 3) * 5); ctx.fill(); }
     ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = 4; ctx.strokeRect(20, y0 + 20, W - 40, H - 30);
@@ -608,6 +720,49 @@ const light = (h, k = 0.45) => mixHex(h, 255, k), dark = (h, k = 0.2) => mixHex(
 export function itemColor(it) { const d = ITEMS[it.id]; return d.colors ? d.colors[(it.c || 0) % d.colors.length] : null; }
 
 const ITEM_DRAW = {
+  cakechair(ctx) {
+    ctx.fillStyle = '#f7e1b5'; rr(ctx, -55, -70, 110, 70, 14); ctx.fill();
+    ctx.fillStyle = '#ffffff'; rr(ctx, -55, -80, 110, 22, 11); ctx.fill(); ctx.fillRect(-55, -42, 110, 10);
+    ctx.fillStyle = '#ff8fab'; ctx.fillRect(-55, -38, 110, 4);
+    for (const x of [-35, -10, 15, 38]) { ctx.fillStyle = '#fff'; circ(ctx, x, -84, 10); ctx.fill(); }
+    ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.moveTo(0, -84); ctx.quadraticCurveTo(-18, -100, -8, -114); ctx.quadraticCurveTo(0, -120, 8, -114); ctx.quadraticCurveTo(18, -100, 0, -84); ctx.fill();
+    ctx.fillStyle = '#5fae48'; ell(ctx, 0, -116, 8, 4); ctx.fill();
+  },
+  candylamp(ctx, o) {
+    const c = o.color || '#ff8fab';
+    const g = ctx.createRadialGradient(0, -160, 5, 0, -160, 75); g.addColorStop(0, 'rgba(255,230,240,.8)'); g.addColorStop(1, 'rgba(255,230,240,0)');
+    ctx.fillStyle = g; circ(ctx, 0, -160, 75); ctx.fill();
+    ctx.fillStyle = '#fff'; rr(ctx, -5, -125, 10, 125, 5); ctx.fill(); ctx.fillStyle = '#e8dce4'; ell(ctx, 0, -4, 30, 8); ctx.fill();
+    ctx.fillStyle = c; circ(ctx, 0, -160, 42); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 7; ctx.beginPath();
+    for (let a = 0; a < Math.PI * 5; a += 0.2) { const r = 4 + a * 2.4; ctx.lineTo(Math.cos(a + (o.t || 0)) * r, -160 + Math.sin(a + (o.t || 0)) * r); } ctx.stroke();
+  },
+  takarabako(ctx, o) {
+    ctx.fillStyle = '#b77a45'; rr(ctx, -70, -60, 140, 60, 8); ctx.fill();
+    ctx.fillStyle = '#ffd84a'; for (const x of [-70, -8, 62]) ctx.fillRect(x, -60, 8, 60);
+    ctx.fillStyle = '#ffe9a8'; for (let i = 0; i < 6; i++) { circ(ctx, -45 + i * 18, -70 - (i % 2) * 6, 10); ctx.fill(); }
+    ctx.fillStyle = '#ffffff'; circ(ctx, 30, -80, 9); ctx.fill();
+    ctx.fillStyle = '#c98b55'; ctx.save(); ctx.translate(-70, -62); ctx.rotate(-0.35); rr(ctx, 0, -40, 140, 40, 14); ctx.fill(); ctx.fillStyle = '#ffd84a'; ctx.fillRect(62, -40, 8, 40); ctx.restore();
+    if (Math.sin((o.t || 0) * 3) > 0.5) { ctx.fillStyle = '#fff6c2'; star(ctx, 10, -95, 8); ctx.fill(); }
+  },
+  kazaguruma(ctx, o) {
+    const c = o.color || '#ff8fab';
+    ctx.fillStyle = '#c98b55'; rr(ctx, -4, -150, 8, 150, 4); ctx.fill(); ell(ctx, 0, -3, 24, 7); ctx.fill();
+    ctx.save(); ctx.translate(0, -150); ctx.rotate((o.t || 0) * 2);
+    const cols = [c, '#ffffff', c, '#ffffff'];
+    for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.fillStyle = cols[k]; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -42); ctx.quadraticCurveTo(30, -30, 0, 0); ctx.fill(); }
+    ctx.fillStyle = '#ffd84a'; circ(ctx, 0, 0, 7); ctx.fill();
+    ctx.restore();
+  },
+  throne(ctx, o) {
+    ctx.fillStyle = '#8c63d9'; rr(ctx, -70, -190, 140, 150, 26); ctx.fill();
+    ctx.fillStyle = '#b58cff'; rr(ctx, -55, -175, 110, 125, 20); ctx.fill();
+    ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.moveTo(-30, -190); ctx.lineTo(-34, -218); ctx.lineTo(-14, -200); ctx.lineTo(0, -226); ctx.lineTo(14, -200); ctx.lineTo(34, -218); ctx.lineTo(30, -190); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff5d86'; rr(ctx, -80, -70, 160, 36, 16); ctx.fill();
+    ctx.fillStyle = '#ffd84a'; rr(ctx, -84, -40, 168, 14, 7); ctx.fill();
+    ctx.fillStyle = '#e8b21e'; ctx.fillRect(-72, -30, 12, 30); ctx.fillRect(60, -30, 12, 30);
+    ctx.fillStyle = '#fff6c2'; star(ctx, 0, -120, 18 + Math.sin((o.t || 0) * 3) * 2); ctx.fill();
+  },
   bed(ctx, o) {
     const c = o.color || '#ffb3c8';
     ctx.fillStyle = woodDark; ctx.fillRect(-115, -20, 14, 20); ctx.fillRect(100, -20, 14, 20);
