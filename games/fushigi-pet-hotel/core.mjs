@@ -1,7 +1,7 @@
 // ホテルの しくみ（画面や音とは切りはなした計算だけ。node --test で確かめられる）
 import {
   SPECIES, SPECIES_IDS, NORMAL_IDS, BIG_IDS, ITEMS, WALLS, FLOORS, FOODS, TOYS, ACCS, SPOTS, SPECIALS, TAGS, ROOM,
-  ROOM_HEARTS, MAX_ROOMS, SUITE_HEARTS, BIG_EVERY, GUESTS_PER_DAY, LETTER_KEEP,
+  ROOM_HEARTS, MAX_ROOMS, SUITE_HEARTS, BIG_EVERY, NEW_WEIGHT, RECENT_WEIGHT, GUESTS_PER_DAY, LETTER_KEEP,
 } from './data.mjs';
 
 // ねる のは いつも さいご。ほかから 3つ えらぶ
@@ -187,10 +187,9 @@ export const isBigDay = s => suiteIdx(s) >= 0 && s.bigDay !== null && s.day >= s
 // あさ：きょうの お客さんを きめて、1ぴきめが くる
 export function startDay(s, rng = Math.random) {
   const avail = availableSpecies(s);
-  // あたらしい 子も まえからの 子も おなじ チャンス。きのう きた 子は あとまわし
-  const fresh = shuffle(avail.filter(id => (s.seen[id] ?? -9) < s.day - 1), rng);
-  const recent = shuffle(avail.filter(id => (s.seen[id] ?? -9) >= s.day - 1), rng);
-  const order = [...fresh, ...recent];
+  // くじびき：まだ あって いない 子は すこし でやすい。きのう きた 子は でにくい
+  const weight = id => (s.seen[id] ?? -9) >= s.day - 1 ? RECENT_WEIGHT : s.zukan[id].met ? 1 : NEW_WEIGHT;
+  const order = avail.map(id => ({ id, k: Math.pow(rng(), 1 / weight(id)) })).sort((a, b) => b.k - a.k).map(o => o.id);
   const queue = [];
   if (isBigDay(s)) {
     const lastBig = [...BIG_IDS].sort((a, b) => (s.seen[b] ?? -1) - (s.seen[a] ?? -1))[0];

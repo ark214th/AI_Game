@@ -416,5 +416,7 @@ export const ROOM_HEARTS = [0, 0, 12, 30, 55, 85, 120, 160, 205];
 export const MAX_ROOMS = ROOM_HEARTS.length;
 export const SUITE_HEARTS = 70;      // スイートルームが できる
 export const BIG_EVERY = 3;          // おおきな おきゃくさんが くる ひの まわりかた
+export const NEW_WEIGHT = 3;         // まだ あって いない 子の でやすさ（ふつうの 子 = 1）
+export const RECENT_WEIGHT = 0.3;    // きのう きた 子の でやすさ
 export const GUESTS_PER_DAY = 2;
 export const LETTER_KEEP = 60;

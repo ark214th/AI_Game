@@ -165,7 +165,7 @@ test('ホテルが おおきく なると あたらしい 子が くる', () => 
   let days = 0;
   while (days < 150) { playDay(s, r); days++; for (const id of NORMAL_IDS) if (s.zukan[id].met) met.add(id); if (met.size === NORMAL_IDS.length) break; }
   assert.equal(met.size, NORMAL_IDS.length, `${days}にち で ぜんいん きた`);
-  assert.ok(days <= 90, `ぜんいん くるまで ${days}にち`);
+  assert.ok(days <= 45, `ぜんいん くるまで ${days}にち`);
 });
 
 test('スイートルームと おおきな お客さん', () => {
