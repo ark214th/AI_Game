@@ -203,7 +203,7 @@ function okashi1() {
   b.add('sign', 50, 0, { icon: 'right' });
   b.gap(8); // 52 … 60
   b.platform(51.5, 0, 3, 51, { type: 'move', dx: 6, period: 5.5 });
-  b.stars(53, 1.3, 6, 1.2);
+  b.stars(53, 0.8, 6, 1.2); // 動く床に乗ったままで取れる高さ
   b.flat(12); // 60 … 72
   b.platform(63, 2.2, 3);
   b.add('medal', 64.5, 1.2, { onPlat: true });
@@ -508,7 +508,7 @@ function umi1() {
   // 海の渡し舟
   b.gap(9); // 70.6 … 79.6
   b.platform(70.1, 0, 3, 69, { type: 'move', dx: 7, period: 5.5 });
-  b.stars(71.6, 1.3, 6, 1.2);
+  b.stars(71.6, 0.8, 6, 1.2); // 動く床に乗ったままで取れる高さ
   b.flat(10); // 79.6 … 89.6
   b.add('checkpoint', 82);
   b.add('vent', 86, 0, { rise: 8 });

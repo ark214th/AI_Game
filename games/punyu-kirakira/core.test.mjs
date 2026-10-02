@@ -215,6 +215,16 @@ for (const stage of STAGES) {
     }
   });
 
+  test(`${stage.id}: 動く床の上の星は、乗ったままで取れる高さ`, () => {
+    for (const q of stage.terrain.platforms) {
+      if (q.kind !== 'move' || !q.dx) continue;
+      for (const st of stage.star) {
+        if (st.x < q.x || st.x > q.x + q.w + q.dx || st.y <= q.y || st.y > q.y + 2.5) continue;
+        assert.ok(st.y - q.y <= 1.1, `star at ${st.x} is ${(st.y - q.y).toFixed(2)} above the ferry`);
+      }
+    }
+  });
+
   test(`${stage.id}: メダル3枚とゴール（またはボス）がある`, () => {
     for (const s of [...stage.star, ...stage.medal]) assert.ok(Number.isFinite(s.y));
     assert.equal(stage.medal.length, 3);
