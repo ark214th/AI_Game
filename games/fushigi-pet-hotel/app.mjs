@@ -76,7 +76,7 @@ function makeActor(g, arriving = false) {
     mood: 'normal', moodUntil: 0, say: '', sayUntil: 0, look: 0, lookUntil: 0, shake: 0, puff: 1, puffT: 1, mouth: 0,
     needAt: T + 1.5, lastNeed: null, dirt: null, pet: 0, favD: 0, allD: 0, favRub: 0, spotSaid: false, wanderAt: 0, pop: 1,
     asleep: C.isHappy(g), thanked: C.isHappy(g), lastComment: -99, towel: 0,
-    fluff: 0, flame: 0.35, bloom: 0.3, shine: 0.3, rollT: -9, rollDir: 1, cream: 0,
+    fluff: 0, flame: 0.35, bloom: 0.3, shine: 0.3, rollT: -9, rollDir: 1, cream: 0, nest: 0, slideT: -9,
   };
 }
 function syncActors() {
@@ -90,6 +90,8 @@ const jump = a => { a.jumpT = T; poke(a, -0.2); };
 const setMood = (a, m, sec = 1.5) => { a.mood = m; a.moodUntil = T + sec; };
 const say = (a, str, sec = 2.4) => { a.say = str; a.sayUntil = T + sec; };
 const rollAngle = a => { const u = (T - a.rollT) / 0.6; return u >= 0 && u < 1 ? a.rollDir * u * Math.PI * 2 : 0; };
+const slideU = a => { const u = (T - a.slideT) / 0.8; return u >= 0 && u < 1 ? u : -1; };
+const slideOff = a => { const u = slideU(a); return u < 0 ? 0 : a.rollDir * Math.sin(u * Math.PI) * 90; };
 const jumpOff = a => { const u = (T - a.jumpT) / 0.55; return u >= 0 && u <= 1 ? Math.sin(u * Math.PI) * 70 : 0; };
 function moodOf(gi) {
   const a = actors[gi], g = guests()[gi];
@@ -108,7 +110,7 @@ const stOf = gi => {
     dirt: C.needOf(g) === 'bath' ? a.dirt : null, puff: a.puff, shake: a.shake,
     blanket: a.asleep || (sleepCareOn(gi) && Math.abs(a.x - a.tx) < 8), towel: T < a.towel, suitcase: g.room < 0,
     acc: g.acc, fluff: g.log?.special ? 1 : a.fluff, flame: g.log?.special ? 1.2 : a.flame, bloom: g.log?.special ? 1 : a.bloom, shine: g.log?.special ? 1 : a.shine, cream: g.log?.special ? 5 : a.cream,
-    rot: rollAngle(a),
+    rot: rollAngle(a) + (slideU(a) < 0 ? 0 : a.rollDir * Math.sin(slideU(a) * Math.PI) * 1.1), nest: g.log?.special ? 1 : a.nest,
   };
 }
 
@@ -289,7 +291,7 @@ function guestScreenAnywhere(gi) {
 
 // ---------- かく ----------
 function creatureExtra(a, species, toff, st) {
-  return { y: a.y, draw: c => D.drawCreature(c, species, a.x, a.y - a.lift - jumpOff(a), rOf(a, species), st) };
+  return { y: a.y, draw: c => D.drawCreature(c, species, a.x + slideOff(a), a.y - a.lift - jumpOff(a), rOf(a, species), st) };
 }
 
 function drawRoomCell(idx, rect, big) {
@@ -814,12 +816,16 @@ function dropAcc(gi, id, p) {
 function startSpecial(gi) {
   const g = guests()[gi], kind = SPECIES[g.species].special;
   if (!kind) return;
-  care = { type: 'special', gi, kind, prog: 0, count: 0, goal: { fan: 8, roll: 4, shell: 3, cream: 5, stars: 5, janken: 3 }[kind] || 1, hintAt: T + 1.2 };
+  care = { type: 'special', gi, kind, prog: 0, count: 0, goal: { fan: 8, roll: 4, shell: 3, cream: 5, stars: 5, janken: 3, snowman: 4, drum: 8, nest: 4, slide: 4, honey: 4, acorn: 3 }[kind] || 1, hintAt: T + 1.2 };
   if (kind === 'shell') care.shells = [[170, 585], [860, 590], [330, 600]].map(([x, y]) => ({ x: x + rand(-30, 30), y, found: false, t0: 0 }));
   if (kind === 'stars') care.stars = [[140, 110], [310, 230], [820, 120], [700, 300], [460, 90]].map(([x, y], i) => ({ x: x + rand(-30, 30), y: y + rand(-20, 20), found: false, t0: 0, ph: i }));
   if (kind === 'janken') care.jk = { phase: 'choose', until: 0 };
   if (kind === 'pinwheel') { care.ang = 0; care.spin = 0; }
+  if (kind === 'nest') care.twigs = [[150, 590], [880, 585], [360, 605], [640, 600]].map(([x, y], i) => ({ x: x + rand(-25, 25), y, found: false, t0: 0, ph: i }));
+  if (kind === 'honey') care.flowers = [[130, 560], [300, 600], [720, 590], [880, 560]].map(([x, y], i) => ({ x: x + rand(-25, 25), y, found: false, t0: 0, ph: i }));
+  if (kind === 'acorn') care.ac = { phase: 'choose', hand: Math.floor(Math.random() * 2) };
   const a = actors[gi];
+  if (kind === 'nest') a.nest = 0;
   if (kind === 'cream') a.cream = 0;
   if (kind === 'fan') a.flame = 0.35;
   sound.play('pop');
@@ -850,6 +856,9 @@ function finishSpecial() {
 }
 const JANKEN = ['✊', '✌️', '✋'];
 const jankenHome = (rect, i) => { const c = plateCenter(rect); return { x: c.x + (i - 1) * rect.w * 0.085, y: c.y - rect.w * 0.04 }; };
+const acornHome = (rect, i) => { const c = plateCenter(rect); return { x: c.x + (i ? 1 : -1) * rect.w * 0.07, y: c.y - rect.w * 0.04 }; };
+const snowPos = (rect, gi) => { const sc = rect.w / ROOM.w, s = actorScreen(gi, rect); const left = s.bc.x - rect.x > rect.w * 0.5; return { x: s.bc.x + (left ? -1 : 1) * Math.max(s.r * 1.9, 170 * sc), y: rect.y + 600 * sc, sc }; };
+const potPos = (rect, gi) => { const s = actorScreen(gi, rect); const left = s.bc.x - rect.x > rect.w * 0.5; return { x: s.bc.x + (left ? -1 : 1) * s.r * 1.6, y: s.bc.y + s.r * 0.9 }; };
 const pinwheelPos = (rect) => { const sc = rect.w / ROOM.w; return { x: rect.x + 300 * sc, y: rect.y + 300 * sc, r: 85 * sc }; };
 function specialDown(p, rect) {
   const gi = care.gi, s = actorScreen(gi, rect), k = care.kind, sc = rect.w / ROOM.w;
@@ -884,6 +893,44 @@ function specialDown(p, rect) {
     return true;
   }
   if (k === 'pinwheel') { care.rub = { last: p }; return true; }
+  if (k === 'snowman') {
+    if (care.count >= care.goal || p.y < rect.y + 100) return true;
+    care.count++; care.snowAt = T;
+    const q = snowPos(rect, gi); sparkles(q.x, q.y - 80 * q.sc * care.count, 6, 40); sound.play('pick');
+    say(actors[gi], ['ころころ…', 'ころころ…', 'おかお！', 'ぼうし！'][care.count - 1], 1);
+    if (care.count >= care.goal) later(0.8, () => { if (care?.kind === 'snowman') finishSpecial(); });
+    return true;
+  }
+  if (k === 'drum') {
+    if (Math.hypot(p.x - s.bc.x, p.y - (s.bc.y + s.r * 0.35)) > s.r * 0.95) return true;
+    if (care.count >= care.goal) return true;
+    care.count++; care.drumAt = T; care.drumP = { x: p.x, y: p.y };
+    sound.tone?.(care.count % 2 ? 196 : 262, 0.25, { type: 'sine', vol: 0.35 }); poke(actors[gi], 0.15);
+    if (care.count >= care.goal) later(0.5, () => { if (care?.kind === 'drum') finishSpecial(); });
+    return true;
+  }
+  if (k === 'nest' || k === 'honey') {
+    const list = k === 'nest' ? care.twigs : care.flowers;
+    const q = list.find(q => !q.found && Math.hypot(p.x - (rect.x + q.x * sc), p.y - (rect.y + q.y * sc)) < 55 * sc + 26);
+    if (q) {
+      q.found = true; q.t0 = T; care.count++; sparkles(p.x, p.y, 5, 30);
+      if (k === 'nest') { sound.play('pick'); later(0.5, () => { actors[gi].nest = care?.kind === 'nest' ? care.count / care.goal : 1; }); }
+      else sound.tone?.([523, 659, 784, 1047][care.count - 1], 0.4, { type: 'triangle', vol: 0.2 });
+      if (care.count >= care.goal) later(0.9, () => { if (care?.kind === k) finishSpecial(); });
+    }
+    return true;
+  }
+  if (k === 'acorn') {
+    if (care.ac.phase !== 'choose') return true;
+    const i = [0, 1].findIndex(i => { const h = acornHome(rect, i); return Math.hypot(p.x - h.x, p.y - h.y) < rect.w * 0.05; });
+    if (i < 0) return true;
+    const hit = i === care.ac.hand;
+    care.ac = { phase: 'show', hand: care.ac.hand, mine: i, hit };
+    care.count++;
+    say(actors[gi], hit ? 'みつかっちゃった〜！' : 'こっちに あったよ〜', 1.5); sound.play(hit ? 'like' : 'pop'); if (hit) jump(actors[gi]);
+    later(1.6, () => { if (care?.kind !== 'acorn') return; if (care.count >= care.goal) finishSpecial(); else care.ac = { phase: 'choose', hand: Math.floor(Math.random() * 2) }; });
+    return true;
+  }
   if (k === 'fan') {
     const tp = tailPos(gi, rect);
     if (Math.hypot(p.x - tp.x, p.y - tp.y) > tp.r * 1.3 && Math.hypot(p.x - s.bc.x, p.y - s.bc.y) > s.r * 1.2) return true;
@@ -901,18 +948,20 @@ function specialDown(p, rect) {
     }
     return true;
   }
-  if (k === 'roll') { care.swipe = { x0: p.x }; return true; }
+  if (k === 'roll' || k === 'slide') { care.swipe = { x0: p.x }; return true; }
   care.rub = { last: p }; care.toolP = p;
   return true;
 }
 function specialMove(p, rect) {
   const gi = care.gi, k = care.kind, s = actorScreen(gi, rect);
-  if (k === 'roll' && care.swipe) {
+  if ((k === 'roll' || k === 'slide') && care.swipe) {
     const dx = p.x - care.swipe.x0;
+    const a = actors[gi];
     if (Math.abs(dx) > 140) {
       care.swipe.x0 = p.x; care.count++;
-      const a = actors[gi]; a.rollT = T; a.rollDir = Math.sign(dx); poke(a, 0.2); sound.play('drop');
-      if (care.count >= care.goal) later(0.7, () => { if (care?.kind === 'roll') finishSpecial(); });
+      if (k === 'roll') { a.rollT = T; sound.play('drop'); } else { a.slideT = T; sound.play('splash', 0.2); if (care.count < care.goal) say(a, 'つる〜ん！', 0.8); }
+      a.rollDir = Math.sign(dx); poke(a, 0.2);
+      if (care.count >= care.goal) later(0.9, () => { if (care?.kind === k) finishSpecial(); });
     }
     return;
   }
@@ -953,6 +1002,64 @@ function drawSpecial(rect) {
     JANKEN.forEach((h, i) => { const q = jankenHome(rect, i); const on = care.jk.phase === 'show' && care.jk.mine === i; D.emoji(ctx, h, q.x, q.y + (on ? -10 : Math.sin(T * 3 + i) * 3), rect.w * (on ? 0.07 : 0.055)); });
     if (care.jk.phase === 'show') D.text(ctx, care.jk.res, s.bc.x, s.head.y - 90, 52, { color: '#fff', stroke: care.jk.res === 'かち！' ? '#ff6f91' : '#7fc7ff', sw: 12 });
   }
+  if (k === 'snowman') {
+    const q = snowPos(rect, gi), u = q.sc + 0.25;
+    const n = care.count;
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#cfe3f5'; ctx.lineWidth = 4;
+    if (n >= 1) { D.circ(ctx, q.x, q.y - 60 * u, 60 * u); ctx.fill(); ctx.stroke(); }
+    if (n >= 2) { D.circ(ctx, q.x, q.y - 150 * u, 42 * u); ctx.fill(); ctx.stroke(); }
+    if (n >= 3) {
+      ctx.fillStyle = '#3a2a3a'; D.circ(ctx, q.x - 14 * u, q.y - 158 * u, 5 * u); ctx.fill(); D.circ(ctx, q.x + 14 * u, q.y - 158 * u, 5 * u); ctx.fill();
+      ctx.fillStyle = '#ff8a3c'; ctx.beginPath(); ctx.moveTo(q.x, q.y - 148 * u); ctx.lineTo(q.x + 28 * u, q.y - 144 * u); ctx.lineTo(q.x, q.y - 138 * u); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = 5 * u; ctx.beginPath(); ctx.moveTo(q.x - 55 * u, q.y - 85 * u); ctx.lineTo(q.x - 100 * u, q.y - 115 * u); ctx.moveTo(q.x + 55 * u, q.y - 85 * u); ctx.lineTo(q.x + 100 * u, q.y - 115 * u); ctx.stroke();
+    }
+    if (n >= 4) { ctx.fillStyle = '#ff6f91'; D.rr(ctx, q.x - 30 * u, q.y - 215 * u, 60 * u, 30 * u, 6 * u); ctx.fill(); D.rr(ctx, q.x - 40 * u, q.y - 190 * u, 80 * u, 9 * u, 4 * u); ctx.fill(); }
+    if (n < 4) { ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.setLineDash([10, 10]); ctx.lineWidth = 4; D.circ(ctx, q.x, q.y - [60, 150, 158, 200][n] * u, [60, 42, 30, 30][n] * u); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  if (k === 'drum' && T - (care.drumAt ?? -9) < 0.5) {
+    const u = (T - care.drumAt) / 0.5;
+    D.text(ctx, care.count % 2 ? 'ポン！' : 'ポコ！', care.drumP.x + 50, care.drumP.y - 40 - u * 50, 44, { color: '#fff', stroke: '#ff9a3c', sw: 10 });
+    ctx.strokeStyle = `rgba(255,200,120,${1 - u})`; ctx.lineWidth = 5; D.circ(ctx, care.drumP.x, care.drumP.y, 20 + u * 60); ctx.stroke();
+  }
+  if (k === 'nest') for (const q of care.twigs) {
+    let x = rect.x + q.x * sc, y = rect.y + q.y * sc;
+    if (q.found) { const t = clamp((T - q.t0) / 0.5, 0, 1); x += (s.bc.x - x) * t; y += (s.bc.y + s.r * 0.8 - y) * t - Math.sin(t * Math.PI) * 80; if (t >= 1) continue; }
+    ctx.strokeStyle = '#a8703f'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - 40, y + 5); ctx.lineTo(x + 40, y - 8); ctx.moveTo(x + 5, y - 2); ctx.lineTo(x + 22, y - 25); ctx.stroke();
+    ctx.fillStyle = '#7fcf6a'; D.ell(ctx, x + 26, y - 28, 10, 6, -0.6); ctx.fill();
+    if (!q.found && Math.sin(T * 5 + q.ph) > 0.6) { ctx.fillStyle = '#ffe45c'; D.star(ctx, x + 40, y - 30, 8); ctx.fill(); }
+  }
+  if (k === 'honey') {
+    for (const q of care.flowers) {
+      const x = rect.x + q.x * sc, y = rect.y + q.y * sc;
+      ctx.strokeStyle = '#6cbf57'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 50); ctx.stroke();
+      const sw = Math.sin(T * 3 + q.ph) * 4;
+      ctx.fillStyle = q.found ? '#ffd6e2' : ['#ff8fab', '#ffd84a', '#b58cff', '#7fc7ff'][q.ph];
+      for (let j = 0; j < 5; j++) { const an = j * Math.PI * 2 / 5 + sw * 0.05; D.circ(ctx, x + Math.cos(an) * 18, y - 60 + Math.sin(an) * 18, 13); ctx.fill(); }
+      ctx.fillStyle = '#ffb21e'; D.circ(ctx, x, y - 60, 11); ctx.fill();
+      if (q.found) { const t = clamp((T - q.t0) / 0.6, 0, 1); if (t < 1) { const pp = potPos(rect, gi); ctx.fillStyle = '#ffcf3a'; D.circ(ctx, x + (pp.x - x) * t, y - 60 + (pp.y - 40 - (y - 60)) * t - Math.sin(t * Math.PI) * 60, 14); ctx.fill(); } }
+      else { ctx.fillStyle = '#ffe45c'; ctx.strokeStyle = '#3a2a3a'; ctx.lineWidth = 2; const bx = x + Math.cos(T * 3 + q.ph) * 30, by = y - 95 + Math.sin(T * 6 + q.ph) * 8; D.ell(ctx, bx, by, 12, 9); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.8)'; D.ell(ctx, bx - 3, by - 11, 7, 5); ctx.fill(); }
+    }
+    const pp = potPos(rect, gi), lv = Math.min(care.count, care.goal) / care.goal;
+    ctx.fillStyle = '#c98b55'; ctx.beginPath(); ctx.moveTo(pp.x - 32, pp.y - 70); ctx.quadraticCurveTo(pp.x - 50, pp.y - 30, pp.x - 34, pp.y); ctx.lineTo(pp.x + 34, pp.y); ctx.quadraticCurveTo(pp.x + 50, pp.y - 30, pp.x + 32, pp.y - 70); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.rect(pp.x - 50, pp.y - 6 - 60 * lv, 100, 60 * lv + 6); ctx.clip();
+    ctx.fillStyle = '#ffcf3a'; ctx.beginPath(); ctx.moveTo(pp.x - 28, pp.y - 66); ctx.quadraticCurveTo(pp.x - 44, pp.y - 30, pp.x - 30, pp.y - 6); ctx.lineTo(pp.x + 30, pp.y - 6); ctx.quadraticCurveTo(pp.x + 44, pp.y - 30, pp.x + 28, pp.y - 66); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#e8b27a'; D.rr(ctx, pp.x - 38, pp.y - 80, 76, 14, 7); ctx.fill();
+  }
+  if (k === 'acorn') {
+    const c = plateCenter(rect);
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; D.rr(ctx, c.x - rect.w * 0.12, c.y - rect.w * 0.09, rect.w * 0.24, rect.w * 0.1, 30); ctx.fill();
+    for (const i of [0, 1]) {
+      const q = acornHome(rect, i), show = care.ac.phase === 'show';
+      const sz = rect.w * 0.06;
+      if (show) {
+        D.emoji(ctx, '🤲', q.x, q.y + sz * 0.2, sz);
+        if (i === care.ac.hand) D.emoji(ctx, '🌰', q.x, q.y - sz * 0.25 - (care.ac.hit ? Math.abs(Math.sin(T * 8)) * 10 : 0), sz * 0.7);
+      } else D.emoji(ctx, '✊', q.x, q.y + Math.sin(T * 3 + i * 2) * 4, sz);
+    }
+    if (care.ac.phase === 'show') D.text(ctx, care.ac.hit ? 'あたり！' : 'おしい！', s.bc.x, s.head.y - 90, 52, { color: '#fff', stroke: care.ac.hit ? '#ff6f91' : '#7fc7ff', sw: 12 });
+  }
   if (k === 'pinwheel') {
     const pw = pinwheelPos(rect);
     care.ang += care.spin * (1 / 60); care.spin *= 0.985;
@@ -986,7 +1093,11 @@ function drawSpecial(rect) {
   if (T > care.hintAt) {
     const tp = tailPos(gi, rect);
     const at = k === 'fan' || k === 'polish' ? tp : k === 'water' ? { x: s.bc.x + 60, y: s.bc.y - s.r * 1.1 } : s.bc;
-    if (k === 'roll') D.emoji(ctx, '👉', s.bc.x - 120 + ((T * 180) % 240), s.bc.y + s.r * 0.8, 60);
+    if (k === 'snowman') { const q = snowPos(rect, gi); D.emoji(ctx, '👆', q.x + 20, q.y - 40 - Math.abs(Math.sin(T * 6)) * 20, 60); }
+    else if (k === 'drum') D.emoji(ctx, '👆', s.bc.x + 20, s.bc.y + s.r * 0.5 + Math.abs(Math.sin(T * 8)) * 20, 60);
+    else if (k === 'acorn' && care.ac.phase === 'choose') { const q = acornHome(rect, Math.floor(T) % 2); D.emoji(ctx, '👆', q.x + 20, q.y + 60, 50); }
+    else if (k === 'nest' || k === 'honey' || k === 'acorn') { /* ひかって いるので ヒント なし */ }
+    else if (k === 'roll' || k === 'slide') D.emoji(ctx, '👉', s.bc.x - 120 + ((T * 180) % 240), s.bc.y + s.r * 0.8, 60);
     else if (k === 'pinwheel') { const pw = pinwheelPos(rect); D.emoji(ctx, '👆', pw.x + Math.cos(T * 4) * pw.r * 0.7, pw.y + 40 + Math.sin(T * 4) * pw.r * 0.7, 60); }
     else if (k === 'cream') D.emoji(ctx, '👆', s.bc.x + 10, s.bc.y - s.r * 0.6 + Math.abs(Math.sin(T * 6)) * 20, 60);
     else if (k === 'janken' && care.jk.phase === 'choose') { const q = jankenHome(rect, Math.floor(T) % 3); D.emoji(ctx, '👆', q.x + 20, q.y + 60, 50); }
@@ -1774,6 +1885,9 @@ if (DEBUG) {
       if (care?.type === 'special' && care.stars) { const s2 = rect.w / ROOM.w; out.stars = care.stars.map(q => px({ x: rect.x + q.x * s2, y: rect.y + q.y * s2 })); }
       if (care?.type === 'special' && care.kind === 'janken') out.janken = [0, 1, 2].map(i => px(jankenHome(rect, i)));
       if (care?.type === 'special' && care.kind === 'pinwheel') out.pinwheel = px(pinwheelPos(rect));
+      if (care?.type === 'special' && care.kind === 'acorn') { out.acorn = [0, 1].map(i => px(acornHome(rect, i))); out.acornHand = care.ac.hand; }
+      if (care?.type === 'special' && care.kind === 'nest') out.twigs = care.twigs.map(q => px({ x: rect.x + q.x * rect.w / ROOM.w, y: rect.y + q.y * rect.w / ROOM.w }));
+      if (care?.type === 'special' && care.kind === 'honey') out.flowers = care.flowers.map(q => px({ x: rect.x + q.x * rect.w / ROOM.w, y: rect.y + q.y * rect.w / ROOM.w }));
       if (care?.type === 'special' && care.shells) { const s2 = rect.w / ROOM.w; out.shells = care.shells.map(q => px({ x: rect.x + q.x * s2, y: rect.y + q.y * s2 })); }
     }
     if (scene === 'bath' && bath) { const b = bathBody(bath.gi); out.body = px(b.bc); out.r = b.r * S; }

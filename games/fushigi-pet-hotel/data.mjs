@@ -14,6 +14,7 @@ export const TAGS = {
   hana: { icon: '🌸', name: 'おはな', wish: 'おはな🌸が さいてる\nへやが いいな' },
   yoru: { icon: '🌙', name: 'よる', wish: 'よる🌙みたいな\nへやが いいな' },
   okashi: { icon: '🍰', name: 'おかし', wish: 'おかし🍰みたいな\nへやが いいな' },
+  yuki: { icon: '❄️', name: 'ゆき', wish: 'ゆき❄️みたいな\nへやが いいな' },
 };
 
 export const FOODS = [
@@ -27,6 +28,10 @@ export const FOODS = [
   { id: 'purin', icon: '🍮', name: 'プリン' },
   { id: 'donut', icon: '🍩', name: 'ドーナツ' },
   { id: 'onigiri', icon: '🍙', name: 'おにぎり' },
+  { id: 'kakigori', icon: '🍧', name: 'かきごおり' },
+  { id: 'banana', icon: '🍌', name: 'バナナ' },
+  { id: 'carrot', icon: '🥕', name: 'にんじん' },
+  { id: 'acorn', icon: '🌰', name: 'どんぐり' },
 ];
 
 export const TOYS = {
@@ -57,6 +62,12 @@ export const SPECIALS = {
   cream: { icon: '🍦', name: 'クリーム', need: 'あたまに クリーム のせて〜', how: 'あたまを トントン！ クリームを のせよう', done: 'ぷるるん！ おいしそう？' },
   stars: { icon: '🌟', name: 'ほしかぞえ', need: 'ほしを かぞえると ねむれるの…', how: 'ひかった ほしを タッチして かぞえよう', done: 'いつつ… むにゃ…' },
   janken: { icon: '✌️', name: 'じゃんけん', need: 'じゃんけん しよう！ チョキチョキ', how: 'グー・チョキ・パーを えらんでね', done: 'たのしかった〜！' },
+  snowman: { icon: '⛄', name: 'ゆきだるま', need: 'ゆきだるま つくりたいな', how: 'ゆかを トントン！ ゆきだるまを つくろう', done: 'できた〜！ ゆきだるまさん！' },
+  drum: { icon: '🥁', name: 'ポンポコ', need: 'おなかの たいこ ならして！', how: 'おなかを トントン！ ポンポコ ならそう', done: 'ポンポコ ポーン！ たのしい！' },
+  nest: { icon: '🪺', name: 'すづくり', need: 'ふかふかの す が ほしいな', how: 'えだを タッチして あつめてね', done: 'ふかふかの す！ ぴよぴよ！' },
+  slide: { icon: '🐧', name: 'すべりっこ', need: 'おなかで すべりたい！', how: 'ゆびで よこに シュッ！ すべらせてね', done: 'つるつる〜 たのしかった！' },
+  honey: { icon: '🍯', name: 'はちみつ', need: 'はちみつ あつめ したいな', how: 'おはなを タッチして はちみつを あつめよう', done: 'つぼが いっぱい！ あまい〜！' },
+  acorn: { icon: '🌰', name: 'どっちの て', need: 'どんぐり どっちの てに あるか な？', how: 'どっちの てに どんぐりが あるかな？', done: 'あそんでくれて ありがと！' },
   pinwheel: { icon: '🌀', name: 'かざぐるま', need: 'かざぐるまで あそびたい！', how: 'かざぐるまを ゆびで ぐるぐる！', done: 'ふーっ！ よく まわった〜！' },
 };
 
@@ -150,6 +161,85 @@ export const SPECIES = {
       room: 'よるの そらみたい にゃ！', roomMeh: 'まぶしい にゃ…', toyFav: 'ボール まつにゃ〜！', toyOk: 'にゃっ！',
       sleepEnd: 'すぴー…', bye: 'また ながれぼしに のって くるにゃ',
       idle: ['にゃ〜', 'ほしが みたいにゃ', 'ごろごろ…'],
+    },
+  },
+  // ホテルが いっぱいに なったら くる 子たち
+  yukimi: {
+    name: 'ゆきみ', kind: 'ゆきの うさぎ', from: 9,
+    fav: 'kakigori', dislike: 'donut', spot: 'atama', bath: 'nigate', toy: 'bubble', acc: 'ribbon', special: 'snowman',
+    likes: ['yuki', 'mizu'],
+    gifts: ['yukidaruma', 'koorilamp', 'cushion', 'wall:yuki', 'floor:koori'],
+    say: {
+      arrive: 'しゃりしゃり… ゆきみ です', fav: 'かきごおり つめた〜い！', ok: 'もぐもぐ', dislike: 'あぶらっこいのは とけちゃう',
+      bathStart: 'おゆは とけちゃう〜', bathEnd: 'ふう… ひんやり もどった', spot: 'みみの あいだ すき〜', petEnd: 'しゃりしゃり しあわせ',
+      room: 'ゆきの くに みたい！', roomMeh: 'ちょっと あついかも…', toyFav: 'しゃぼんだま こおっちゃう？', toyOk: 'ぴょん！',
+      sleepEnd: 'すや… しんしん…', bye: 'また ゆきと いっしょに くるね！',
+      idle: ['しゃりしゃり', 'ゆき ふらないかな', 'ぴょんぴょん'],
+    },
+  },
+  ponta: {
+    name: 'ぽんた', kind: 'はっぱの たぬき', from: 9,
+    fav: 'banana', dislike: 'ame', spot: 'onaka', bath: 'daisuki', toy: 'ball', acc: 'leafhat', special: 'drum',
+    likes: ['midori', 'hono'],
+    gifts: ['taiko', 'ueki', 'danro', 'floor:kusa'],
+    say: {
+      arrive: 'ポンポコ！ ぽんた だよ', fav: 'バナナ だいこうぶつ！', ok: 'もぐもぐ ポン', dislike: 'あまくて はが ポンポコ…',
+      bathStart: 'ゆぶね だいすき ポン！', bathEnd: 'ピカピカ ポンポコ！', spot: 'おなか ポンポコ きもちいい', petEnd: 'ポン〜',
+      room: 'もりの なか みたい ポン！', roomMeh: 'はっぱが ないと おちつかない', toyFav: 'ボール ポーン！', toyOk: 'ポン！',
+      sleepEnd: 'ぐう… ポン…', bye: 'また ポンポコ くるね！',
+      idle: ['ポンポコ', 'はっぱで へんしん！', 'おなか すいた ポン'],
+    },
+  },
+  piyo: {
+    name: 'ぴよこ', kind: 'たまごの ひよこ', from: 9,
+    fav: 'apple', dislike: 'fish', spot: 'hoppe', bath: 'nigate', toy: 'bubble', acc: 'crown', special: 'nest',
+    likes: ['hana', 'pinku'],
+    gifts: ['su', 'kabin', 'hanakazari', 'floor:hanaf'],
+    say: {
+      arrive: 'ぴよっ！ ぴよこ です', fav: 'りんご あまずっぱい ぴよ！', ok: 'ついばみ ついばみ', dislike: 'おさかな こわい ぴよ…',
+      bathStart: 'ぬれると ぺったんこ…', bathEnd: 'ふわふわに もどった！', spot: 'ほっぺ ぴよ〜', petEnd: 'ぴよぴよ しあわせ',
+      room: 'おはなばたけ ぴよ！', roomMeh: 'おはなが みたいな…', toyFav: 'しゃぼんだま ぴよ〜！', toyOk: 'ぴよっ！',
+      sleepEnd: 'ぴよ… すや…', bye: 'また ぴよぴよ くるね！',
+      idle: ['ぴよ！', 'からが かゆい', 'ぴよぴよ〜'],
+    },
+  },
+  pen: {
+    name: 'ペンちゃん', kind: 'こおりの ペンギン', from: 9,
+    fav: 'fish', dislike: 'banana', spot: 'onaka', bath: 'daisuki', toy: 'ball', acc: 'scarf', special: 'slide',
+    likes: ['yuki', 'umi'],
+    gifts: ['koorilamp', 'yukidaruma', 'suisou', 'floor:koori'],
+    say: {
+      arrive: 'ペタペタ… ペンちゃん です', fav: 'おさかな まるのみ！', ok: 'ごくん', dislike: 'バナナは すべって こわい',
+      bathStart: 'みず だいすき！', bathEnd: 'つやつや！ ペタペタ', spot: 'おなか すべすべ でしょ', petEnd: 'ペタ〜',
+      room: 'こおりの おしろ みたい！', roomMeh: 'ちょっと あついよ〜', toyFav: 'ボール ペタペタ おいかける！', toyOk: 'ペタッ！',
+      sleepEnd: 'たったまま… すや…', bye: 'また ペタペタ くるね！',
+      idle: ['ペタペタ', 'すべりたいな', 'おさかな どこ？'],
+    },
+  },
+  mitsuba: {
+    name: 'みつば', kind: 'はちみつの くま', from: 9,
+    fav: 'honey', dislike: 'carrot', spot: 'hoppe', bath: 'daisuki', toy: 'ball', acc: 'ribbon', special: 'honey',
+    likes: ['okashi', 'hana'],
+    gifts: ['hachimitsu', 'kabin', 'cakechair', 'wall:hana'],
+    say: {
+      arrive: 'くまっ！ みつば だよ', fav: 'はちみつ〜！ とろとろ！', ok: 'もぐもぐ くまっ', dislike: 'にんじんは ちょっと…',
+      bathStart: 'べたべた おとして〜', bathEnd: 'さらさら！ くまっ', spot: 'ほっぺ ふかふか', petEnd: 'くま〜 しあわせ',
+      room: 'あまい においの へや！', roomMeh: 'おはなが ほしいな', toyFav: 'ボール まて〜 くまっ！', toyOk: 'くまっ！',
+      sleepEnd: 'むにゃ… はちみつ…', bye: 'また あまい においで くるね！',
+      idle: ['くまっ', 'はちみつ たべたい', 'ぶんぶん はちさん'],
+    },
+  },
+  koron: {
+    name: 'ころん', kind: 'どんぐりの りす', from: 9,
+    fav: 'acorn', dislike: 'milk', spot: 'hoppe', bath: 'nigate', toy: 'ball', acc: 'leafhat', special: 'acorn',
+    likes: ['midori', 'iwa'],
+    gifts: ['donguri', 'kinoko', 'wreath', 'wall:mori'],
+    say: {
+      arrive: 'ころころ〜 ころん だよ', fav: 'どんぐり！ ほっぺに いっぱい！', ok: 'カリカリ', dislike: 'ミルクは ひげに つく〜',
+      bathStart: 'しっぽが ぬれちゃう…', bathEnd: 'しっぽ ふっかふか！', spot: 'ほっぺ… どんぐり はいってるよ', petEnd: 'ころ〜ん',
+      room: 'もりの おうち みたい！', roomMeh: 'きが ないなぁ', toyFav: 'ボール とってくる！', toyOk: 'ころっ！',
+      sleepEnd: 'しっぽに くるまって… すや', bye: 'また ころころ くるね！',
+      idle: ['ころころ', 'どんぐり かくそう', 'しっぽ ふわふわ'],
     },
   },
   // ぷにゅランドの ともだち（「ぷにゅの きらきらランド」の ボスたち）
@@ -273,6 +363,12 @@ export const ITEMS = {
   kabin: { name: 'はなびん', zone: 'floor', w: 90, h: 150, tags: ['hana'], colors: ['#ff6f91', '#ffd84a', '#b58cff', '#5cc8ff'] },
   dragonlamp: { name: 'ドラゴンの ランプ', zone: 'floor', w: 140, h: 220, tags: ['hono', 'hoshi'], rare: true },
   funsui: { name: 'くじらの ふんすい', zone: 'floor', w: 200, h: 180, tags: ['umi', 'mizu'], rare: true },
+  yukidaruma: { name: 'ゆきだるま', zone: 'floor', w: 120, h: 170, tags: ['yuki'] },
+  koorilamp: { name: 'こおりの ランプ', zone: 'floor', w: 100, h: 190, tags: ['yuki', 'mizu'] },
+  taiko: { name: 'たいこ', zone: 'floor', w: 130, h: 110, tags: ['hono'] },
+  su: { name: 'ことりの す', zone: 'floor', w: 140, h: 80, tags: ['hana', 'midori'] },
+  hachimitsu: { name: 'はちみつの つぼ', zone: 'floor', w: 110, h: 120, tags: ['okashi', 'hana'] },
+  donguri: { name: 'どんぐりの かご', zone: 'floor', w: 130, h: 90, tags: ['midori', 'iwa'] },
   throne: { name: 'おうさまの いす', zone: 'floor', w: 160, h: 200, tags: ['hoshi', 'pinku'], rare: true },
   cakechair: { name: 'ケーキの いす', zone: 'floor', w: 120, h: 110, tags: ['okashi'] },
   candylamp: { name: 'キャンディの ランプ', zone: 'floor', w: 100, h: 200, tags: ['okashi', 'pinku'], colors: ['#ff8fab', '#7fc7ff', '#ffd84a', '#8fd36a'] },
@@ -296,6 +392,7 @@ export const WALLS = {
   umi: { name: 'うみ', tags: ['umi'] },
   hana: { name: 'おはな', tags: ['hana'] },
   okashi: { name: 'おかし', tags: ['okashi'] },
+  yuki: { name: 'ゆきげしき', tags: ['yuki'] },
 };
 
 export const FLOORS = {
@@ -308,6 +405,7 @@ export const FLOORS = {
   hanaf: { name: 'はなばたけ', tags: ['hana'] },
   hoshicarpet: { name: 'ほしぞらの じゅうたん', tags: ['yoru'] },
   choco: { name: 'チョコの ゆか', tags: ['okashi'] },
+  koori: { name: 'こおりの ゆか', tags: ['yuki'] },
 };
 
 // へやの中の広さ（へやの よこはば 1000 に たいして）

@@ -197,7 +197,7 @@ test('スイートルームと おおきな お客さん', () => {
 test('ぷにゅランドの ともだちは ホテルが おおきい と すぐ くる', () => {
   const s = C.newSave();
   for (let i = 0; i < 7; i++) s.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
-  for (const id of ['fuwari', 'gorota', 'pokari', 'chapu', 'popuri', 'kirara']) s.zukan[id].met = 10;
+  for (const id of NORMAL_IDS.filter(id => !SPECIES[id].land)) s.zukan[id].met = 10;
   const landNormal = NORMAL_IDS.filter(id => SPECIES[id].land);
   assert.equal(landNormal.length, 4);
   assert.ok(landNormal.every(id => C.availableSpecies(s).includes(id)));
@@ -212,6 +212,19 @@ test('ぷにゅランドの ともだちは ホテルが おおきい と すぐ
   t.bigDay = t.day + 2;
   C.startDay(t, rng);
   assert.ok(t.today.queue.includes('moya'));
+});
+
+test('ホテルが いっぱいに なると あたらしい どうぶつが くる', () => {
+  const s = C.newSave();
+  const late = NORMAL_IDS.filter(id => SPECIES[id].from === 9);
+  assert.equal(late.length, 6);
+  for (let i = 0; i < 6; i++) s.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
+  assert.ok(late.every(id => !C.availableSpecies(s).includes(id)), 'へやが 8つでは まだ こない');
+  s.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
+  assert.ok(late.every(id => C.availableSpecies(s).includes(id)), 'へやが 9つで くる');
+  for (const id of NORMAL_IDS.filter(id => SPECIES[id].from < 9)) s.zukan[id].met = 10;
+  C.startDay(s, rng);
+  assert.ok([s.today.guests[0].species, ...s.today.queue].every(id => late.includes(id)));
 });
 
 test('いろがえ と おさらの たべもの', () => {
@@ -265,7 +278,7 @@ test('おみやげで いつかは ぜんぶ そろう', () => {
   const s = C.newSave();
   // きまった らんすう（まいかい おなじ けっか）で 100にち
   let seed = 12345; const r = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-  for (let d = 0; d < 100; d++) playDay(s, r);
+  for (let d = 0; d < 200; d++) playDay(s, r);
   for (const sp of Object.values(SPECIES)) for (const g of sp.gifts) {
     const [k, id] = g.includes(':') ? g.split(':') : ['item', g];
     if (k === 'wall') assert.ok(s.walls.includes(id), id);
