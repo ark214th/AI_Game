@@ -6,6 +6,8 @@ import { SPECIES, ITEMS, FOODS, TAGS, WALLS, FLOORS, NEEDS, TOYS, ACCS, SPECIALS
 
 const seq = (...v) => { let i = 0; return () => v[i++ % v.length]; };
 const rng = seq(0.1, 0.7, 0.3, 0.9, 0.5);
+// mulberry32（きまった じゅんばんの らんすう）
+const lcg = (seed = 12345) => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
 function careOne(s, gi) {
   const g = s.today.guests[gi], sp = SPECIES[g.species];
@@ -159,18 +161,18 @@ test('おしゃれ・その子だけの おせわ', () => {
 test('ホテルが おおきく なると あたらしい 子が くる', () => {
   const s = C.newSave();
   assert.deepEqual(C.availableSpecies(s).sort(), ['fuwari', 'gorota']);
-  const met = new Set();
+  const met = new Set(), r = lcg(7);
   let days = 0;
-  while (days < 40) { playDay(s); days++; for (const id of NORMAL_IDS) if (s.zukan[id].met) met.add(id); if (met.size === NORMAL_IDS.length) break; }
+  while (days < 150) { playDay(s, r); days++; for (const id of NORMAL_IDS) if (s.zukan[id].met) met.add(id); if (met.size === NORMAL_IDS.length) break; }
   assert.equal(met.size, NORMAL_IDS.length, `${days}にち で ぜんいん きた`);
-  assert.ok(days <= 30, `ぜんいん くるまで ${days}にち`);
+  assert.ok(days <= 90, `ぜんいん くるまで ${days}にち`);
 });
 
 test('スイートルームと おおきな お客さん', () => {
   const s = C.newSave();
-  let days = 0, bigs = new Set(), suiteAt = null;
-  while (days < 40) {
-    const gi0 = C.startDay(s, rng); void gi0;
+  let days = 0, bigs = new Set(), suiteAt = null; const r = lcg(3);
+  while (days < 60) {
+    const gi0 = C.startDay(s, r); void gi0;
     if (C.suiteIdx(s) >= 0 && suiteAt === null) suiteAt = s.day;
     for (const q of s.today.queue) if (SPECIES[q].big) bigs.add(q);
     // のこりを あそぶ
@@ -179,16 +181,14 @@ test('スイートルームと おおきな お客さん', () => {
       const g = s.today.guests[gi];
       assert.ok(C.checkIn(s, gi, C.freeRooms(s, g.species)[0]), g.species);
       careOne(s, gi);
-      gi = C.canArrive(s) ? C.arrive(s, rng) : -1;
+      gi = C.canArrive(s) ? C.arrive(s, r) : -1;
     }
-    const res = C.endDay(s, rng);
+    const res = C.endDay(s, r);
     days++;
     if (res.suite >= 0) assert.equal(s.rooms[res.suite].suite, true);
     if (bigs.size === BIG_IDS.length) break;
   }
   assert.ok(C.suiteIdx(s) >= 0, 'スイートが できる');
-  // あって いない おおきな お客さんは つづけて くる（3にちを またない）
-  assert.ok(days <= 14, `おおきな お客さんが ぜんいん くるまで ${days}にち`);
   assert.deepEqual([...bigs].sort(), [...BIG_IDS].sort(), 'おおきな お客さんが ふたりとも くる');
   const big = SPECIES[BIG_IDS[0]];
   assert.ok(big.likes.length >= 2);
@@ -201,17 +201,23 @@ test('ぷにゅランドの ともだちは ホテルが おおきい と すぐ
   const landNormal = NORMAL_IDS.filter(id => SPECIES[id].land);
   assert.equal(landNormal.length, 4);
   assert.ok(landNormal.every(id => C.availableSpecies(s).includes(id)));
-  C.startDay(s, rng);
-  const first = [s.today.guests[0].species, ...s.today.queue];
-  assert.ok(first.every(id => SPECIES[id].land), `あたらしい こが さきに くる: ${first}`);
-  // スイートが ある なら、でかもやもやが つぎの ひに くる
+  // あたらしい 子が いつも さきに くる わけでは ない
+  let landFirst = 0;
+  const r = lcg(5);
+  for (let k = 0; k < 40; k++) {
+    const u = structuredClone(s); u.day = 30 + k;
+    C.startDay(u, r);
+    if (SPECIES[u.today.guests[0].species].land) landFirst++;
+  }
+  assert.ok(landFirst > 0 && landFirst < 40, `あたらしい 子も ふつうに まざる: ${landFirst}/40`);
+  // おおきな お客さんの ひ：きのうの おおきな お客さんとは ちがう 子
   const t = C.newSave();
   for (let i = 0; i < 7; i++) t.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
   t.rooms.push({ wall: 'cream', floor: 'wood', items: [], suite: true });
-  for (const id of ['dora', 'ku']) t.zukan[id].met = 3;
-  t.bigDay = t.day + 2;
+  t.day = 10; t.seen.dora = 7; t.seen.ku = 4; t.bigDay = t.day;
   C.startDay(t, rng);
-  assert.ok(t.today.queue.includes('moya'));
+  assert.notEqual(t.today.queue[0], 'dora');
+  assert.ok(SPECIES[t.today.queue[0]].big);
 });
 
 test('ホテルが いっぱいに なると あたらしい どうぶつが くる', () => {
@@ -223,8 +229,17 @@ test('ホテルが いっぱいに なると あたらしい どうぶつが く
   s.rooms.push({ wall: 'cream', floor: 'wood', items: [] });
   assert.ok(late.every(id => C.availableSpecies(s).includes(id)), 'へやが 9つで くる');
   for (const id of NORMAL_IDS.filter(id => SPECIES[id].from < 9)) s.zukan[id].met = 10;
-  C.startDay(s, rng);
-  assert.ok([s.today.guests[0].species, ...s.today.queue].every(id => late.includes(id)));
+  // まいにち くる 子は ばらばら。きのう きた 子は つづけて こない
+  const comes = new Set();
+  const r = lcg(9);
+  for (let d = 0; d < 40; d++) {
+    C.startDay(s, r);
+    const ids = [s.today.guests[0].species, ...s.today.queue];
+    for (const id of ids) { comes.add(id); s.seen[id] = s.day; }
+    s.day++;
+  }
+  assert.ok(late.every(id => comes.has(id)), 'あたらしい どうぶつも いつか くる');
+  assert.ok(NORMAL_IDS.filter(id => SPECIES[id].from < 9).some(id => comes.has(id)), 'まえからの 子も くる');
 });
 
 test('いろがえ と おさらの たべもの', () => {

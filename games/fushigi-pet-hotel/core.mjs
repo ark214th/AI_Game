@@ -187,16 +187,14 @@ export const isBigDay = s => suiteIdx(s) >= 0 && s.bigDay !== null && s.day >= s
 // あさ：きょうの お客さんを きめて、1ぴきめが くる
 export function startDay(s, rng = Math.random) {
   const avail = availableSpecies(s);
-  // まだ あって いない 子を さきに。そのあとは ひさしぶりの 子
-  const unmet = shuffle(avail.filter(id => !s.zukan[id].met), rng);
-  const met = shuffle(avail.filter(id => s.zukan[id].met), rng).sort((a, b) => (s.seen[a] ?? -1) - (s.seen[b] ?? -1));
-  const order = [...unmet, ...met];
+  // あたらしい 子も まえからの 子も おなじ チャンス。きのう きた 子は あとまわし
+  const fresh = shuffle(avail.filter(id => (s.seen[id] ?? -9) < s.day - 1), rng);
+  const recent = shuffle(avail.filter(id => (s.seen[id] ?? -9) >= s.day - 1), rng);
+  const order = [...fresh, ...recent];
   const queue = [];
-  // まだ あって いない おおきな お客さんが いれば、つぎの ひに すぐ くる
-  const bigUnmet = BIG_IDS.filter(id => !s.zukan[id].met);
-  if (suiteIdx(s) >= 0 && bigUnmet.length && s.bigDay !== null && s.bigDay > s.day) s.bigDay = s.day;
   if (isBigDay(s)) {
-    const bigs = bigUnmet.length ? bigUnmet : [...BIG_IDS].sort((a, b) => (s.seen[a] ?? -1) - (s.seen[b] ?? -1));
+    const lastBig = [...BIG_IDS].sort((a, b) => (s.seen[b] ?? -1) - (s.seen[a] ?? -1))[0];
+    const bigs = shuffle(BIG_IDS.filter(id => id !== lastBig || s.seen[id] === undefined), rng);
     queue.push(order[0], bigs[0]);
     s.bigTurn++;
     s.bigDay = s.day + BIG_EVERY;
