@@ -195,7 +195,23 @@ function tapAt(sx, sy) {
   if (game.placeBlock(x, y, z, block, b.faced ? facingMeta() : 0)) {
     sound.place();
     renderer.swing();
+    shopPlaceHint(block, world.idx(x, y, z));
     if (block === B.SIGN) setTimeout(() => openSign(world.idx(x, y, z)), 120);
+  }
+}
+// 店の ブロックを おいたら、店の はんいと できたことを 知らせる
+let areaTimer = 0;
+function shopPlaceHint(block, idx) {
+  if (block !== B.REGISTER && block !== B.SHELF && block !== B.SIGN) return;
+  const shops = game.shops();
+  areaTimer = 6;
+  if (block === B.REGISTER) {
+    toast(shops.length > 1 ? '新しい 店が できた！ 光る わの 中に たなを おこう' : '店が できた！ 光る わの 中に たなを おこう');
+  } else if (block === B.SHELF) {
+    if (world.shelves.get(idx)?.shop != null) toast('たなを おいたよ。タップして 品物を ならべよう');
+    else toast('この たなは レジから 遠いよ。光る わの 中に おこう', 'hint');
+  } else if (!shops.some(sh => Math.hypot(world.pos(idx).x - sh.x, world.pos(idx).z - sh.z) <= 8)) {
+    toast('かんばんは レジの 近くに 立てよう', 'hint');
   }
 }
 function breakAt(sx, sy) {
@@ -800,6 +816,9 @@ function frame(now) {
     cam.rotation.set(player.pitch, player.yaw, 0);
   }
   renderer.setHeld(mode === 'play' || mode === 'panel' ? hotbar[sel] : null, Math.hypot(player.vx, player.vz));
+  if (areaTimer > 0) areaTimer -= dt;
+  const holdingShop = (mode === 'play') && [B.REGISTER, B.SHELF, B.SIGN].includes(hotbar[sel]);
+  renderer.setAreas(holdingShop || areaTimer > 0 ? game.shops() : null);
   renderer.update(dt, game.customers, [player, ...game.customers]);
   renderer.render();
   if (mode !== 'title') updateLabels();

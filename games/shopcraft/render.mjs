@@ -366,6 +366,38 @@ export class Renderer {
     this.particles = this.particles.filter(p => { if (p.userData.life > 0) return true; this.scene.remove(p); return false; });
   }
 
+  // 店の はんい（レジから 8マス）を 地面に 光る わで 見せる
+  setAreas(shops) {
+    if (!this.areaGroup) {
+      this.areaGroup = new T.Group();
+      this.scene.add(this.areaGroup);
+      this.ringGeo = new T.RingGeometry(7.75, 8.15, 96).rotateX(-Math.PI / 2);
+      this.diskGeo = new T.CircleGeometry(7.75, 96).rotateX(-Math.PI / 2);
+      this.ringMat = new T.MeshBasicMaterial({color: 0xffd84a, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, side: T.DoubleSide});
+      this.diskMat = new T.MeshBasicMaterial({color: 0xffe88a, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2});
+      this.pillarMat = new T.MeshBasicMaterial({color: 0xffd84a, transparent: true, opacity: 0.35, depthWrite: false});
+      this.pillarGeo = new T.CylinderGeometry(0.08, 0.08, 6, 6);
+    }
+    const key = shops ? shops.map(s => s.i).join(',') : '';
+    if (key !== this.areaKey) {
+      this.areaKey = key;
+      this.areaGroup.clear();
+      for (const s of shops || []) {
+        const ring = new T.Mesh(this.ringGeo, this.ringMat);
+        ring.position.set(s.x + 0.5, s.y + 0.04, s.z + 0.5);
+        ring.renderOrder = 5;
+        const disk = new T.Mesh(this.diskGeo, this.diskMat);
+        disk.position.set(s.x + 0.5, s.y + 0.03, s.z + 0.5);
+        this.areaGroup.add(disk);
+        const pillar = new T.Mesh(this.pillarGeo, this.pillarMat);
+        pillar.position.set(s.x + 0.5, s.y + 4, s.z + 0.5);
+        this.areaGroup.add(ring, pillar);
+      }
+    }
+    this.areaGroup.visible = !!shops;
+    if (shops) this.ringMat.opacity = 0.6 + Math.sin(this.time * 4) * 0.3;
+  }
+
   setTarget(hit, progress = 0) {
     if (!hit) { this.outline.visible = false; return; }
     this.outline.visible = true;
