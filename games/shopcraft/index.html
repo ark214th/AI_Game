@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#2b3a2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="ブロックで 店を 作ると、町の お客さんが 買いに 来る。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <title>SHOPCRAFT</title>
+</head>
+<body>
+<main id="game">
+  <canvas id="world" aria-label="ブロックの せかい"></canvas>
+  <div id="labels" aria-hidden="true"></div>
+  <div id="crosshair" hidden></div>
+
+  <header id="hud" hidden>
+    <div class="hud-left">
+      <div class="chip coins"><i class="coin"></i><b id="coins">0</b></div>
+      <div class="chip town"><span>町</span><b id="level">レベル1</b><div class="bar"><i id="levelBar"></i></div></div>
+      <button class="chip stars" id="btnStars" aria-label="店の ひょうか"><span id="stars">☆☆☆☆☆</span></button>
+    </div>
+    <div id="goal"><span>やること</span><b id="goalText"></b></div>
+    <nav class="hud-right">
+      <button class="menu-btn" id="btnStock"><i class="ico ico-box"></i><span>仕入れ</span></button>
+      <button class="menu-btn" id="btnReport"><i class="ico ico-star"></i><span>店</span></button>
+      <button class="menu-btn" id="btnBook"><i class="ico ico-book"></i><span>お客さん</span></button>
+      <button class="menu-btn small" id="btnMenu" aria-label="メニュー"><i class="ico ico-menu"></i></button>
+    </nav>
+  </header>
+
+  <div id="controls" hidden>
+    <div id="stickZone"><div id="stick"><div id="knob"></div></div></div>
+    <div id="hotbarWrap"><div id="hotbar"></div><button id="btnInv" aria-label="もちもの"><i class="ico ico-grid"></i></button></div>
+    <div id="pad">
+      <button id="btnFly" class="pad-btn small">とぶ</button>
+      <button id="btnDown" class="pad-btn" hidden aria-label="下へ">▼</button>
+      <button id="btnJump" class="pad-btn big" aria-label="ジャンプ">▲</button>
+    </div>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+  <div id="banner" hidden><small id="bannerSmall"></small><b id="bannerBig"></b><span id="bannerSub"></span></div>
+
+  <section id="help" class="overlay" hidden>
+    <div class="help-card">
+      <h2>あそびかた</h2>
+      <ul>
+        <li><b>左下を 動かす</b>…歩く</li>
+        <li><b>右がわを ドラッグ</b>…見回す</li>
+        <li><b>タップ</b>…ブロックを おく</li>
+        <li><b>長おし</b>…ブロックを こわす</li>
+        <li><b>たなを タップ</b>…品物を ならべる</li>
+        <li><b>レジを タップ</b>…店の ひょうか</li>
+      </ul>
+      <p>お客さんは 町の 家から 来るよ。<br>りっぱな 店に すると、たくさん 来るように なる！</p>
+      <button class="btn primary" id="btnHelpOk">はじめる</button>
+    </div>
+  </section>
+
+  <section id="title" class="screen">
+    <div class="logo">
+      <h1>SHOP<span>CRAFT</span></h1>
+      <p class="tag">キミの 店に、客が 来る。</p>
+    </div>
+    <div class="title-buttons">
+      <button class="btn primary" id="btnPlay">あそぶ</button>
+      <button class="btn" id="btnNew" hidden>新しい せかい</button>
+      <div class="title-small">
+        <button id="btnHow">あそびかた</button>
+        <a href="../../">ゲーム いちらん</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel" class="overlay" hidden>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header class="sheet-head"><h2 id="panelTitle"></h2><button id="panelClose" aria-label="とじる">✕</button></header>
+      <div id="panelBody" class="sheet-body"></div>
+    </div>
+  </section>
+
+  <div id="loading"><b>SHOPCRAFT</b><span>せかいを 作っています…</span></div>
+  <div id="error" hidden><p>ゲームを よみこめませんでした。</p><p id="errorDetail"></p><button onclick="location.reload()">もう いちど</button></div>
+</main>
+<script type="module">
+import('./app.mjs').catch(e => {
+  document.getElementById('loading').hidden = true;
+  document.getElementById('error').hidden = false;
+  document.getElementById('errorDetail').textContent = e.message;
+});
+</script>
+</body>
+</html>
