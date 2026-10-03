@@ -10,6 +10,7 @@ AIで制作したブラウザゲームをまとめるリポジトリです。
 - `games/starfall-waltz/` — STARFALL WALTZ（ボス戦中心の弾幕シューティング）
 - `games/punyu-kirakira/` — ぷにゅの きらきらランド（小学1年生向けの横スクロールアクション）
 - `games/fushigi-pet-hotel/` — ふしぎな ペットホテル（小学1年生向けのお世話・かざりつけゲーム）
+- `games/shopcraft/` — SHOPCRAFT（小学3年生向けのマイクラ風・店づくりゲーム。建てた店にお客さんが買いに来る）
 
 各ゲームは `games/` 以下の個別フォルダに配置します。
 
