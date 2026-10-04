@@ -1,5 +1,6 @@
 // ボクセルの せかい：ブロックの きろく、地形づくり、道さがし（A*）、レイキャスト、セーブ。
 import {BLOCKS, B} from './blocks.mjs';
+import {rotateBox} from './mesher.mjs';
 
 export const GROUND = 8; // 地面の 上に 立つ 高さ（草ブロックは y=7）
 export const ROAD_Z0 = 46, ROAD_Z1 = 49;
@@ -53,6 +54,32 @@ export class World {
     if (y >= this.h) return false;
     return BLOCKS[this.blocks[this.idx(x, y, z)]]?.solid ?? false;
   }
+  // 体が ぶつかる 箱（せかいの 座標）。ぶつからなければ null。かいだんは 2つの 箱。
+  bodyBoxes(x, y, z) {
+    if (!this.solidForBody(x, y, z)) return null;
+    const b = this.inside(x, y, z) ? BLOCKS[this.blocks[this.idx(x, y, z)]] : null;
+    if (!b || !b.collide) return [[x, y, z, x + 1, y + 1, z + 1]];
+    const m = this.meta[this.idx(x, y, z)];
+    return b.boxes.map(({b: bb}) => {
+      const r = b.faced ? rotateBox(bb, m) : bb;
+      return [x + r[0] / 16, y + r[1] / 16, z + r[2] / 16, x + r[3] / 16, y + r[4] / 16, z + r[5] / 16];
+    });
+  }
+  // AABB（足もと x,y,z、はば hw、高さ ph）が ブロックに ぶつかるか
+  bodyHits(x, y, z, hw, ph) {
+    const x0 = Math.floor(x - hw), x1 = Math.floor(x + hw - 1e-6);
+    const y0 = Math.floor(y), y1 = Math.floor(y + ph - 1e-6);
+    const z0 = Math.floor(z - hw), z1 = Math.floor(z + hw - 1e-6);
+    for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) {
+      const boxes = this.bodyBoxes(xx, yy, zz);
+      if (!boxes) continue;
+      for (const q of boxes) {
+        if (x + hw > q[0] && x - hw < q[3] && y + ph > q[1] && y < q[4] && z + hw > q[2] && z - hw < q[5]) return true;
+      }
+    }
+    return false;
+  }
+
   solid(x, y, z) {
     if (!this.inside(x, y, z)) return y < 0;
     const b = BLOCKS[this.blocks[this.idx(x, y, z)]];

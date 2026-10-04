@@ -5,16 +5,21 @@ import {Game, SHELF_MAX} from './game.mjs';
 import {Renderer} from './render.mjs';
 import {Sound} from './audio.mjs';
 import {itemURL, faceCanvas} from './textures.mjs';
+import {SaveStore} from './saves.mjs';
 
 const $ = id => document.getElementById(id);
-const STORE = 'shopcraft-v1';
 const DEFAULT_HOTBAR = ['PLANKS', 'LOG', 'GLASS', 'STONE_BRICKS', 'SHELF', 'REGISTER', 'DOOR', 'LANTERN', 'SIGN'].map(k => B[k]);
 const REACH = 7.5;
 const HW = 0.3, PH = 1.8, EYE = 1.62;
 
-let saved = null;
-try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { saved = null; }
-const prefs = {sound: saved?.sound !== false, music: saved?.music !== false, help: !!saved?.help};
+let store;
+try { store = new SaveStore(localStorage); store.migrate(); } catch { store = new SaveStore(memoryStorage()); }
+const prefs = store.prefs();
+let slotId = null, slotName = '';
+function memoryStorage() {
+  const m = new Map();
+  return {getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k)};
+}
 
 const renderer = new Renderer($('world'));
 const sound = new Sound(prefs.sound, prefs.music);
@@ -25,10 +30,12 @@ let panelKind = null;
 
 // ---------- せかいの 用意 ----------
 function freshPlayer() { return {x: 38.5, y: GROUND, z: 55.5, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: -0.1, onGround: false, flying: false}; }
-function newWorld() {
+function newWorld(sandbox = false) {
   world = new World();
   world.generate((Math.random() * 1e9) | 0);
-  game = new Game(world, {});
+  if (sandbox) for (let i = world.housesBuilt; i < 8; i++) world.buildHouse(i);
+  world.changes.length = 0;
+  game = new Game(world, {sandbox});
   player = freshPlayer();
   hotbar = DEFAULT_HOTBAR.slice();
   sel = 0;
@@ -54,26 +61,20 @@ function loadWorld(s) {
 }
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => k in o).map(k => [k, o[k]]));
 
+function savePrefs() { store.setPrefs({sound: sound.on, music: sound.musicOn, help: prefs.help, last: slotId ?? prefs.last}); }
+let saveWarned = false;
 function persist() {
-  if (!world || !game) return;
-  try {
-    localStorage.setItem(STORE, JSON.stringify({
-      v: 1, world: world.serialize(), game: game.toJSON(),
-      player: pick(player, ['x', 'y', 'z', 'yaw', 'pitch', 'flying']), hotbar, sel,
-      sound: sound.on, music: sound.musicOn, help: prefs.help,
-    }));
-    saved = saved || true;
-  } catch (e) { console.warn('save failed', e); }
+  savePrefs();
+  if (!world || !game || slotId == null) return;
+  const ok = store.save(slotId, {
+    v: 2, world: world.serialize(), game: game.toJSON(),
+    player: pick(player, ['x', 'y', 'z', 'yaw', 'pitch', 'flying']), hotbar, sel,
+  }, {name: slotName, sandbox: game.sandbox, level: game.level, coins: game.coins});
+  if (!ok && !saveWarned) { saveWarned = true; toast('ほぞんが いっぱいで できなかった。いらない せかいを けしてね', 'hint'); }
 }
 
 // ---------- プレイヤーの うごき ----------
-function collides(x, y, z) {
-  const x0 = Math.floor(x - HW), x1 = Math.floor(x + HW - 1e-6);
-  const y0 = Math.floor(y), y1 = Math.floor(y + PH - 1e-6);
-  const z0 = Math.floor(z - HW), z1 = Math.floor(z + HW - 1e-6);
-  for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) if (world.solidForBody(xx, yy, zz)) return true;
-  return false;
-}
+function collides(x, y, z) { return world.bodyHits(x, y, z, HW, PH); }
 function moveAxis(p, axis, d) {
   if (!d) return false;
   const steps = Math.ceil(Math.abs(d) / 0.3), s = d / steps;
@@ -94,6 +95,25 @@ function moveAxis(p, axis, d) {
     }
   }
   return false;
+}
+
+// 横に うごく。かいだんの 半分の だんさ（0.5）は そのまま のぼる。
+const STEP = 0.55;
+function moveStep(p, axis, d) {
+  if (!d) return false;
+  const sx = p.x, sy = p.y, sz = p.z;
+  const hit = moveAxis(p, axis, d);
+  if (!hit || !p.onGround || p.flying) return hit;
+  const got = Math.abs(p[axis] - (axis === 'x' ? sx : sz));
+  const fx = p.x, fz = p.z;
+  p.x = sx; p.z = sz;
+  if (collides(p.x, sy + STEP, p.z)) { p.x = fx; p.z = fz; return hit; }
+  p.y = sy + STEP;
+  const hit2 = moveAxis(p, axis, d);
+  const got2 = Math.abs(p[axis] - (axis === 'x' ? sx : sz));
+  if (got2 <= got + 0.01) { p.x = fx; p.y = sy; p.z = fz; return hit; }
+  moveAxis(p, 'y', -STEP); // あしもとまで おりる
+  return hit2;
 }
 
 const input = {mx: 0, mz: 0, jump: false, down: false, keys: new Set(), lastJumpTap: 0};
@@ -122,8 +142,8 @@ function updatePlayer(dt) {
     p.vy = Math.max(-40, p.vy - 28 * dt);
     if (jump && p.onGround) p.vy = 8.6;
   }
-  const hx = moveAxis(p, 'x', p.vx * dt);
-  const hz = moveAxis(p, 'z', p.vz * dt);
+  const hx = moveStep(p, 'x', p.vx * dt);
+  const hz = moveStep(p, 'z', p.vz * dt);
   const falling = p.vy < 0;
   const hy = moveAxis(p, 'y', p.vy * dt);
   p.onGround = hy && falling;
@@ -506,10 +526,10 @@ function updateHud(dt) {
   const target = game.coins;
   shownCoins += (target - shownCoins) * Math.min(1, dt * 8);
   if (Math.abs(target - shownCoins) < 0.5) shownCoins = target;
-  $('coins').textContent = Math.round(shownCoins).toLocaleString();
+  $('coins').textContent = game.sandbox ? '∞' : Math.round(shownCoins).toLocaleString();
   const lvl = game.level, lo = LEVELS[lvl - 1], hi = LEVELS[lvl];
-  $('level').textContent = `レベル${lvl}`;
-  $('levelBar').style.width = hi ? `${Math.min(100, (game.totalSales - lo) / (hi - lo) * 100)}%` : '100%';
+  $('level').textContent = game.sandbox ? 'サンドボックス' : `レベル${lvl}`;
+ $('levelBar').style.width = game.sandbox ? '100%' : hi ? `${Math.min(100, (game.totalSales - lo) / (hi - lo) * 100)}%` : '100%';
   const st = game.bestStars();
   $('stars').textContent = '★'.repeat(st) + '☆'.repeat(5 - st);
   const g = game.currentGoal();
@@ -521,7 +541,9 @@ function updateHud(dt) {
 }
 
 // ---------- パネル ----------
+let panelPrev = 'play';
 function openPanel(kind, title, render) {
+  if (mode !== 'panel') panelPrev = mode === 'title' ? 'title' : 'play';
   panelKind = kind;
   mode = 'panel';
   input.mx = input.mz = 0; input.jump = input.down = false; input.keys.clear();
@@ -538,8 +560,8 @@ function openPanel(kind, title, render) {
 function closePanel() {
   $('panel').hidden = true;
   panelKind = null;
-  if (mode === 'panel') mode = 'play';
-  buildHotbar();
+  if (mode === 'panel') mode = panelPrev;
+  if (hotbar) buildHotbar();
 }
 $('panelClose').addEventListener('click', closePanel);
 $('panel').addEventListener('pointerdown', e => { if (e.target === $('panel')) closePanel(); });
@@ -619,7 +641,7 @@ function renderStock(body) {
   body.innerHTML = '';
   const missed = game.topMissed(4);
   if (missed.length) body.appendChild(h('div', 'wants', 'お客さんが ほしがった 物：' + missed.map(k => `<img alt="" src="${itemURL(k)}">`).join('')));
-  body.appendChild(h('p', 'note', `コインを つかって 新しい 品物を 売れるように する。もっている コイン：${game.coins}`));
+  body.appendChild(h('p', 'note', game.sandbox ? 'サンドボックスでは 品物が ぜんぶ そろって いるよ。' : `コインを つかって 新しい 品物を 売れるように する。もっている コイン：${game.coins}`));
   const list = h('div', 'list');
   for (const it of [...ITEMS].sort((a, b) => a.level - b.level || a.cost - b.cost)) {
     const have = game.unlocked.has(it.key);
@@ -729,9 +751,10 @@ function openMenu() {
   openPanel('menu', 'メニュー', body => {
     const list = h('div', 'list');
     const mk = (label, fn, cls = '') => { const b = h('button', 'btn ' + cls, label); b.addEventListener('click', fn); list.appendChild(b); return b; };
-    const sb = mk(`こうか音：${sound.on ? 'オン' : 'オフ'}`, () => { sound.on = !sound.on; sb.textContent = `こうか音：${sound.on ? 'オン' : 'オフ'}`; persist(); });
-    const mb = mk(`音楽：${sound.musicOn ? 'オン' : 'オフ'}`, () => { sound.musicOn = !sound.musicOn; mb.textContent = `音楽：${sound.musicOn ? 'オン' : 'オフ'}`; persist(); });
+    const sb = mk(`こうか音：${sound.on ? 'オン' : 'オフ'}`, () => { sound.on = !sound.on; sb.textContent = `こうか音：${sound.on ? 'オン' : 'オフ'}`; savePrefs(); });
+    const mb = mk(`音楽：${sound.musicOn ? 'オン' : 'オフ'}`, () => { sound.musicOn = !sound.musicOn; mb.textContent = `音楽：${sound.musicOn ? 'オン' : 'オフ'}`; savePrefs(); });
     mk('あそびかた', () => { closePanel(); showHelp(); });
+    mk('ほぞんして ほかの せかいへ', () => { persist(); closePanel(); toTitle(); openWorlds(); });
     mk('ほぞんして タイトルへ', () => { persist(); closePanel(); toTitle(); }, 'gold');
     body.appendChild(list);
   });
@@ -750,6 +773,7 @@ function showHelp() {
 $('btnHelpOk').addEventListener('click', () => {
   $('help').hidden = true;
   prefs.help = true;
+  savePrefs();
   if (!$('title').hidden) mode = 'title';
   else { mode = 'play'; persist(); }
 });
@@ -757,44 +781,114 @@ $('btnHelpOk').addEventListener('click', () => {
 // ---------- タイトル ----------
 function toTitle() {
   mode = 'title';
+  clearLabels();
   $('title').hidden = false;
   $('hud').hidden = true;
   $('controls').hidden = true;
-  $('btnNew').hidden = !saved;
-  $('btnPlay').textContent = saved ? 'つづきから' : 'あそぶ';
+  $('btnNew').hidden = true;
+  $('btnPlay').textContent = 'あそぶ';
+}
+function clearLabels() {
+  for (const L of labels.values()) { L.bubble?.remove(); L.tag?.remove(); }
+  labels.clear();
+  for (const q of popups) q.el.remove();
+  popups.length = 0;
 }
 function startPlay() {
   sound.init();
+  clearLabels();
   $('title').hidden = true;
   $('hud').hidden = false;
   $('controls').hidden = false;
   buildHotbar();
   setFly(player.flying);
+  camY = player.y;
   mode = 'play';
   if (!prefs.help) showHelp();
 }
-$('btnPlay').addEventListener('click', () => { startPlay(); });
-let newConfirm = false;
-$('btnNew').addEventListener('click', () => {
-  if (!newConfirm) { newConfirm = true; $('btnNew').textContent = 'いまの せかいが きえるよ。いい？'; return; }
-  newConfirm = false;
-  $('btnNew').textContent = '新しい せかい';
-  newWorld();
-  persist();
-  saved = true;
+$('btnPlay').addEventListener('click', () => { sound.init(); openWorlds(); });
+
+// せかいを えらぶ
+function openWorlds() { openPanel('worlds', 'せかいを えらぶ', body => renderWorlds(body)); }
+function playSlot(m) {
+  const data = store.load(m.id);
+  if (!data || !loadWorld(data)) { toast('この せかいは よみこめなかった', 'hint'); return; }
+  slotId = m.id; slotName = m.name;
+  saveWarned = false;
+  savePrefs();
+  closePanel();
   startPlay();
-});
+}
+function createWorld(sandbox) {
+  if (!store.canCreate()) return;
+  newWorld(sandbox);
+  slotId = store.nextId(); slotName = store.nextName();
+  saveWarned = false;
+  persist();
+  closePanel();
+  startPlay();
+  toast(sandbox ? 'サンドボックス：コインも 品物も ぜんぶ むげん！' : `「${esc(slotName)}」を 作ったよ`);
+}
+function renderWorlds(body) {
+  body.innerHTML = '';
+  const list = store.list();
+  body.appendChild(h('p', 'note', list.length ? `あそぶ せかいを えらんでね（${list.length} / 6）` : 'まだ せかいが ないよ。新しく 作ろう！'));
+  const wrap = h('div', 'list');
+  for (const m of list) {
+    const card = h('div', 'world-card');
+    const d = new Date(m.updated || Date.now());
+    card.innerHTML = `<div class="grow"><b>${esc(m.name)}</b> <span class="badge ${m.sandbox ? 'sand' : ''}">${m.sandbox ? 'サンドボックス' : 'ふつう'}</span>
+      <span class="sub">${m.sandbox ? 'コイン むげん' : `町レベル${m.level || 1} ・ コイン ${m.coins ?? 0}`} ・ ${d.getMonth() + 1}月${d.getDate()}日</span></div>`;
+    const act = h('div', 'world-actions');
+    const play = h('button', 'btn primary', 'あそぶ');
+    play.addEventListener('click', () => playSlot(m));
+    const ren = h('button', 'btn', '名前');
+    ren.addEventListener('click', () => {
+      const box = h('div', 'rename');
+      const inp = h('input', 'sign-input'); inp.maxLength = 12; inp.value = m.name;
+      const ok = h('button', 'btn primary', 'けってい');
+      ok.addEventListener('click', () => { store.rename(m.id, inp.value); if (slotId === m.id) slotName = store.list().find(x => x.id === m.id)?.name || slotName; renderWorlds(body); });
+      box.append(inp, ok);
+      card.appendChild(box);
+      inp.focus();
+    });
+    const del = h('button', 'btn danger', 'けす');
+    let armed = false;
+    del.addEventListener('click', () => {
+      if (!armed) { armed = true; del.textContent = 'ほんとうに けす？'; return; }
+      store.remove(m.id);
+      if (slotId === m.id) slotId = null;
+      renderWorlds(body);
+    });
+    act.append(play, ren, del);
+    card.appendChild(act);
+    wrap.appendChild(card);
+  }
+  body.appendChild(wrap);
+  if (store.canCreate()) {
+    body.appendChild(h('h3', 'section-title', '新しい せかいを 作る'));
+    const row = h('div', 'mode-pick');
+    const normal = h('button', 'mode-btn', '<b>ふつう モード</b><span>コインを ためて 品物を ふやし、町を 大きく しよう</span>');
+    normal.addEventListener('click', () => createWorld(false));
+    const sand = h('button', 'mode-btn sand', '<b>サンドボックス モード</b><span>コイン むげん！ 品物・プレゼント・お客さんが はじめから ぜんぶ</span>');
+    sand.addEventListener('click', () => createWorld(true));
+    row.append(normal, sand);
+    body.appendChild(row);
+  } else {
+    body.appendChild(h('p', 'hints', '<div>せかいは 6こまで。どれかを けすと 新しく 作れるよ</div>'));
+  }
+}
 $('btnHow').addEventListener('click', () => { sound.init(); showHelp(); });
 
-document.addEventListener('visibilitychange', () => { if (document.hidden && world && mode !== 'title') persist(); });
-window.addEventListener('pagehide', () => { if (world && mode !== 'title') persist(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !$('hud').hidden) persist(); });
+window.addEventListener('pagehide', () => { if (!$('hud').hidden) persist(); });
 
 // ---------- ループ ----------
 function resize() { renderer.resize(innerWidth, innerHeight); }
 window.addEventListener('resize', resize);
 resize();
 
-let last = performance.now(), saveTimer = 0, hudTimer = 0, titleT = 0;
+let last = performance.now(), saveTimer = 0, hudTimer = 0, titleT = 0, camY = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -807,12 +901,13 @@ function frame(now) {
     if (saveTimer > 15) { saveTimer = 0; persist(); }
   }
   const cam = renderer.camera;
-  if (mode === 'title' || (mode === 'help' && $('hud').hidden)) {
+  if ($('hud').hidden) {
     titleT += dt * 0.08;
     cam.position.set(40 + Math.sin(titleT) * 24, GROUND + 13, 46 + Math.cos(titleT) * 24);
     cam.lookAt(40, GROUND + 2, 45);
   } else {
-    cam.position.set(player.x, player.y + EYE, player.z);
+    camY = Math.abs(camY - player.y) > 1.2 ? player.y : camY + (player.y - camY) * Math.min(1, dt * 16);
+    cam.position.set(player.x, camY + EYE, player.z);
     cam.rotation.set(player.pitch, player.yaw, 0);
   }
   renderer.setHeld(mode === 'play' || mode === 'panel' ? hotbar[sel] : null, Math.hypot(player.vx, player.vz));
@@ -821,22 +916,26 @@ function frame(now) {
   renderer.setAreas(holdingShop || areaTimer > 0 ? game.shops() : null);
   renderer.update(dt, game.customers, [player, ...game.customers]);
   renderer.render();
-  if (mode !== 'title') updateLabels();
+  if (!$('hud').hidden) updateLabels();
   hudTimer += dt;
-  if (mode !== 'title') updateHud(dt);
+  if (!$('hud').hidden) updateHud(dt);
   sound.music(dt);
   requestAnimationFrame(frame);
 }
 
 // ---------- はじめる ----------
 function boot() {
-  if (!(saved && saved.world && loadWorld(saved))) { saved = null; newWorld(); }
+  // タイトルの うしろには さいごに あそんだ せかいを 見せる
+  const list = store.list();
+  const recent = list.find(m => m.id === prefs.last) || list[list.length - 1];
+  const data = recent && store.load(recent.id);
+  if (!(data && loadWorld(data))) newWorld();
   const ids = BLOCKS.filter(b => b && b.cat).map(b => b.id);
   icons = renderer.blockIcons(ids);
   $('loading').hidden = true;
   toTitle();
   requestAnimationFrame(t => { last = t; frame(t); });
   // テスト用
-  window.__shopcraft = {get world() { return world; }, get game() { return game; }, get player() { return player; }, renderer, tapAt, breakAt, openShelf, openReport, openStock, openBook, openInventory, startPlay, get mode() { return mode; }};
+  window.__shopcraft = {get world() { return world; }, get game() { return game; }, get player() { return player; }, renderer, tapAt, breakAt, openShelf, openReport, openStock, openBook, openInventory, startPlay, openWorlds, store, get slotId() { return slotId; }, get mode() { return mode; }};
 }
 boot();

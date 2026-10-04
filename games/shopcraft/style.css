@@ -196,3 +196,23 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   .help-card li, .help-card p { font-size: 13px; }
   #toasts { top: 70px; }
 }
+
+/* ---------- せかいを えらぶ ---------- */
+.world-card { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; background: #a8a8a8; border: 2px solid; border-color: #fff #555 #555 #fff; color: #222; }
+.world-card .grow { flex: 1 1 220px; min-width: 0; }
+.world-card .grow b { font-size: 19px; }
+.world-card .sub { display: block; margin-top: 2px; font-size: 13px; font-weight: 700; color: #3a3a3a; }
+.badge { display: inline-block; padding: 2px 8px; margin-left: 4px; border-radius: 4px; background: #4f9a2e; color: #fff; font-size: 12px; font-weight: 800; vertical-align: 2px; }
+.badge.sand { background: #d8a020; }
+.world-actions { display: flex; gap: 6px; }
+.world-actions .btn { min-height: 48px; font-size: 16px; padding: 6px 14px; }
+.btn.danger { background: #b8443a; box-shadow: inset 3px 3px 0 #e8786a, inset -3px -3px 0 #7a2a20; }
+.rename { flex: 1 1 100%; display: flex; gap: 6px; }
+.rename .sign-input { font-size: 18px; padding: 6px 10px; }
+.section-title { margin: 16px 0 8px; font-size: 18px; color: #333; }
+.mode-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode-btn { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; padding: 14px 16px; background: #4f9a2e; border: 3px solid #111; box-shadow: inset 4px 4px 0 #7cc85a, inset -4px -4px 0 #2f6a1a; color: #fff; text-shadow: 2px 2px 0 #224; }
+.mode-btn b { font-size: 20px; }
+.mode-btn span { font-size: 14px; font-weight: 700; line-height: 1.4; }
+.mode-btn.sand { background: #d8a020; box-shadow: inset 4px 4px 0 #ffd870, inset -4px -4px 0 #8a6010; }
+@media (max-width: 600px) { .mode-pick { grid-template-columns: 1fr; } }

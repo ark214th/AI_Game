@@ -34,6 +34,7 @@ const def = (id, key, o) => {
     faced: !!o.faced,
     cat: o.cat || null,
     gift: !!o.gift,
+    collide: !!o.collide, // 体の 当たり判定を 箱の 形に する（かいだん）
     special: o.special || null,
     color: o.color || '#888',
   };
@@ -130,13 +131,23 @@ def(64, 'FENCE', {
     bx(7, 6, 0, 9, 9, 16, 'planks'), bx(7, 12, 0, 9, 15, 16, 'planks')],
 });
 def(65, 'STAIRS_WOOD', {
-  name: '木の かいだん', shape: 'boxes', faced: true, walkTop: true, cat: 'build', color: '#b48a52',
+  name: '木の かいだん', shape: 'boxes', faced: true, walkTop: true, collide: true, cat: 'build', color: '#b48a52',
   boxes: [bx(0, 0, 0, 16, 8, 16, 'planks'), bx(0, 8, 0, 16, 16, 8, 'planks')],
 });
 def(66, 'STAIRS_STONE', {
-  name: '石の かいだん', shape: 'boxes', faced: true, walkTop: true, cat: 'build', color: '#8a8a8a',
+  name: '石の かいだん', shape: 'boxes', faced: true, walkTop: true, collide: true, cat: 'build', color: '#8a8a8a',
   boxes: [bx(0, 0, 0, 16, 8, 16, 'stone_bricks'), bx(0, 8, 0, 16, 16, 8, 'stone_bricks')],
 });
+const stairs = (id, key, name, tile, color) => def(id, key, {
+  name, shape: 'boxes', faced: true, walkTop: true, collide: true, cat: 'build', color,
+  boxes: [bx(0, 0, 0, 16, 8, 16, tile), bx(0, 8, 0, 16, 16, 8, tile)],
+});
+stairs(72, 'STAIRS_BRICK', 'レンガの かいだん', 'bricks', '#a5563f');
+stairs(73, 'STAIRS_BIRCH', '白い 木の かいだん', 'planks_birch', '#d8c690');
+stairs(74, 'STAIRS_DARK', 'こい 木の かいだん', 'planks_dark', '#6b4a2b');
+stairs(75, 'STAIRS_QUARTZ', 'すべすべ かいだん', 'quartz', '#f2efe8');
+stairs(76, 'STAIRS_COBBLE', '丸石の かいだん', 'cobble', '#7a7a7a');
+
 def(67, 'TROPHY', {
   name: 'トロフィー', shape: 'boxes', deco: true, gift: true, cat: 'gift', color: '#f5d442',
   boxes: [bx(4, 0, 4, 12, 2, 12, 'obsidian'), bx(7, 2, 7, 9, 6, 9, 'gold'), bx(4, 6, 4, 12, 13, 12, 'gold'),

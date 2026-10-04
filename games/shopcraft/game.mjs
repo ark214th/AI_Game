@@ -44,15 +44,22 @@ export class Game {
     this.shopKey = '';
     this.time = 0;
     this.noShopHintTimer = 0;
+    // サンドボックス：コイン むげん、品物・プレゼント・お客さんが ぜんぶ
+    this.sandbox = !!state.sandbox;
+    if (this.sandbox) {
+      for (const it of Object.values(ITEM)) this.unlocked.add(it.key);
+      for (const b of BLOCKS) if (b && b.gift) this.gifts.add(b.key);
+    }
   }
 
-  get level() { return levelFor(this.totalSales); }
+  get level() { return this.sandbox ? MAX_LEVEL : levelFor(this.totalSales); }
   nextLevelAt() { return LEVELS[this.level] ?? null; }
 
   toJSON() {
     return {
       coins: this.coins, totalSales: this.totalSales, unlocked: [...this.unlocked], gifts: [...this.gifts],
       regulars: this.regulars, goalIndex: this.goalIndex, flags: this.flags, stats: this.stats, missed: this.missed,
+      sandbox: this.sandbox,
     };
   }
 
@@ -68,10 +75,13 @@ export class Game {
     for (const [si, shelf] of w.shelves) {
       const p = w.pos(si);
       let best = null, bd = Infinity;
+      // おなじ 階の レジを えらびやすく する（上下は 2ばいの きょりと して 見る）
       for (const s of shops) {
-        if (Math.abs(s.y - p.y) > 4) continue;
-        const d = Math.hypot(s.x - p.x, s.z - p.z);
-        if (d <= SHOP_RADIUS && d < bd) { bd = d; best = s; }
+        const dy = Math.abs(s.y - p.y);
+        if (dy > 6) continue;
+        const flat = Math.hypot(s.x - p.x, s.z - p.z);
+        const d = flat + dy * 2;
+        if (flat <= SHOP_RADIUS && d < bd) { bd = d; best = s; }
       }
       if (best) best.shelves.push(si);
       shelf.shop = best ? best.i : null;
@@ -544,6 +554,7 @@ export class Game {
   }
 
   checkGoals() {
+    if (this.sandbox) return;
     const g = GOALS[this.goalIndex];
     if (!g) return;
     if (this.goalDone(g.key)) {
@@ -568,7 +579,7 @@ export class Game {
     }
     return false;
   }
-  currentGoal() { return GOALS[this.goalIndex] || null; }
+  currentGoal() { return this.sandbox ? null : GOALS[this.goalIndex] || null; }
 
   // お客さんが ほしがったのに なかった 物（多い じゅん）
   topMissed(n = 3) {
