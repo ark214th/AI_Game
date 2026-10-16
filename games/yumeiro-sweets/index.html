@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#ffc2da">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="おかしやさん">
+  <meta name="description" content="まほうの パティシエに へんしんして、ゆめかわの おかしを つくる ゲーム。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>ゆめいろ おかしやさん</title>
+</head>
+<body>
+<main id="game">
+  <canvas id="world" aria-label="ゲームがめん"></canvas>
+
+  <header id="hud" hidden>
+    <div id="heartPill" class="pill">
+      <span class="h">♥</span><b id="heartCount">0</b>
+      <span id="nextBar" class="bar"><i></i></span><span id="gift" class="gift">🎁</span>
+    </div>
+    <div class="hud-right">
+      <button id="albumBtn" class="chip">📖 アルバム</button>
+      <button id="closetBtn" class="chip">👗 きせかえ</button>
+      <button id="setBtn" class="chip icon" aria-label="せってい">⚙️</button>
+    </div>
+  </header>
+
+  <button id="makeBtn" class="big make" hidden>🍰 つくる！</button>
+
+  <aside id="panel" hidden>
+    <div id="steps"></div>
+    <h3 id="panelTitle"></h3>
+    <div id="panelItems"></div>
+    <div id="panelSub"></div>
+    <div class="prow">
+      <button id="undoBtn" class="chip">↩ もどす</button>
+      <button id="nextBtn" class="chip next">つぎへ ▶</button>
+    </div>
+  </aside>
+
+  <div id="toast" aria-live="polite"></div>
+
+  <section id="title" class="screen">
+    <div class="logo">
+      <span class="sub">まほうの パティシエ</span>
+      <h1>ゆめいろ<br>おかしやさん</h1>
+    </div>
+    <button id="playBtn" class="big">あそぶ</button>
+  </section>
+
+  <section id="nameScreen" class="screen soft" hidden>
+    <div class="name-wrap">
+      <h2>あなたの なまえを おしえてね</h2>
+      <div id="nameBox" class="name-box"><span id="nameText"></span><i class="caret"></i></div>
+      <div class="kana-area">
+        <div class="kana-side">
+          <button data-mod="daku">゛</button>
+          <button data-mod="handaku">゜</button>
+          <button data-mod="small" class="sm">ちいさい</button>
+          <button data-ch="ー">ー</button>
+          <button id="kanaMode" class="sm">カタカナ</button>
+          <button id="kanaDel" class="del">けす</button>
+        </div>
+        <div id="kana" class="kana"></div>
+      </div>
+      <div class="name-btns">
+        <button id="nameLater" class="small">あとで きめる</button>
+        <button id="nameOk" class="big">できた！</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="album" class="screen shade" hidden>
+    <div class="panel wide">
+      <h2>📖 おかしの アルバム</h2>
+      <div id="albumGrid" class="album-grid"></div>
+      <p id="albumEmpty" class="note">おかしを つくると ここに のこるよ。</p>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="closet" class="screen side" hidden>
+    <div class="panel">
+      <div class="tabs">
+        <button data-tab="dress" class="on">👗 ドレス</button>
+        <button data-tab="theme">🏠 おみせ</button>
+      </div>
+      <div id="closetItems" class="closet-items"></div>
+      <button class="small back">できた！</button>
+    </div>
+  </section>
+
+  <section id="settings" class="screen shade" hidden>
+    <div class="panel">
+      <h2>せってい</h2>
+      <button id="soundBtn" class="toggle"></button>
+      <button id="renameBtn" class="small">✏️ なまえを かえる</button>
+      <button id="replayBtn" class="small">✨ へんしんを みる</button>
+      <button id="resetBtn" class="small warn">さいしょから あそぶ</button>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="unlock" class="screen shade" hidden>
+    <div class="panel unlock-panel">
+      <h2 id="unlockLabel" class="yay"></h2>
+      <div id="unlockIcon" class="unlock-icon"></div>
+      <p id="unlockName" class="unlock-name"></p>
+      <button id="unlockOk" class="big">やったー！</button>
+    </div>
+  </section>
+
+  <div id="rotate"><div class="phone">📱</div><p>よこに してね</p></div>
+  <div id="loading">よみこみちゅう…</div>
+  <div id="error" hidden><p>よみこめませんでした。</p><p id="errorDetail"></p><button onclick="location.reload()">もういちど</button></div>
+</main>
+<script type="module">
+import('./app.mjs').catch(e => { document.getElementById('loading').hidden = true; document.getElementById('error').hidden = false; document.getElementById('errorDetail').textContent = e.message; });
+</script>
+</body>
+</html>
