@@ -181,22 +181,32 @@ export function drawDollop(ctx, x, y, s, cid, kind = 'swirl') {
     ctx.fillStyle = k.d; ell(ctx, x, y + s * 0.05, s * 0.85, s * 0.55); ctx.fill();
     ctx.fillStyle = k.c; ctx.beginPath();
     ctx.moveTo(x - s * 0.82, y - s * 0.05);
-    ctx.bezierCurveTo(x - s * 0.85, y - s * 0.7, x - s * 0.1, y - s * 0.75, x + s * 0.05, y - s * 1.1);
-    ctx.bezierCurveTo(x + s * 0.2, y - s * 0.7, x + s * 0.9, y - s * 0.6, x + s * 0.82, y - s * 0.05);
+    ctx.bezierCurveTo(x - s * 0.88, y - s * 0.72, x - s * 0.2, y - s * 0.8, x + s * 0.02, y - s * 0.88);
+    ctx.bezierCurveTo(x + s * 0.25, y - s * 0.8, x + s * 0.9, y - s * 0.65, x + s * 0.82, y - s * 0.05);
     ctx.quadraticCurveTo(x, y + s * 0.45, x - s * 0.82, y - s * 0.05); ctx.fill();
     ctx.fillStyle = k.l; ell(ctx, x - s * 0.35, y - s * 0.4, s * 0.2, s * 0.13, -0.5); ctx.fill();
     return;
   }
-  const tiers = [[0, 1, 0.5], [-0.38, 0.78, 0.42], [-0.7, 0.52, 0.34]];
-  ctx.fillStyle = k.d; ell(ctx, x, y + s * 0.08, s, s * 0.5); ctx.fill();
-  for (const [dy, w, h] of tiers) {
-    ctx.fillStyle = k.d; ell(ctx, x, y + dy * s + s * 0.06, w * s, h * s); ctx.fill();
-    ctx.fillStyle = k.c; ell(ctx, x, y + dy * s, w * s, h * s * 0.92); ctx.fill();
+  // ほしがたの しぼりぐち：ひとつの やまに すじが はいった ホイップ
+  const body = () => {
+    ctx.beginPath(); ctx.moveTo(x - s * 0.92, y);
+    ctx.bezierCurveTo(x - s * 0.95, y - s * 0.5, x - s * 0.3, y - s * 0.62, x + s * 0.04, y - s * 1.22);
+    ctx.bezierCurveTo(x + s * 0.3, y - s * 0.62, x + s * 0.95, y - s * 0.5, x + s * 0.92, y);
+    ctx.ellipse(x, y, s * 0.92, s * 0.36, 0, 0, Math.PI); ctx.closePath();
+  };
+  ctx.fillStyle = k.d; ell(ctx, x, y + s * 0.08, s * 0.92, s * 0.36); ctx.fill();
+  ctx.fillStyle = k.c; body(); ctx.fill();
+  ctx.save(); body(); ctx.clip();
+  ctx.lineCap = 'round';
+  for (let i = -3; i <= 3; i++) {
+    const bx = x + i * s * 0.29, by = y + s * 0.34 * Math.sqrt(1 - (i / 3.3) ** 2);
+    ctx.strokeStyle = k.d; ctx.globalAlpha = 0.5; ctx.lineWidth = s * 0.07;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(x + i * s * 0.2, y - s * 0.55, x + s * 0.04, y - s * 1.2); ctx.stroke();
+    ctx.strokeStyle = k.l; ctx.globalAlpha = 0.8; ctx.lineWidth = s * 0.06;
+    ctx.beginPath(); ctx.moveTo(bx - s * 0.11, by - s * 0.02); ctx.quadraticCurveTo(x + i * s * 0.2 - s * 0.09, y - s * 0.55, x + s * 0.02, y - s * 1.1); ctx.stroke();
   }
-  ctx.fillStyle = k.c; ctx.beginPath();
-  ctx.moveTo(x - s * 0.3, y - s * 0.86); ctx.quadraticCurveTo(x + s * 0.05, y - s * 1.0, x + s * 0.12, y - s * 1.32); ctx.quadraticCurveTo(x + s * 0.32, y - s * 0.98, x + s * 0.3, y - s * 0.82); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = k.l; ell(ctx, x - s * 0.4, y - s * 0.12, s * 0.22, s * 0.1, -0.3); ctx.fill();
-  ell(ctx, x - s * 0.22, y - s * 0.72, s * 0.14, s * 0.07, -0.3); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
+  ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.7; ell(ctx, x - s * 0.36, y - s * 0.36, s * 0.1, s * 0.2, 0.5); ctx.fill(); ctx.globalAlpha = 1;
 }
 
 const MAC = ['#ffb6d0', '#aee0ff', '#aef0d6', '#d8bfff', '#fff0a0'];
@@ -468,7 +478,7 @@ export function drawGirl(ctx, x, y, s, st = {}) {
       ctx.restore();
     }
   } else {
-    ctx.fillStyle = hairD; ell(ctx, 0, -1.75, 1.15, 1.0); ctx.fill();
+    ctx.fillStyle = hairD; ell(ctx, 0, -1.75, 1.04, 1.0); ctx.fill();
   }
 
   // からだ
@@ -516,16 +526,22 @@ export function drawGirl(ctx, x, y, s, st = {}) {
   }
 
   // あたま
-  ctx.fillStyle = skin; circ(ctx, 0, -1.9, 1.0); ctx.fill();
+  // ほそめの りんかく（したに いくほど すっきり）
+  ctx.fillStyle = skin; ctx.beginPath();
+  ctx.moveTo(-0.84, -1.85);
+  ctx.bezierCurveTo(-0.84, -1.38, -0.42, -1.0, 0, -0.97);
+  ctx.bezierCurveTo(0.42, -1.0, 0.84, -1.38, 0.84, -1.85);
+  ctx.ellipse(0, -1.95, 0.84, 0.98, 0, 0.102, Math.PI - 0.102, true);
+  ctx.closePath(); ctx.fill();
   ctx.fillStyle = skinD; ctx.globalAlpha = 0.4; ell(ctx, 0, -1.05, 0.35, 0.08); ctx.fill(); ctx.globalAlpha = 1;
   // まえがみ
   ctx.fillStyle = hair;
-  ctx.beginPath(); ctx.arc(0, -1.9, 1.04, Math.PI * 0.93, Math.PI * 2.07);
-  const tips = casual ? [[0.95, -1.4], [0.55, -2.0], [0.2, -1.6], [-0.2, -2.05], [-0.55, -1.65], [-1.0, -1.35]] : [[0.98, -1.55], [0.62, -2.05], [0.3, -1.7], [0, -2.1], [-0.32, -1.7], [-0.64, -2.05], [-0.98, -1.55]];
+  ctx.beginPath(); ctx.ellipse(0, -1.95, 0.92, 1.04, 0, Math.PI * 0.93, Math.PI * 2.07);
+  const tips = casual ? [[0.88, -1.4], [0.5, -2.0], [0.18, -1.62], [-0.18, -2.05], [-0.5, -1.66], [-0.9, -1.38]] : [[0.9, -1.55], [0.57, -2.05], [0.28, -1.72], [0, -2.1], [-0.3, -1.72], [-0.59, -2.05], [-0.9, -1.55]];
   for (let i = 0; i < tips.length; i++) { const [px, py] = tips[i]; ctx.quadraticCurveTo(px + 0.1, py - 0.3, px, py); }
   ctx.closePath(); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,.35)'; ell(ctx, -0.45, -2.5, 0.28, 0.08, -0.4); ctx.fill();
-  if (casual) { ctx.fillStyle = hair; for (const sd of [-1, 1]) { ell(ctx, sd * 0.95, -1.5, 0.22, 0.5, sd * 0.1); ctx.fill(); } }
+  if (casual) { ctx.fillStyle = hair; for (const sd of [-1, 1]) { ell(ctx, sd * 0.86, -1.5, 0.2, 0.5, sd * 0.1); ctx.fill(); } }
   else {
     // ぼうし（ちいさな コックさんの ぼうし）
     ctx.save(); ctx.translate(0.25, -2.85); ctx.rotate(0.18);

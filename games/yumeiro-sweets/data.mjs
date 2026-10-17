@@ -36,7 +36,7 @@ export const TOPPINGS = {
 
 // しぼりぐち
 export const NOZZLES = {
-  swirl: { name: 'ぐるぐる' },
+  swirl: { name: 'ほしがた' },
   drop: { name: 'ぽってり' },
 };
 
