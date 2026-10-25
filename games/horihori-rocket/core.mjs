@@ -89,7 +89,8 @@ export const PARTS = [
 export const BELT_COST = 3;
 export const DRILL_TIME = 5; // じどうドリルが 1こ ほる びょう
 export const DRILL_BUF = 8;
-export const drillCost = n => Math.round(120 * Math.pow(1.3, n) / 10) * 10;
+export const DRILL_MAX_COST = 10000; // どんなに ふやしても これより 高く ならない
+export const drillCost = n => Math.min(DRILL_MAX_COST, Math.round(120 * Math.pow(1.3, n) / 10) * 10);
 
 // ---------- らんすう ----------
 export function rng(seed) {

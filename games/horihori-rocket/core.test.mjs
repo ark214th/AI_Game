@@ -149,3 +149,10 @@ test('お金の バランス：ロケット かんせいまでの ねだんが �
   const trips = total / (C.ORES[T.DIAMOND].value * 1.5 * 120);
   assert.ok(trips < 10, `trips=${trips}`);
 });
+
+test('じどうドリルの ねだんは ふえていくが 1まんえんで とまる', () => {
+  for (let n = 1; n < 40; n++) assert.ok(C.drillCost(n) >= C.drillCost(n - 1));
+  assert.ok(C.drillCost(16) < 10000);
+  assert.equal(C.drillCost(17), 10000);
+  assert.equal(C.drillCost(100), 10000);
+});
