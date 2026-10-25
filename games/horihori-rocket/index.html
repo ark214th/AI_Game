@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#5ec8ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ほりほり">
+  <meta name="description" content="地面を ほって こうせきを あつめ、ベルトコンベアで はこんで 売り、ロケットを つくる ゲーム。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>ほりほり ロケット工場</title>
+</head>
+<body>
+<main id="game">
+  <canvas id="world" aria-label="ゲームがめん"></canvas>
+
+  <header id="hud" hidden>
+    <div class="hud-left">
+      <div class="pill money">💰<b id="money">0</b></div>
+      <div class="pill">⬇️<b id="depth">0</b>m</div>
+      <div class="pill" id="bagPill">🎒<b id="bag">0/8</b></div>
+      <div class="pill" id="energyPill">🔋<span class="bar"><i id="energy"></i></span></div>
+    </div>
+    <div class="hud-right">
+      <button id="homeBtn" class="chip" hidden>🏠</button>
+      <button id="buildBtn" class="chip">🔧 つくる</button>
+      <button id="shopBtn" class="chip shop">🛒 おみせ</button>
+      <button id="setBtn" class="chip icon" aria-label="せってい">⚙️</button>
+    </div>
+  </header>
+  <div id="goal" hidden><span id="goalText"></span></div>
+
+  <div id="pad" hidden>
+    <div class="pad-left">
+      <button class="pbtn" data-k="left" aria-label="ひだり">◀</button>
+      <button class="pbtn" data-k="right" aria-label="みぎ">▶</button>
+    </div>
+    <div class="pad-right">
+      <button class="pbtn" data-k="down" aria-label="ほる">▼</button>
+      <button class="pbtn up" data-k="up" aria-label="とぶ">▲</button>
+    </div>
+  </div>
+
+  <div id="buildBar" hidden>
+    <button class="tool on" data-tool="hand"><span>✋</span>うごかす</button>
+    <button class="tool" data-tool="belt"><span>➡️</span>ベルト<small id="beltCost"></small></button>
+    <button class="tool" data-tool="drill"><span>⚙️</span>じどうドリル<small id="drillCost"></small></button>
+    <button class="tool" data-tool="erase"><span>🧹</span>とりけす</button>
+    <button id="buildDone" class="tool done"><span>✅</span>できた</button>
+  </div>
+  <div id="buildHint" hidden></div>
+
+  <div id="toast" aria-live="polite"></div>
+  <div id="fade"></div>
+  <div id="count"></div>
+
+  <section id="title" class="screen">
+    <div class="logo">
+      <span class="sub">ほって！ はこんで！ 売って！</span>
+      <h1>ほりほり<br>ロケット工場</h1>
+    </div>
+    <button id="playBtn" class="big">あそぶ</button>
+  </section>
+
+  <section id="shop" class="screen shade" hidden>
+    <div class="panel wide">
+      <div class="tabs">
+        <button data-tab="tools" class="on">⛏️ どうぐ</button>
+        <button data-tab="base">🏠 きち</button>
+        <button data-tab="rocket">🚀 ロケット</button>
+      </div>
+      <div class="shop-money">💰 <b id="shopMoney">0</b> えん</div>
+      <div id="shopList" class="shop-list"></div>
+      <button class="small back">とじる</button>
+    </div>
+  </section>
+
+  <section id="museum" class="screen shade" hidden>
+    <div class="panel wide">
+      <h2>🦴 化石の へや</h2>
+      <div id="museumGrid" class="museum-grid"></div>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="settings" class="screen shade" hidden>
+    <div class="panel">
+      <h2>せってい</h2>
+      <button id="soundBtn" class="toggle"></button>
+      <button id="museumBtn" class="small" hidden>🦴 化石の へや</button>
+      <button id="helpBtn" class="small">❓ あそびかた</button>
+      <button id="resetBtn" class="small warn">さいしょから あそぶ</button>
+      <button class="small back">もどる</button>
+    </div>
+  </section>
+
+  <section id="help" class="screen shade" hidden>
+    <div class="panel wide help">
+      <h2>あそびかた</h2>
+      <ol>
+        <li><b>◀ ▶</b>で うごく。かべに ぶつかると よこに ほれる。</li>
+        <li><b>▼</b>で 下を ほる。<b>▲</b>で ジェットで とぶ。</li>
+        <li>こうせきを もって 地上の <b>ホッパー</b>（みどりの じょうご）に 入ると 売れる。</li>
+        <li>🛒おみせで ドリルや バッグを 強く する。ふかい ところは 強い ドリルが いる。</li>
+        <li>🔧つくるで <b>ベルト</b>を ならべて ホッパーと つなぐ。ベルトの 上に 立つと こうせきを のせられる。</li>
+        <li>作業場を たてると <b>じどうドリル</b>が おける。ベルトで つなぐと、ずっと こうせきを はこんで くれる。</li>
+        <li>たからを 見つけて、ロケットを 5つの パーツで かんせい させよう！</li>
+      </ol>
+      <p class="note">でんちが なくなっても、地上に もどされるだけ。こうせきは なくならないよ。</p>
+      <button class="small back">わかった</button>
+    </div>
+  </section>
+
+  <section id="popup" class="screen shade" hidden>
+    <div class="panel pop">
+      <div id="popIcon" class="pop-icon"></div>
+      <h2 id="popTitle"></h2>
+      <p id="popText"></p>
+      <button id="popOk" class="big">やったー！</button>
+    </div>
+  </section>
+
+  <section id="ending" class="screen space" hidden>
+    <div class="panel pop">
+      <div class="pop-icon">🚀✨</div>
+      <h2>うちゅうへ しゅっぱつ！</h2>
+      <p>ロケット かんせい、おめでとう！</p>
+      <ul id="endStats" class="end-stats"></ul>
+      <button id="endOk" class="big">つづけて あそぶ</button>
+    </div>
+  </section>
+
+  <div id="rotate"><div class="phone">📱</div><p>よこに してね</p></div>
+  <div id="loading">よみこみちゅう…</div>
+  <div id="error" hidden><p>よみこめませんでした。</p><p id="errorDetail"></p><button onclick="location.reload()">もういちど</button></div>
+</main>
+<script type="module">
+import('./app.mjs').catch(e => { document.getElementById('loading').hidden = true; document.getElementById('error').hidden = false; document.getElementById('errorDetail').textContent = e.message; });
+</script>
+</body>
+</html>
