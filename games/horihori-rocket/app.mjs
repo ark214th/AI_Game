@@ -16,7 +16,9 @@ let base = C.genWorld(save.seed);
 let world = C.genWorld(save.seed);
 C.applyDug(world, save.dug);
 
+let resetting = false; // さいしょから に する ときは もう ほぞん しない
 function persist() {
+  if (resetting) return;
   save.dug = C.encodeDug(world, base);
   save.px = p.x; save.py = p.y;
   try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { /* ほぞん できなくても あそべる */ }
@@ -76,7 +78,7 @@ function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classLi
 
 function show(id) { $(id).hidden = false; }
 function hide(id) { $(id).hidden = true; }
-const anyScreen = () => ['shop', 'museum', 'settings', 'help', 'popup', 'ending', 'title'].some(id => !$(id).hidden);
+const anyScreen = () => ['shop', 'museum', 'settings', 'resetAsk', 'help', 'popup', 'ending', 'title'].some(id => !$(id).hidden);
 
 // ---------- そうさ ----------
 document.querySelectorAll('.pbtn').forEach(b => {
@@ -518,8 +520,10 @@ const soundLabel = () => { $('soundBtn').textContent = save.sound ? '🔊 おと
 $('setBtn').addEventListener('click', () => { snd.play('tap'); soundLabel(); show('settings'); });
 $('soundBtn').addEventListener('click', () => { save.sound = !save.sound; snd.setOn(save.sound); soundLabel(); persist(); });
 $('helpBtn').addEventListener('click', () => { snd.play('tap'); hide('settings'); show('help'); });
-$('resetBtn').addEventListener('click', () => {
-  if (!confirm('さいしょから あそぶ？ いままでの きろくは きえるよ。')) return;
+$('resetBtn').addEventListener('click', () => { snd.play('tap'); hide('settings'); show('resetAsk'); });
+$('resetNo').addEventListener('click', () => { snd.play('tap'); hide('resetAsk'); });
+$('resetYes').addEventListener('click', () => {
+  resetting = true;
   try { localStorage.removeItem(STORE); } catch { /* なにも しない */ }
   location.reload();
 });
