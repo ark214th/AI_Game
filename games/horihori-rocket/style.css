@@ -124,6 +124,14 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 }
 .small.warn { color: #c0392b; }
 .ask-btns { display: flex; gap: 3vh; }
+a.small { color: var(--ink); text-decoration: none; }
+.home-link {
+  position: absolute; top: var(--safe-t); left: var(--safe-l); background: rgba(255, 255, 255, .85); color: var(--ink); text-decoration: none;
+  border-radius: 999px; padding: .3em 1em; font-weight: 900; font-size: max(14px, 3.4vh); box-shadow: 0 .5vh 0 rgba(0, 0, 0, .18);
+}
+.version { font-size: max(11px, 2.4vh); font-weight: 700; color: rgba(255, 255, 255, .85); }
+#title .version { position: absolute; right: var(--safe-r); bottom: var(--safe-b); }
+.panel .version { color: #9a8a7a; }
 .toggle { background: #e0f2fe; border-radius: 999px; padding: .4em 1.4em; font-weight: 900; font-size: max(15px, 3.6vh); }
 .note { margin: 0; font-size: max(13px, 3vh); color: #6b5a4a; }
 

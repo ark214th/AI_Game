@@ -28,4 +28,6 @@
 - `audio.mjs` — 効果音と BGM（Web Audio）
 - `core.test.mjs` / `text.test.mjs` — `node --test` で動くテスト
 
+直したら `app.mjs` の `VERSION` と `UPDATED` を上げる（タイトル画面の右下と、せっていに出る。新しい版が届いたか分かるように）。
+
 保存：ブラウザの localStorage（`horihori-rocket-v1`）。キーボードでも遊べる（矢印キー / WASD）。

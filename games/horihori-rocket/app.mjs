@@ -6,6 +6,8 @@ import * as D from './draw.mjs';
 const { T, W, H, SKY, HOPPER } = C;
 const $ = id => document.getElementById(id);
 const STORE = 'horihori-rocket-v1';
+// なおしたら ここを あげる（タイトルと せっていに 出て、あたらしい ばんか わかる）
+const VERSION = 'v1.4', UPDATED = '2026/10/25 18:40';
 
 // ---------- ほぞん ----------
 let save;
@@ -769,6 +771,8 @@ function frame(now) {
 }
 
 // ---------- はじまり ----------
+document.querySelectorAll('.version').forEach(el => { el.textContent = `${VERSION} ・ ${UPDATED} こうしん`; });
+$('homeLink').addEventListener('click', persist);
 $('playBtn').textContent = fresh ? 'あそぶ' : 'つづきから';
 $('playBtn').addEventListener('click', () => {
   snd.unlock(); snd.play('tap'); snd.startBgm();
