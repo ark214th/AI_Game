@@ -7,7 +7,7 @@ const { T, W, H, SKY, HOPPER } = C;
 const $ = id => document.getElementById(id);
 const STORE = 'horihori-rocket-v1';
 // なおしたら ここを あげる（タイトルと せっていに 出て、あたらしい ばんか わかる）
-const VERSION = 'v1.4', UPDATED = '2026/10/25 18:40';
+const VERSION = 'v1.5', UPDATED = '2026/10/25 18:45';
 
 // ---------- ほぞん ----------
 let save;
@@ -249,6 +249,7 @@ function rescue(msg) {
 
 // ---------- 売る・はこぶ ----------
 const hopperCenter = { x: HOPPER.x + 0.5, y: HOPPER.y + 0.3 };
+const ITEM_MAX = 1500; // ベルトの 上に のせて おける こうせきの かず
 function sellOre(ore, auto) {
   const v = C.sellValue(ore, save);
   save.money += v; save.stats.earned += v;
@@ -301,7 +302,7 @@ function updateEconomy(dt) {
   }
   // ベルトの 上を うごく
   const hk = C.mkey(HOPPER.x, HOPPER.y);
-  const spd = 3.2;
+  const spd = 5;
   for (const it of items) {
     if (it.done) continue;
     if (it.to !== hk && !save.machines[it.to]) { sellOre(it.ore, it.auto); it.done = true; continue; }
@@ -315,7 +316,11 @@ function updateEconomy(dt) {
     } else { it.x += dx / d * step; it.y += dy / d * step; }
   }
   items = items.filter(i => !i.done);
-  if (items.length > 600) items.splice(0, items.length - 600).forEach(i => sellOre(i.ore, i.auto));
+  // のりすぎた ときは やすい こうせきから その場で 売る（ふかくて 高い こうせきは 地上まで とどける）
+  if (items.length > ITEM_MAX) {
+    items.sort((a, b) => C.ORES[b.ore].value - C.ORES[a.ore].value);
+    items.splice(ITEM_MAX).forEach(i => sellOre(i.ore, i.auto));
+  }
 }
 
 // ---------- つくる モード ----------
@@ -669,7 +674,7 @@ function render() {
       D.drawAutoDrill(g, SX(x), SY(y), ts, time, ok, m.buf);
     }
   }
-  for (const it of items) D.drawOre(g, it.ore, SX(it.x), SY(it.y) + ts * 0.08, ts * 0.14);
+  for (const it of items) if (it.x > ox - 1 && it.x < ox + cols + 1 && it.y > oy - 1 && it.y < oy + rows + 1) D.drawOre(g, it.ore, SX(it.x), SY(it.y) + ts * 0.08, ts * 0.14);
   for (const f of flyers) D.drawOre(g, f.ore, SX(f.x), SY(f.y), ts * 0.16);
 
   // ほりほりごう
@@ -787,4 +792,4 @@ $('loading').hidden = true;
 requestAnimationFrame(frame);
 
 // テスト用
-window.__game = { save, p, toScreen: (x, y) => ({ x: (x - cam.x) * ts + vw / 2, y: (y - cam.y) * ts + vh / 2 }), renderShop, startLaunch, get world() { return world; }, get mode() { return mode; }, keys, setMode, flow: () => flow };
+window.__game = { save, p, toScreen: (x, y) => ({ x: (x - cam.x) * ts + vw / 2, y: (y - cam.y) * ts + vh / 2 }), renderShop, startLaunch, get world() { return world; }, get mode() { return mode; }, keys, setMode, flow: () => flow, items: () => items, reflow: () => { flow = C.computeFlow(save); } };
