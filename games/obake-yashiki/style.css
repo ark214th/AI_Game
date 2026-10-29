@@ -1,0 +1,67 @@
+:root {
+  color-scheme: dark;
+  --night: #1d1426;
+  --plum: #3b2a4a;
+  --lantern: #ffcf6b;
+  --lantern-edge: #c9922e;
+  --paper: #fff7e6;
+  --paper-deep: #f3e6cc;
+  --ink: #2a1c33;
+  --muted: #6b5a78;
+  --font: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body {
+  background: var(--night);
+  color: var(--paper);
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+#game { position: fixed; inset: 0; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+.overlay {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: rgba(29, 20, 38, 0.72);
+  overflow-y: auto;
+}
+.card {
+  width: min(520px, 100%);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 28px;
+  padding: 24px;
+  display: grid; gap: 14px;
+  text-align: center;
+  box-shadow: 0 0 0 6px var(--plum), 0 18px 40px rgba(0, 0, 0, .45);
+}
+.card h1, .card h2 { margin: 0; line-height: 1.3; text-wrap: balance; font-weight: 800; }
+.card h1 { font-size: clamp(26px, 5vw, 36px); }
+.card h2 { font-size: clamp(22px, 4.5vw, 30px); }
+.lead { margin: 0; font-size: 18px; line-height: 1.6; }
+.rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; text-align: left; font-size: 17px; line-height: 1.6; }
+.rules li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; }
+.rules b {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--plum); color: var(--lantern); font-size: 15px;
+}
+.stats { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 17px; }
+.stats span { background: var(--paper-deep); border-radius: 14px; padding: 8px 14px; font-variant-numeric: tabular-nums; }
+button {
+  font: inherit; font-size: 22px; font-weight: 800;
+  color: var(--ink); background: var(--lantern);
+  border: 0; border-radius: 999px; padding: 14px 40px;
+  box-shadow: 0 5px 0 var(--lantern-edge);
+  cursor: pointer; justify-self: center;
+}
+button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--lantern-edge); }
+button:focus-visible { outline: 4px solid var(--plum); outline-offset: 4px; }
+.note { margin: 0; font-size: 14px; color: var(--muted); }
