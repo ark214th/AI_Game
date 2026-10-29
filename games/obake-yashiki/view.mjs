@@ -500,8 +500,9 @@ export class View {
         const gp2 = C.caseToWorld(c, 0, top + rh / 2, -C.CASE.d / 2 + 0.022);
         ghost.position.set(gp2.x, gp2.y, gp2.z); ghost.rotation.y = c.rot; s.add(ghost);
         const pt = plateTex(ser, sec);
-        const plate = new T.Mesh(new T.PlaneGeometry(0.86, 0.075), new T.MeshStandardMaterial({ map: pt, roughness: 0.35, metalness: 0.3, emissive: '#ffffff', emissiveMap: pt, emissiveIntensity: 0.25 }));
-        const pp = C.caseToWorld(c, 0, C.boardY(r) - 0.012, C.CASE.d / 2 + 0.006);
+        const plate = new T.Mesh(new T.PlaneGeometry(0.9, 0.062), new T.MeshStandardMaterial({ map: pt, roughness: 0.35, metalness: 0.3, emissive: '#ffffff', emissiveMap: pt, emissiveIntensity: 0.25 }));
+        // なふだは その れつの 上の いたに つける（いちばん 下の れつでも 目の 高さに ちかく、よみやすい）
+        const pp = C.caseToWorld(c, 0, C.boardY(r + 1) - 0.015 - 0.031, C.CASE.d / 2 + 0.006);
         plate.position.set(pp.x, pp.y, pp.z); plate.rotation.y = c.rot; s.add(plate);
         const gl = new T.Mesh(new T.PlaneGeometry(C.CASE.w - 0.04, rh + 0.03), new T.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
         const glp = C.caseToWorld(c, 0, top + rh / 2, C.CASE.d / 2 + 0.012);
