@@ -728,8 +728,13 @@ export class View {
 
   render() { this.renderer.render(this.scene, this.camera); }
 
+  // iPad の Safari は まわした ちょくごに ふるい 大きさを かえすことが あるので、まいフレーム たしかめる
   resize() {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    if (!w || !h || (w === this.w && h === this.h && dpr === this.dpr)) return;
+    this.w = w; this.h = h; this.dpr = dpr;
+    this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.fov = w / h < 1.2 ? 72 : 62;

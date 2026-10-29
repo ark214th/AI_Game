@@ -204,3 +204,9 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 @media (prefers-reduced-motion: reduce) {
   .unlock .ghost, #handList li { animation: none; }
 }
+
+/* たてむきの ときは おしらせを スティックの 上に 出す */
+@media (max-aspect-ratio: 1/1) {
+  #toast { max-width: calc(100vw - var(--l) - var(--r) - 16px); width: max-content; bottom: calc(var(--b) + 190px); }
+  .hand { width: min(300px, 60vw); }
+}

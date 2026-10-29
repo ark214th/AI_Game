@@ -457,6 +457,7 @@ function frame(now) {
   }
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.remove('show'); }
   hudTick();
+  view.resize();
   view.render();
   requestAnimationFrame(frame);
 }
