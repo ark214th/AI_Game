@@ -1,5 +1,4 @@
 // オバケやしきの おかたづけ — そうさ・まほう・がめんの 文字
-import * as T from './vendor/three.module.min.js';
 import * as C from './core.mjs';
 import { View, drawIcon } from './view.mjs';
 import { sfx, unlockAudio } from './audio.mjs';
@@ -24,19 +23,31 @@ function loadSave() {
 }
 
 // ---------- いどう ----------
-const R = C.BODY;
-function resolve(p) {
-  p.x = Math.max(C.WALK.x0, Math.min(C.WALK.x1, p.x));
-  p.z = Math.max(C.WALK.z0, Math.min(C.WALK.z1, p.z));
-  for (const o of OBS) {
-    const x0 = o.x0 - R, x1 = o.x1 + R, z0 = o.z0 - R, z1 = o.z1 + R;
-    if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1) {
-      const push = [[p.x - x0, -1, 0], [x1 - p.x, 1, 0], [p.z - z0, 0, -1], [z1 - p.z, 0, 1]].sort((a, b) => a[0] - b[0])[0];
-      p.x += push[1] * push[0]; p.z += push[2] * push[0];
+const R = C.BODY, SPEED = 2.4;
+const move = { sx: 0, sy: 0, vx: 0, vz: 0 };    // sx, sy: スティックの たおしぐあい（-1〜1、sy は まえが +）
+
+// ぶつかったら おしもどす。かどでも はんたいがわへ とばないよう、いちばん ちかい 点から おす
+function collide(p) {
+  const piles = C.pileCenters(g);
+  for (let pass = 0; pass < 2; pass++) {
+    p.x = Math.max(C.WALK.x0, Math.min(C.WALK.x1, p.x));
+    p.z = Math.max(C.WALK.z0, Math.min(C.WALK.z1, p.z));
+    for (const o of OBS) {
+      const cx = Math.max(o.x0, Math.min(o.x1, p.x)), cz = Math.max(o.z0, Math.min(o.z1, p.z));
+      const dx = p.x - cx, dz = p.z - cz, d = Math.hypot(dx, dz);
+      if (d >= R) continue;
+      if (d > 1e-6) { p.x = cx + dx / d * R; p.z = cz + dz / d * R; continue; }
+      const push = [[p.x - o.x0, -1, 0], [o.x1 - p.x, 1, 0], [p.z - o.z0, 0, -1], [o.z1 - p.z, 0, 1]].sort((a, b) => a[0] - b[0])[0];
+      p.x += push[1] * (push[0] + R); p.z += push[2] * (push[0] + R);
+    }
+    for (const q of piles) {
+      const dx = p.x - q.x, dz = p.z - q.z, d = Math.hypot(dx, dz), min = R + 0.3;
+      if (d < min && d > 1e-6) { p.x = q.x + dx / d * min; p.z = q.z + dz / d * min; }
     }
   }
   return p;
 }
+function stopWalking() { player.path = []; player.target = null; player.intent = null; player.stuck = 0; }
 function walkTo(x, z, intent = null) {
   const path = C.findPath(g, player, { x, z });
   if (!path || !path.length) { if (intent) toast('そこまで いけないみたい'); return; }
@@ -44,7 +55,6 @@ function walkTo(x, z, intent = null) {
   player.target = path[path.length - 1];
   player.intent = intent;
   player.stuck = 0;
-  player.manual = false;
 }
 function distTo(x, z) { return Math.hypot(player.x - x, player.z - z); }
 
@@ -62,106 +72,149 @@ function runIntent(it) {
     doShelve(it.s);
   }
 }
-// その ばしょの ほうへ ゆっくり ふりむく
+
+// その ばしょの ほうへ ふりむく（ばねの ように ゆっくり うごきだして、ゆっくり とまる）
+const lookVel = { yaw: 0, pitch: 0 };
 function faceTo(x, z, y) {
   const dx = x - player.x, dz = z - player.z, d = Math.max(0.3, Math.hypot(dx, dz));
-  player.look = { yaw: Math.atan2(-dx, -dz), pitch: Math.max(-1.0, Math.min(0.7, Math.atan2(y - C.EYE, d))) };
+  player.look = { yaw: player.yaw + angDiff(Math.atan2(-dx, -dz), player.yaw), pitch: Math.max(-1.0, Math.min(0.7, Math.atan2(y - C.EYE, d))) };
 }
 const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 function updateLook(dt) {
-  if (touch.id !== null && touch.drag) { player.look = null; player.manual = true; return; }
-  const goal = player.look || (!player.manual && player.path.length && player.target ? { yaw: Math.atan2(-(player.path[0].x - player.x), -(player.path[0].z - player.z)), pitch: null } : null);
-  if (!goal) return;
-  const k = 1 - Math.exp(-dt * (player.look ? 6 : 2.5));
-  player.yaw += angDiff(goal.yaw, player.yaw) * k;
-  if (goal.pitch !== null) player.pitch += (goal.pitch - player.pitch) * k;
-  if (player.look && Math.abs(angDiff(goal.yaw, player.yaw)) < 0.01 && Math.abs(goal.pitch - player.pitch) < 0.01) player.look = null;
+  if (lookDragging()) { player.look = null; lookVel.yaw = lookVel.pitch = 0; return; }
+  if (!player.look) return;
+  const w = 5.5, cap = 2.2;
+  for (const k of ['yaw', 'pitch']) {
+    const err = player.look[k] - player[k];
+    lookVel[k] += (w * w * err - 2 * w * lookVel[k]) * dt;
+    lookVel[k] = Math.max(-cap, Math.min(cap, lookVel[k]));
+    player[k] += lookVel[k] * dt;
+  }
+  if (Math.abs(player.look.yaw - player.yaw) < 0.003 && Math.abs(player.look.pitch - player.pitch) < 0.003 && Math.hypot(lookVel.yaw, lookVel.pitch) < 0.05) {
+    player.look = null; lookVel.yaw = lookVel.pitch = 0;
+  }
 }
 
 function updatePlayer(dt) {
-  if (!player.target) return;
-  if (player.intent && intentReady(player.intent)) {
-    const it = player.intent; player.target = null; player.intent = null; runIntent(it); return;
+  let wx = 0, wz = 0;
+  const stick = Math.hypot(move.sx, move.sy);
+  if (stick > 0) {
+    if (player.target) stopWalking();
+    player.look = null;
+    const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
+    wx = (rx * move.sx + fx * move.sy) * SPEED; wz = (rz * move.sx + fz * move.sy) * SPEED;
+  } else if (player.target) {
+    if (player.intent && intentReady(player.intent)) { const it = player.intent; stopWalking(); runIntent(it); return; }
+    // まがりかどは てまえで つぎへ（かくっと まがらない）
+    while (player.path.length > 1 && distTo(player.path[0].x, player.path[0].z) < 0.35) player.path.shift();
+    const way = player.path[0], d = distTo(way.x, way.z);
+    if (player.path.length === 1 && d < 0.05) {
+      const it = player.intent; stopWalking();
+      if (it && intentReady(it)) runIntent(it);
+    } else {
+      const sp = player.path.length === 1 ? SPEED * Math.min(1, 0.25 + d / 0.5) : SPEED;
+      wx = (way.x - player.x) / d * sp; wz = (way.z - player.z) / d * sp;
+    }
   }
-  const way = player.path[0];
-  const dx = way.x - player.x, dz = way.z - player.z, d = Math.hypot(dx, dz);
-  if (d < 0.06) {
-    player.path.shift();
-    if (player.path.length) return;
-    const it = player.intent; player.target = null; player.intent = null;
-    if (it && intentReady(it)) runIntent(it);
-    return;
-  }
-  const speed = 2.3, step = Math.min(d, speed * dt);
+  const k = 1 - Math.exp(-dt * 9);
+  move.vx += (wx - move.vx) * k; move.vz += (wz - move.vz) * k;
+  if (Math.hypot(move.vx, move.vz) < 0.01) { move.vx = move.vz = 0; return; }
   const before = { x: player.x, z: player.z };
-  const p = resolve({ x: player.x + dx / d * step, z: player.z + dz / d * step });
+  const p = collide({ x: player.x + move.vx * dt, z: player.z + move.vz * dt });
   player.x = p.x; player.z = p.z;
   const moved = Math.hypot(p.x - before.x, p.z - before.z);
+  // かべに そって すべった ぶんだけの はやさに する
+  if (dt > 0) { move.vx = (p.x - before.x) / dt; move.vz = (p.z - before.z) / dt; }
   player.step += moved;
   if (player.step > 0.62) { player.step = 0; sfx.step(); }
-  if (moved < step * 0.25) {
+  if (player.target && moved < Math.hypot(wx, wz) * dt * 0.25) {
     player.stuck += dt;
-    if (player.stuck > 0.35) {
-      const it = player.intent; player.target = null; player.intent = null;
+    if (player.stuck > 0.6) {
+      const it = player.intent; stopWalking();
       if (it && intentReady(it)) runIntent(it);
       else if (it) toast('そこまで いけないみたい。まわりこんでみよう');
     }
   } else player.stuck = 0;
 }
+const isMoving = () => Math.hypot(move.vx, move.vz) > 0.2;
 
-// ---------- タッチ ----------
-const touch = { id: null, x: 0, y: 0, sx: 0, sy: 0, drag: false, t: 0 };
+// ---------- タッチ（ひだりしたで あるく、ほかの ばしょで みまわす・タップ） ----------
+const pointers = new Map();
+const stickEl = $('stick'), knob = $('knob'), STICK_R = 56;
+const lookDragging = () => [...pointers.values()].some(p => p.kind === 'look' && p.moved);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
   if (!running || paused) return;
-  if (touch.id !== null) return;
+  unlockAudio();
   try { canvas.setPointerCapture(e.pointerId); } catch {}
-  Object.assign(touch, { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, drag: false, t: performance.now() });
+  const r = canvas.getBoundingClientRect();
+  const inStick = e.clientX - r.left < r.width * 0.34 && e.clientY - r.top > r.height * 0.45;
+  if (inStick && ![...pointers.values()].some(p => p.kind === 'stick')) {
+    pointers.set(e.pointerId, { kind: 'stick', ox: e.clientX, oy: e.clientY });
+    stickEl.style.left = (e.clientX - r.left) + 'px';
+    stickEl.style.top = (e.clientY - r.top) + 'px';
+    stickEl.classList.add('active');
+    return;
+  }
+  pointers.set(e.pointerId, { kind: 'look', sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, t0: performance.now(), moved: false });
 });
 canvas.addEventListener('pointermove', e => {
-  if (e.pointerId !== touch.id) return;
-  const dx = e.clientX - touch.x, dy = e.clientY - touch.y;
-  touch.x = e.clientX; touch.y = e.clientY;
-  if (!touch.drag && Math.hypot(e.clientX - touch.sx, e.clientY - touch.sy) > 12) touch.drag = true;
-  if (touch.drag) {
-    const k = 3.2 / Math.max(600, canvas.clientWidth);
-    player.yaw += dx * k;
-    player.pitch = Math.max(-1.15, Math.min(0.85, player.pitch + dy * k));
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  if (p.kind === 'stick') {
+    let dx = e.clientX - p.ox, dy = e.clientY - p.oy;
+    const d = Math.hypot(dx, dy);
+    if (d > STICK_R) { dx = dx / d * STICK_R; dy = dy / d * STICK_R; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    const nx = dx / STICK_R, ny = -dy / STICK_R, mag = Math.hypot(nx, ny), dead = 0.15;
+    const k = mag < dead ? 0 : (mag - dead) / (1 - dead) / mag;
+    move.sx = nx * k; move.sy = ny * k;
+    return;
+  }
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (!p.moved && Math.hypot(p.x - p.sx, p.y - p.sy) > 12) p.moved = true;
+  if (p.moved) {
+    const k = e.pointerType === 'mouse' ? 0.005 : 0.0062;
+    player.yaw -= dx * k;
+    player.pitch = Math.max(-1.15, Math.min(0.85, player.pitch - dy * k));
   }
 });
-const endTouch = e => {
-  if (e.pointerId !== touch.id) return;
-  const wasTap = !touch.drag && performance.now() - touch.t < 600;
-  touch.id = null;
-  if (wasTap && e.type === 'pointerup') tap(e.clientX, e.clientY);
+const endPointer = e => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  pointers.delete(e.pointerId);
+  if (p.kind === 'stick') {
+    move.sx = move.sy = 0;
+    knob.style.transform = '';
+    stickEl.style.left = stickEl.style.top = '';
+    stickEl.classList.remove('active');
+    return;
+  }
+  if (e.type === 'pointerup' && !p.moved && performance.now() - p.t0 < 600) tap(p.x, p.y);
 };
-canvas.addEventListener('pointerup', endTouch);
-canvas.addEventListener('pointercancel', endTouch);
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+function releaseAll() {
+  pointers.clear(); move.sx = move.sy = 0;
+  knob.style.transform = ''; stickEl.style.left = stickEl.style.top = ''; stickEl.classList.remove('active');
+}
 
+// 本や たなを タッチすると、とおくても そこまで あるいて いく
 function tap(cx, cy) {
-  unlockAudio();
   const r = canvas.getBoundingClientRect();
   const hit = view.hitTest((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
   if (!hit) return;
   if (hit.kind === 'book') {
     const it = { kind: 'pick', id: hit.id };
-    if (intentReady(it)) { player.target = null; runIntent(it); }
+    if (intentReady(it)) { stopWalking(); runIntent(it); }
     else { const p = g.piles[g.items[hit.id].pile]; walkTo(p.x, p.z, it); }
   } else if (hit.kind === 'row') {
     const it = { kind: 'row', s: hit.s };
-    if (intentReady(it)) { player.target = null; runIntent(it); }
+    if (intentReady(it)) { stopWalking(); runIntent(it); }
     else { const a = C.approachPoint(C.sectionCase(C.SERIES[hit.s].sec), 1.25); walkTo(a.x, a.z, it); }
-  } else if (hit.kind === 'floor') {
-    walkTo(hit.point.x, hit.point.z);
-    if (player.target) showMarker(player.target);
   }
 }
-
-// あるく ばしょの しるし
-const marker = new T.Mesh(new T.RingGeometry(0.16, 0.22, 32), new T.MeshBasicMaterial({ color: '#ffe2a0', transparent: true, opacity: 0, depthWrite: false }));
-marker.rotation.x = -Math.PI / 2; marker.position.y = 0.01;
-view.scene.add(marker);
-let markerT = 0;
-function showMarker(p) { marker.position.x = p.x; marker.position.z = p.z; markerT = 1; }
 
 // ---------- 本を ひろう・しまう ----------
 function doPick(id) {
@@ -328,7 +381,7 @@ function showUnlock() {
   $('unlockName').textContent = u.name;
   $('unlockDesc').textContent = u.desc;
   $('unlockHow').textContent = u.cd ? 'みぎしたの ボタンで つかえるよ' : '';
-  $('unlockScreen').hidden = false; paused = true;
+  $('unlockScreen').hidden = false; paused = true; releaseAll();
   sfx.unlock();
 }
 $('unlockOk').addEventListener('click', () => {
@@ -341,6 +394,7 @@ function begin(game) {
   unlockAudio();
   g = game;
   Object.assign(player, { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.12, target: null, path: [], look: null, intent: null });
+  releaseAll(); move.vx = move.vz = 0;
   for (const k of Object.keys(cd)) cd[k] = 0;
   magicTime.michi = 0;
   view.setGame(g);
@@ -349,7 +403,7 @@ function begin(game) {
   for (const id of ['startScreen', 'clearScreen', 'menuScreen']) $(id).hidden = true;
   $('hud').hidden = false;
   hud(); save();
-  toast(g.time > 0 ? 'おかえり！ つづきから はじめよう' : 'ゆかを タッチすると あるけるよ。がめんを なぞると まわりが みえるよ', 4.5);
+  toast(g.time > 0 ? 'おかえり！ つづきから はじめよう' : 'ひだりしたの まるで あるくよ。みぎがわを なぞると まわりが みえるよ', 4.5);
 }
 function finish() {
   if (!running) return;
@@ -372,7 +426,7 @@ const newGame = () => begin(C.createGame(Math.floor(Math.random() * 1e9)));
 $('startBtn').addEventListener('click', newGame);
 $('continueBtn').addEventListener('click', () => { const s = loadSave(); if (s) begin(s); else newGame(); });
 $('againBtn').addEventListener('click', newGame);
-$('menuBtn').addEventListener('click', () => { paused = true; $('menuScreen').hidden = false; });
+$('menuBtn').addEventListener('click', () => { paused = true; releaseAll(); $('menuScreen').hidden = false; });
 $('resumeBtn').addEventListener('click', () => { paused = false; $('menuScreen').hidden = true; });
 $('restartBtn').addEventListener('click', () => { if (confirm('さいしょから やりなおす？')) newGame(); });
 
@@ -391,9 +445,9 @@ function frame(now) {
     hudT += dt; if (hudT > 0.25) { hudT = 0; hud(); }
   }
   const cam = view.camera;
-  const moving = !!player.target;
-  view.bob = moving ? Math.sin(t * 9) * 0.006 : 0;
-  cam.position.set(player.x, C.EYE + (moving ? Math.abs(Math.sin(t * 9)) * 0.02 : 0), player.z);
+  const moving = running && isMoving();
+  view.bob = moving ? Math.sin(t * 9) * 0.005 : 0;
+  cam.position.set(player.x, C.EYE + (moving ? Math.abs(Math.sin(t * 9)) * 0.012 : 0), player.z);
   cam.rotation.set(player.pitch, player.yaw, 0);
   if (g) {
     const guide = magicTime.michi > 0 ? new Set(g.hand.map(id => g.items[id].s)) : new Set();
@@ -401,9 +455,6 @@ function frame(now) {
     view.beaconOn = C.SECTIONS.map((_, sec) => [...guide].some(s => C.SERIES[s].sec === sec));
     view.update(dt, t);
   }
-  markerT = Math.max(0, markerT - dt * 1.2);
-  marker.material.opacity = markerT * 0.8;
-  marker.scale.setScalar(1 + (1 - markerT) * 0.6);
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.remove('show'); }
   hudTick();
   view.render();
@@ -421,7 +472,7 @@ requestAnimationFrame(frame);
 
 // たしかめよう（Playwright から つかう）
 window.__game = {
-  get g() { return g; }, player, view, C, castMagic, tap, walkTo, doPick, doShelve,
+  get g() { return g; }, player, view, C, castMagic, tap, walkTo, doPick, doShelve, move,
   get paused() { return paused; }, unlockOk: () => $('unlockOk').click(),
   look(yaw, pitch) { player.yaw = yaw; player.pitch = pitch; },
   warp(x, z) { player.x = x; player.z = z; player.target = null; },

@@ -20,17 +20,20 @@
   <canvas id="world" aria-label="としょしつ"></canvas>
 
   <div id="hud" hidden>
-    <div class="panel status">
-      <b id="left"></b>
-      <span id="rows"></span>
-      <small id="next"></small>
+    <div class="leftcol">
+      <div class="panel status">
+        <b id="left"></b>
+        <span id="rows"></span>
+        <small id="next"></small>
+      </div>
+      <div class="panel hand">
+        <div id="cap"></div>
+        <ul id="handList"></ul>
+        <p id="handEmpty">本を タッチして ひろおう</p>
+      </div>
     </div>
     <button id="menuBtn" class="round" type="button" aria-label="メニュー">≡</button>
-    <div class="panel hand">
-      <div id="cap"></div>
-      <ul id="handList"></ul>
-      <p id="handEmpty">ゆかの 本を タッチして ひろおう</p>
-    </div>
+    <div id="stick" aria-hidden="true"><span>あるく</span><div id="knob"></div></div>
     <div id="magic" hidden>
       <button class="spell" id="m-yobiyose" type="button" hidden><i>よびよせ</i></button>
       <button class="spell" id="m-michi" type="button" hidden><i>みちしるべ</i></button>
@@ -45,8 +48,8 @@
       <h1>オバケやしきの <br>おかたづけ</h1>
       <p class="lead">いたずらオバケが としょしつを ちらかしちゃった！<br>本を もとの たなに もどそう。</p>
       <ul class="rules">
-        <li><b>1</b><span>ゆかを タッチすると あるくよ。がめんを なぞると まわりが みえるよ</span></li>
-        <li><b>2</b><span>本を タッチして ひろおう。もてる かずには かぎりが あるよ</span></li>
+        <li><b>1</b><span>ひだりしたの まるを ゆびで うごかすと あるくよ。みぎがわを なぞると まわりが みえるよ</span></li>
+        <li><b>2</b><span>本を タッチして ひろおう。とおくの 本も あるいて とりに いくよ。もてる かずには かぎりが あるよ</span></li>
         <li><b>3</b><span>本の マークと なまえを みて、おなじ たなを さがそう。たなを タッチすると しまえるよ</span></li>
         <li><b>4</b><span>れつが そろうと、なかまの オバケが まほうを おしえてくれる！</span></li>
       </ul>

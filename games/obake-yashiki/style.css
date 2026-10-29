@@ -30,15 +30,20 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
 /* ---------- あそんでいる ときの 文字 ---------- */
 #hud { position: absolute; inset: 0; pointer-events: none; }
+.leftcol {
+  position: absolute; top: var(--t); left: var(--l);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  max-height: 54%;
+}
 .panel {
-  position: absolute;
+  position: relative;
   background: rgba(27, 18, 13, .72);
   border: 2px solid rgba(217, 178, 90, .55);
   border-radius: 18px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
-.status { top: var(--t); left: var(--l); padding: 8px 16px; display: grid; gap: 2px; }
+.status { padding: 8px 16px; display: grid; gap: 2px; }
 .status b { font-size: 20px; color: var(--lantern); }
 .status span { font-size: 15px; }
 .status small { font-size: 13px; color: #d8c3a0; }
@@ -48,9 +53,9 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
   font: inherit; font-size: 26px; color: var(--paper);
   background: rgba(27, 18, 13, .72); border: 2px solid rgba(217, 178, 90, .55);
 }
-.hand { left: var(--l); bottom: var(--b); padding: 8px 10px 10px; width: min(300px, 34vw); }
+.hand { padding: 8px 10px 10px; width: min(300px, 34vw); box-sizing: border-box; min-height: 0; display: flex; flex-direction: column; }
 #cap { font-size: 14px; color: #d8c3a0; padding: 0 4px 6px; }
-#handList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 44vh; overflow: hidden; }
+#handList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; overflow: hidden; min-height: 0; }
 #handList li {
   display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px;
   background: var(--book); border-radius: 10px; padding: 4px 8px 4px 4px;
@@ -88,9 +93,24 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .spell.on { border-color: var(--lantern); box-shadow: 0 0 26px rgba(255, 207, 107, .9), 0 5px 0 #3a2178; }
 .spell:active { transform: translateY(3px); }
 
+/* いどうの スティック（ひだりしたを さわると その ばしょに でる） */
+#stick {
+  position: absolute; left: calc(var(--l) + 92px); top: calc(100% - var(--b) - 92px);
+  width: 136px; height: 136px; margin: -68px 0 0 -68px; border-radius: 50%;
+  background: rgba(255, 236, 190, .1); border: 3px solid rgba(255, 236, 190, .35);
+  opacity: .75; transition: opacity .2s;
+}
+#stick.active { opacity: 1; background: rgba(255, 236, 190, .16); }
+#stick span { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); text-align: center; font-size: 13px; color: rgba(255, 236, 190, .7); }
+#stick.active span { visibility: hidden; }
+#knob {
+  position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
+  background: rgba(255, 236, 190, .55); border: 3px solid rgba(255, 236, 190, .9); box-shadow: 0 2px 8px #0006;
+}
+
 #toast {
-  position: absolute; left: 50%; top: calc(var(--t) + 64px); transform: translate(-50%, -8px);
-  max-width: min(640px, 80vw); padding: 10px 20px; border-radius: 999px;
+  position: absolute; left: 50%; bottom: calc(var(--b) + 14px); transform: translate(-50%, 8px);
+  max-width: min(560px, calc(100vw - 2 * (var(--l) + 220px))); padding: 10px 20px; border-radius: 24px;
   background: rgba(27, 18, 13, .85); border: 2px solid rgba(217, 178, 90, .6);
   font-size: 18px; text-align: center; line-height: 1.5;
   word-break: keep-all; overflow-wrap: anywhere;
@@ -169,7 +189,11 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
   .status b { font-size: 17px; }
   .status span { font-size: 13px; }
   .status small { font-size: 11px; }
-  #toast { font-size: 15px; top: calc(var(--t) + 4px); max-width: 52vw; }
+  #toast { font-size: 14px; padding: 6px 14px; max-width: calc(100vw - 2 * (var(--l) + 170px)); }
+  #stick { width: 112px; height: 112px; margin: -56px 0 0 -56px; left: calc(var(--l) + 72px); top: calc(100% - var(--b) - 72px); }
+  #knob { width: 48px; height: 48px; margin: -24px 0 0 -24px; }
+  .leftcol { gap: 5px; }
+  #stick span { display: none; }
   #toast.big { font-size: 17px; }
   .rules { font-size: 14px; gap: 4px; }
   .lead { font-size: 15px; }
