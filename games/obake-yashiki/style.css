@@ -1,14 +1,18 @@
 :root {
   color-scheme: dark;
-  --night: #1d1426;
-  --plum: #3b2a4a;
+  --night: #1b120d;
+  --wood: #3a2414;
   --lantern: #ffcf6b;
   --lantern-edge: #c9922e;
   --paper: #fff7e6;
   --paper-deep: #f3e6cc;
-  --ink: #2a1c33;
-  --muted: #6b5a78;
-  --font: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --ink: #2a1c14;
+  --muted: #7a6550;
+  --font: "Hiragino Maru Gothic ProN", "Hiragino Sans", "IPAGothic", "Noto Sans CJK JP", sans-serif;
+  --l: max(12px, env(safe-area-inset-left, 0px));
+  --r: max(12px, env(safe-area-inset-right, 0px));
+  --t: max(10px, env(safe-area-inset-top, 0px));
+  --b: max(10px, env(safe-area-inset-bottom, 0px));
 }
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
@@ -19,49 +23,160 @@ body {
   overflow: hidden;
   -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 #game { position: fixed; inset: 0; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
+/* ---------- あそんでいる ときの 文字 ---------- */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+.panel {
+  position: absolute;
+  background: rgba(27, 18, 13, .72);
+  border: 2px solid rgba(217, 178, 90, .55);
+  border-radius: 18px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.status { top: var(--t); left: var(--l); padding: 8px 16px; display: grid; gap: 2px; }
+.status b { font-size: 20px; color: var(--lantern); }
+.status span { font-size: 15px; }
+.status small { font-size: 13px; color: #d8c3a0; }
+.round {
+  position: absolute; top: var(--t); right: var(--r); pointer-events: auto;
+  width: 52px; height: 52px; border-radius: 50%; padding: 0;
+  font: inherit; font-size: 26px; color: var(--paper);
+  background: rgba(27, 18, 13, .72); border: 2px solid rgba(217, 178, 90, .55);
+}
+.hand { left: var(--l); bottom: var(--b); padding: 8px 10px 10px; width: min(300px, 34vw); }
+#cap { font-size: 14px; color: #d8c3a0; padding: 0 4px 6px; }
+#handList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 44vh; overflow: hidden; }
+#handList li {
+  display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px;
+  background: var(--book); border-radius: 10px; padding: 4px 8px 4px 4px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .12);
+  animation: pop .25s ease-out;
+}
+#handList .title { font-size: 15px; font-weight: 700; color: #fff3d6; text-shadow: 0 1px 2px rgba(0,0,0,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#handList b {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: #f6e7c4; color: var(--ink); font-size: 15px;
+}
+#handEmpty { margin: 0; padding: 4px; font-size: 14px; color: #d8c3a0; }
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+
+#magic {
+  position: absolute; right: var(--r); bottom: var(--b);
+  display: grid; grid-template-columns: repeat(2, auto); gap: 10px; justify-items: center;
+  pointer-events: auto;
+}
+.spell {
+  --cd: 0deg;
+  position: relative; width: 84px; height: 84px; border-radius: 50%; padding: 0;
+  font: inherit; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #b99cff, #5a36b0 70%);
+  border: 3px solid #e8d7ff;
+  box-shadow: 0 0 18px rgba(185, 156, 255, .55), 0 5px 0 #3a2178;
+  display: grid; place-items: center;
+}
+.spell i { font-style: normal; font-weight: 800; font-size: 14px; text-shadow: 0 1px 3px rgba(0,0,0,.6); position: relative; z-index: 1; }
+.spell::after {
+  content: ""; position: absolute; inset: -3px; border-radius: 50%;
+  background: conic-gradient(rgba(20, 10, 30, .72) var(--cd), transparent 0);
+}
+.spell.cool { box-shadow: 0 5px 0 #3a2178; filter: saturate(.6); }
+.spell.on { border-color: var(--lantern); box-shadow: 0 0 26px rgba(255, 207, 107, .9), 0 5px 0 #3a2178; }
+.spell:active { transform: translateY(3px); }
+
+#toast {
+  position: absolute; left: 50%; top: calc(var(--t) + 64px); transform: translate(-50%, -8px);
+  max-width: min(640px, 80vw); padding: 10px 20px; border-radius: 999px;
+  background: rgba(27, 18, 13, .85); border: 2px solid rgba(217, 178, 90, .6);
+  font-size: 18px; text-align: center; line-height: 1.5;
+  word-break: keep-all; overflow-wrap: anywhere;
+  opacity: 0; transition: opacity .25s, transform .25s;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast.big { font-size: 22px; color: var(--lantern); }
+
+/* ---------- まどの カード ---------- */
 .overlay {
   position: absolute; inset: 0;
-  display: grid; place-items: center;
-  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  background: rgba(29, 20, 38, 0.72);
+  display: flex;
+  padding: var(--t) var(--r) var(--b) var(--l);
+  background: rgba(20, 12, 8, .62);
   overflow-y: auto;
 }
 .card {
-  width: min(520px, 100%);
+  margin: auto;
+  width: min(560px, 100%);
   background: var(--paper);
   color: var(--ink);
   border-radius: 28px;
-  padding: 24px;
-  display: grid; gap: 14px;
+  padding: 22px 26px;
+  display: grid; gap: 12px;
   text-align: center;
-  box-shadow: 0 0 0 6px var(--plum), 0 18px 40px rgba(0, 0, 0, .45);
+  box-shadow: 0 0 0 6px var(--wood), 0 18px 40px rgba(0, 0, 0, .5);
 }
 .card h1, .card h2 { margin: 0; line-height: 1.3; text-wrap: balance; font-weight: 800; }
 .card h1 { font-size: clamp(26px, 5vw, 36px); }
 .card h2 { font-size: clamp(22px, 4.5vw, 30px); }
-.lead { margin: 0; font-size: 18px; line-height: 1.6; }
-.rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; text-align: left; font-size: 17px; line-height: 1.6; }
-.rules li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; }
+.lead { margin: 0; font-size: 17px; line-height: 1.6; }
+.rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; text-align: left; font-size: 16px; line-height: 1.55; }
+.rules li { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: start; }
 .rules b {
   display: grid; place-items: center;
-  width: 30px; height: 30px; border-radius: 50%;
-  background: var(--plum); color: var(--lantern); font-size: 15px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--wood); color: var(--lantern); font-size: 14px;
 }
+.buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.buttons.column { flex-direction: column; align-items: center; }
 .stats { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 17px; }
 .stats span { background: var(--paper-deep); border-radius: 14px; padding: 8px 14px; font-variant-numeric: tabular-nums; }
-button {
-  font: inherit; font-size: 22px; font-weight: 800;
+.card button {
+  font: inherit; font-size: 21px; font-weight: 800;
   color: var(--ink); background: var(--lantern);
-  border: 0; border-radius: 999px; padding: 14px 40px;
+  border: 0; border-radius: 999px; padding: 12px 36px;
   box-shadow: 0 5px 0 var(--lantern-edge);
   cursor: pointer; justify-self: center;
 }
-button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--lantern-edge); }
-button:focus-visible { outline: 4px solid var(--plum); outline-offset: 4px; }
+.card button.secondary { background: var(--paper-deep); box-shadow: 0 5px 0 #c9b48e; }
+.card button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--lantern-edge); }
+.card button:focus-visible { outline: 4px solid var(--wood); outline-offset: 4px; }
+.home { color: var(--muted); font-size: 15px; justify-self: center; }
 .note { margin: 0; font-size: 14px; color: var(--muted); }
+.unlock { background: linear-gradient(180deg, #fff7e6, #efe2ff); }
+.unlock .ghost { width: 96px; height: 96px; justify-self: center; animation: float 2s ease-in-out infinite; filter: drop-shadow(0 6px 10px rgba(90, 54, 176, .35)); }
+.unlock .from { margin: 0; font-size: 15px; color: #5a36b0; }
+.unlock h2 { color: #5a36b0; font-size: clamp(28px, 5vw, 38px); }
+@keyframes float { 50% { transform: translateY(-8px); } }
+
+#loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; color: var(--paper-deep); background: var(--night); }
+
+@media (max-height: 500px) {
+  .card { padding: 14px 20px; gap: 8px; width: min(680px, 100%); }
+  .card h1 { font-size: 24px; }
+  .card h1 br { display: none; }
+  .card button { font-size: 18px; padding: 10px 28px; }
+  .unlock .ghost { width: 64px; height: 64px; }
+  .hand { width: min(380px, 44vw); padding: 6px 8px 8px; }
+  #handList { grid-template-columns: 1fr 1fr; gap: 3px; }
+  #handList b { width: 20px; height: 20px; font-size: 12px; }
+  #handList canvas { width: 22px !important; height: 22px !important; }
+  #handList .title { font-size: 11px; }
+  #cap { font-size: 12px; padding-bottom: 4px; }
+  .status { padding: 6px 12px; }
+  .status b { font-size: 17px; }
+  .status span { font-size: 13px; }
+  .status small { font-size: 11px; }
+  #toast { font-size: 15px; top: calc(var(--t) + 4px); max-width: 52vw; }
+  #toast.big { font-size: 17px; }
+  .rules { font-size: 14px; gap: 4px; }
+  .lead { font-size: 15px; }
+  .spell { width: 66px; height: 66px; }
+  .spell i { font-size: 12px; }
+  #handList li { grid-template-columns: 22px 1fr auto; gap: 4px; padding: 2px 4px 2px 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unlock .ghost, #handList li { animation: none; }
+}

@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="theme-color" content="#1d1426">
+  <meta name="theme-color" content="#1b120d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="おかたづけ">
-  <meta name="description" content="いたずらオバケに じゃまされながら、ちらかった 本を 本だなに もどす おかたづけ ゲーム。">
+  <meta name="description" content="オバケやしきの としょしつで、ちらかった 本を 本だなに もどす おかたづけ ゲーム。">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="manifest" href="manifest.webmanifest">
@@ -17,30 +17,88 @@
 </head>
 <body>
 <main id="game">
-  <canvas id="world" aria-label="ゲームがめん"></canvas>
+  <canvas id="world" aria-label="としょしつ"></canvas>
 
-  <div class="overlay" id="startScreen">
+  <div id="hud" hidden>
+    <div class="panel status">
+      <b id="left"></b>
+      <span id="rows"></span>
+      <small id="next"></small>
+    </div>
+    <button id="menuBtn" class="round" type="button" aria-label="メニュー">≡</button>
+    <div class="panel hand">
+      <div id="cap"></div>
+      <ul id="handList"></ul>
+      <p id="handEmpty">ゆかの 本を タッチして ひろおう</p>
+    </div>
+    <div id="magic" hidden>
+      <button class="spell" id="m-yobiyose" type="button" hidden><i>よびよせ</i></button>
+      <button class="spell" id="m-michi" type="button" hidden><i>みちしるべ</i></button>
+      <button class="spell" id="m-tondeke" type="button" hidden><i>とんでけ</i></button>
+      <button class="spell" id="m-tsumuji" type="button" hidden><i>つむじかぜ</i></button>
+    </div>
+    <div id="toast" hidden></div>
+  </div>
+
+  <div class="overlay" id="startScreen" hidden>
     <div class="card">
-      <h1>オバケやしきの<br>おかたづけ</h1>
+      <h1>オバケやしきの <br>おかたづけ</h1>
+      <p class="lead">いたずらオバケが としょしつを ちらかしちゃった！<br>本を もとの たなに もどそう。</p>
       <ul class="rules">
-        <li><b>1</b><span>ゆかの 本を タッチすると、かごに 入るよ（5さつまで）</span></li>
-        <li><b>2</b><span>おなじ 色の たなを タッチして、本を もどそう</span></li>
-        <li><b>3</b><span>オバケが きたら、ゆびで おさえて ライトで てらそう！ たなに とどくと ちらかされちゃうよ</span></li>
+        <li><b>1</b><span>ゆかを タッチすると あるくよ。がめんを なぞると まわりが みえるよ</span></li>
+        <li><b>2</b><span>本を タッチして ひろおう。もてる かずには かぎりが あるよ</span></li>
+        <li><b>3</b><span>本の マークと なまえを みて、おなじ たなを さがそう。たなを タッチすると しまえるよ</span></li>
+        <li><b>4</b><span>れつが そろうと、なかまの オバケが まほうを おしえてくれる！</span></li>
       </ul>
-      <button id="startBtn" type="button">はじめる</button>
+      <div class="buttons">
+        <button id="continueBtn" type="button" hidden>つづきから</button>
+        <button id="startBtn" type="button">はじめる</button>
+      </div>
+      <a class="home" href="../../">ゲーム いちらんへ</a>
+    </div>
+  </div>
+
+  <div class="overlay" id="unlockScreen" hidden>
+    <div class="card unlock">
+      <svg class="ghost" viewBox="0 0 120 120" aria-hidden="true">
+        <path d="M20 60a40 40 0 0 1 80 0v44l-10-8-10 8-10-8-10 8-10-8-10 8-10-8-10 8z" fill="#f6f1ff"/>
+        <ellipse cx="46" cy="54" rx="6" ry="9" fill="#2a1c33"/><ellipse cx="74" cy="54" rx="6" ry="9" fill="#2a1c33"/>
+        <path d="M50 72q10 9 20 0" stroke="#2a1c33" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <circle cx="34" cy="68" r="6" fill="#ffb3c4"/><circle cx="86" cy="68" r="6" fill="#ffb3c4"/>
+      </svg>
+      <p class="from">なかまの オバケ「ふわり」が おしえてくれた！</p>
+      <h2 id="unlockName"></h2>
+      <p class="lead" id="unlockDesc"></p>
+      <p class="note" id="unlockHow"></p>
+      <button id="unlockOk" type="button">やったー！</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="menuScreen" hidden>
+    <div class="card">
+      <h2>ひとやすみ</h2>
+      <div class="buttons column">
+        <button id="resumeBtn" type="button">つづける</button>
+        <button id="restartBtn" class="secondary" type="button">さいしょから</button>
+      </div>
+      <a class="home" href="../../">ゲーム いちらんへ</a>
     </div>
   </div>
 
   <div class="overlay" id="clearScreen" hidden>
     <div class="card">
       <h2>おかたづけ かんりょう！</h2>
-      <p class="lead">いたずらオバケが こうさんして<br>なかまに なった！</p>
+      <p class="lead">としょしつが ぴかぴかに なった！<br>いたずらオバケも びっくり。</p>
       <div class="stats" id="stats"></div>
       <button id="againBtn" type="button">もういちど</button>
-      <p class="note">つぎの へやは じゅんびちゅう</p>
+      <a class="home" href="../../">ゲーム いちらんへ</a>
     </div>
   </div>
+
+  <div id="loading">じゅんびちゅう…</div>
 </main>
-<script type="module" src="app.mjs"></script>
+<script type="module">
+import('./app.mjs').catch(e => { document.getElementById('loading').textContent = 'よみこめませんでした。もういちど ひらいてね。'; console.error(e); });
+</script>
 </body>
 </html>
