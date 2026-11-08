@@ -4,6 +4,17 @@ body { font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif; to
 #game { position: fixed; inset: 0; }
 #world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
+/* そらの くも（画面の うえを ゆっくり ながれる） */
+.sky-clouds { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.sky-clouds i { position: absolute; left: 0; width: 110px; height: 34px; background: rgba(255,255,255,.92); border-radius: 999px; animation: cloud-drift linear infinite; }
+.sky-clouds i::before, .sky-clouds i::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
+.sky-clouds i::before { width: 52px; height: 52px; top: -24px; left: 18px; }
+.sky-clouds i::after { width: 36px; height: 36px; top: -15px; left: 58px; }
+.sky-clouds .c1 { top: 5%; animation-duration: 95s; animation-delay: -30s; }
+.sky-clouds .c2 { top: 13%; animation-duration: 130s; animation-delay: -95s; transform: scale(.7); opacity: .85; }
+.sky-clouds .c3 { top: 9%; animation-duration: 110s; animation-delay: -65s; transform: scale(1.25); opacity: .75; }
+@keyframes cloud-drift { from { translate: -180px 0; } to { translate: 110vw 0; } }
+
 button { font-family: inherit; border: none; cursor: pointer; }
 
 /* HUD */
