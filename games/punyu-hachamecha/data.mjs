@@ -7,7 +7,7 @@ export const FRIENDS = [
   { id: 'chapu', name: 'ちゃぷ', icon: '🦦', bubble: '🐚', pos: { x: -16, z: 10 }, color: 0xa9744f },
   { id: 'kaze', name: 'いたずらかぜ', icon: '🌀', bubble: '🎩', pos: { x: 12, z: -12 }, color: 0x9fd8ef },
   { id: 'jelly', name: 'ぷるるんゼリー', icon: '🍮', bubble: '🍦', pos: { x: -14, z: -8 }, color: 0xffb7d5 },
-  { id: 'kumokumo', name: 'くもくもさん', icon: '💤', bubble: '⭐', pos: { x: 0, z: -18 }, color: 0xffffff },
+  { id: 'kumokumo', name: 'くもくもさん', icon: '💤', bubble: '⭐', pos: { x: 0, z: -15.5 }, color: 0xffffff },
 ];
 
 // こまった が でてくる じゅんばん（だんかい かいほう）
