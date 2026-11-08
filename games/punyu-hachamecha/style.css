@@ -1,5 +1,5 @@
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: #9fdcff; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #ffd9ec; }
 body { font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif; touch-action: none; user-select: none; -webkit-user-select: none; }
 #game { position: fixed; inset: 0; }
 #world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -38,8 +38,8 @@ button { font-family: inherit; border: none; cursor: pointer; }
 .logo h1 { font-size: 52px; line-height: 1.15; font-weight: 900; }
 .title-actions { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .row { display: flex; gap: 12px; }
-button.big { background: #ffb340; color: #fff; font-size: 34px; font-weight: 900; padding: 14px 54px; border-radius: 999px; box-shadow: 0 6px 0 #d9821e; }
-button.big:active { transform: translateY(3px); box-shadow: 0 3px 0 #d9821e; }
+button.big { background: linear-gradient(180deg, #ffa6d4, #ff6fb3); color: #fff; font-size: 34px; font-weight: 900; padding: 14px 54px; border-radius: 999px; box-shadow: 0 6px 0 #d94b93; }
+button.big:active { transform: translateY(3px); box-shadow: 0 3px 0 #d94b93; }
 button.big.small-big { font-size: 24px; padding: 10px 36px; }
 button.small { background: rgba(255,255,255,.94); color: #4a3520; font-size: 20px; font-weight: bold; padding: 10px 20px; border-radius: 999px; box-shadow: 0 3px 0 rgba(0,0,0,.15); }
 
@@ -48,7 +48,7 @@ button.small { background: rgba(255,255,255,.94); color: #4a3520; font-size: 20p
 .panel h2 { font-size: 30px; color: #4a3520; }
 .tabs { display: flex; gap: 8px; }
 .tab { background: #eee3c8; color: #4a3520; font-size: 19px; font-weight: bold; padding: 8px 18px; border-radius: 999px; }
-.tab.on { background: #ffb340; color: #fff; }
+.tab.on { background: #ff6fb3; color: #fff; }
 .book-body { width: 100%; min-height: 180px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; padding: 6px; }
 .book-item { background: #fff; border: 3px solid #f0e4c3; border-radius: 18px; padding: 10px 4px; text-align: center; }
 .book-item .ic { font-size: 44px; }
@@ -80,7 +80,7 @@ button.small { background: rgba(255,255,255,.94); color: #4a3520; font-size: 20p
 .ending-text { font-size: 46px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 rgba(0,0,0,.3); animation: bounce 0.8s infinite alternate ease-in-out; }
 
 /* よこにしてね */
-#rotate { position: absolute; inset: 0; background: #7fd0ff; color: #fff; font-size: 34px; font-weight: 900; display: none; align-items: center; justify-content: center; z-index: 50; }
+#rotate { position: absolute; inset: 0; background: #ffb9dd; color: #fff; font-size: 34px; font-weight: 900; display: none; align-items: center; justify-content: center; z-index: 50; }
 @media (orientation: portrait) { #rotate { display: flex; } }
 
 #debugBar { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 40; }
