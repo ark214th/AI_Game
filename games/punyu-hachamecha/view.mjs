@@ -127,15 +127,15 @@ export class View {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.scene = new T.Scene();
     this.scene.background = new T.Color(0x9fdcff);
-    this.scene.fog = new T.Fog(0x9fdcff, 70, 150);
-    this.camera = new T.PerspectiveCamera(50, 1, 0.1, 200);
+    this.scene.fog = new T.Fog(0x9fdcff, 90, 190);
+    this.camera = new T.PerspectiveCamera(30, 1, 0.1, 300);
     this.scene.add(new T.HemisphereLight(0xffffff, 0x77bb66, 1.05));
     const sun = new T.DirectionalLight(0xffffff, 1.4); sun.position.set(18, 30, 12); this.scene.add(sun);
     this.pickables = [];
     this.effects = [];
     this.fireworksOn = false;
     this.fwTimer = 0;
-    this.camPos = new T.Vector3(0, 11.5, 31.5);
+    this.camPos = new T.Vector3(0, 19, 45.5);
     this.buildIsland();
     this.punyu = buildPunyu(); this.scene.add(this.punyu.grp);
     this.friends = {};
@@ -293,8 +293,8 @@ export class View {
       g.rotation.y = t * 2 + i;
       g.position.y = 0.8 + Math.sin(t * 2.6 + i * 1.3) * 0.12;
     });
-    // カメラ（正面少し斜め上から。キャラの顔が見える角度にする）
-    const target = new T.Vector3(s.player.x, 11.5, s.player.z + 16.5);
+    // カメラ（正面少し斜め上から。遠くから狭い画角で撮り、パースを弱めて平行投影に近づける）
+    const target = new T.Vector3(s.player.x, 19, s.player.z + 30.5);
     this.camPos.lerp(target, 0.06);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(s.player.x, 0.9, s.player.z - 2.5);
