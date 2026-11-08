@@ -3,7 +3,19 @@
 import * as T from '../punyu-kirakira/vendor/three.module.min.js';
 import { FRIENDS, HAT_SPOTS, SHELL_SPOTS, SHARD_SPOTS } from './data.mjs';
 
-const mat = (color, opts = {}) => new T.MeshStandardMaterial({ color, roughness: 0.9, ...opts });
+// 漢字ゲーム『ゆめかわ かんじの しま』と おなじ トゥーンの ざいりょう（3だんかいの かげで ゆめかわな ぬりえがたに なる）
+let toonRamp = null;
+function ramp() {
+  if (!toonRamp) {
+    const data = new Uint8Array([150, 150, 150, 255, 215, 215, 215, 255, 255, 255, 255, 255]);
+    toonRamp = new T.DataTexture(data, 3, 1, T.RGBAFormat);
+    toonRamp.minFilter = toonRamp.magFilter = T.NearestFilter;
+    toonRamp.needsUpdate = true;
+  }
+  return toonRamp;
+}
+const mat = (color, opts = {}) => { const { roughness, ...rest } = opts; return new T.MeshToonMaterial({ color, gradientMap: ramp(), ...rest }); };
+const basic = (color) => new T.MeshBasicMaterial({ color });
 const sph = (r, color, opts) => new T.Mesh(new T.SphereGeometry(r, 24, 18), mat(color, opts));
 
 // きまった じゅんばんの らんすう（かざりの はいちを まいかい おなじに）
@@ -36,27 +48,28 @@ function starMesh() {
   }
   shape.closePath();
   const geo = new T.ExtrudeGeometry(shape, { depth: 0.16, bevelEnabled: false });
-  return new T.Mesh(geo, mat(0xffd84a, { emissive: 0x997a00 }));
+  return new T.Mesh(geo, mat(0xffd84a, { emissive: 0x6b4a00, emissiveIntensity: 0.35 }));
 }
 
-// かお（め と くち）。めの かたちで ひょうじょうを かえる
+// かお（め と くち）。めと くちは ひかりに よらない くろ（漢字ゲーム方式）で、どの かくどでも よめる
 function makeFace(eyeColor = 0x3a2a3a) {
   const grp = new T.Group();
-  const mk = (x) => { const e = sph(0.09, eyeColor); e.position.set(x, 0.12, 0.82); grp.add(e); return e; };
+  const fm = basic(eyeColor);
+  const mk = (x) => { const e = new T.Mesh(new T.SphereGeometry(0.1, 12, 10), fm); e.scale.set(1, 1.2, 0.6); e.position.set(x, 0.12, 0.82); grp.add(e); return e; };
   const eyes = [mk(-0.3), mk(0.3)];
-  const mouth = new T.Mesh(new T.TorusGeometry(0.13, 0.032, 8, 16, Math.PI), mat(eyeColor));
+  const mouth = new T.Mesh(new T.TorusGeometry(0.13, 0.032, 8, 16, Math.PI), fm);
   mouth.position.set(0, -0.12, 0.84); mouth.rotation.z = Math.PI;
   grp.add(mouth);
   return { grp, eyes, mouth };
 }
 const setFace = (face, kind) => {
   const sy = kind === 'happy' || kind === 'sleep' ? 0.2 : 1;
-  face.eyes.forEach((e) => e.scale.set(1, sy, 1));
+  face.eyes.forEach((e) => e.scale.set(1, sy * 1.2, 0.6));
   face.mouth.scale.setScalar(kind === 'happy' ? 1.5 : kind === 'sad' ? 0.6 : 1);
 };
 
 function blobShadow(r) {
-  const m = new T.Mesh(new T.CircleGeometry(r, 20), new T.MeshBasicMaterial({ color: 0x1a4020, transparent: true, opacity: 0.18, depthWrite: false }));
+  const m = new T.Mesh(new T.CircleGeometry(r, 20), new T.MeshBasicMaterial({ color: 0x5a7a4a, transparent: true, opacity: 0.18, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.y = 0.03;
   return m;
 }
@@ -68,10 +81,10 @@ function buildPunyu() {
   for (const sx of [-1, 1]) {
     const ear = sph(0.27, 0xfff4f7); ear.position.set(sx * 0.46, 1.52, 0); g.add(ear);
     const inner = sph(0.14, 0xff9fb8); inner.position.set(sx * 0.46, 1.5, 0.16); g.add(inner);
-    const cheek = sph(0.13, 0xff9fb8); cheek.scale.set(1, 0.7, 0.4); cheek.position.set(sx * 0.56, 0.68, 0.66); g.add(cheek);
+    const cheek = sph(0.13, 0xff9fb8); cheek.scale.set(1, 0.7, 0.4); cheek.position.set(sx * 0.56, 0.74, 0.66); g.add(cheek);
   }
   const tail = sph(0.2, 0xfff4f7); tail.position.set(0, 0.42, -0.78); g.add(tail);
-  const face = makeFace(); face.grp.position.y = 0.68; g.add(face.grp);
+  const face = makeFace(); face.grp.position.y = 0.79; g.add(face.grp);
   g.add(blobShadow(0.95));
   return { grp: g, face, body };
 }
@@ -84,21 +97,22 @@ function buildFriend(f) {
     for (const sx of [-1, 1]) {
       const claw = sph(0.42, 0xff8f6b); claw.position.set(sx * 1.35, 0.55, 0.55); g.add(claw);
       const stalk = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.5), mat(0xff7a59)); stalk.position.set(sx * 0.35, 1.45, 0.2); g.add(stalk);
-      const eye = sph(0.14, 0x3a2a3a); eye.position.set(sx * 0.35, 1.72, 0.2); g.add(eye);
+      const eye = sph(0.14, 0x3a2a3a); eye.material = basic(0x3a2a3a); eye.position.set(sx * 0.35, 1.72, 0.2); g.add(eye);
     }
-    face = makeFace(); face.grp.position.set(0, 0.62, 0.28); g.add(face.grp);
+    // カニの めは くきの さきの 2つだけ（つうじょうの かおの めは かさなるので かくす）
+    face = makeFace(); face.eyes.forEach((e) => { e.visible = false; }); face.grp.position.set(0, 0.55, 0.12); g.add(face.grp);
   } else if (f.id === 'chapu') {
     const body = sph(0.95, 0xa9744f); body.position.y = 0.85; g.add(body);
     const belly = sph(0.62, 0xf3ddba); belly.scale.set(1, 1, 0.55); belly.position.set(0, 0.66, 0.55); g.add(belly);
     for (const sx of [-1, 1]) { const ear = sph(0.2, 0x8a5a38); ear.position.set(sx * 0.52, 1.62, 0); g.add(ear); }
     const tail = sph(0.4, 0x8a5a38); tail.scale.set(1.3, 0.35, 0.8); tail.position.set(0, 0.22, -0.95); g.add(tail);
-    face = makeFace(); face.grp.position.y = 0.78; g.add(face.grp);
+    face = makeFace(); face.grp.position.set(0, 0.78, 0.12); g.add(face.grp);
   } else if (f.id === 'kaze') {
     const b1 = sph(0.95, 0xbfe6f7); b1.position.y = 0.8; g.add(b1);
     const b2 = sph(0.62, 0xd8f2fc); b2.position.set(0.25, 1.65, 0); g.add(b2);
     const ring = new T.Mesh(new T.TorusGeometry(1.05, 0.09, 10, 28), mat(0x9fd8ef));
     ring.rotation.x = Math.PI / 2.4; ring.position.y = 0.85; g.add(ring); extra.ring = ring;
-    face = makeFace(); face.grp.position.y = 0.72; g.add(face.grp);
+    face = makeFace(); face.grp.position.set(0, 0.72, 0.18); g.add(face.grp);
   } else if (f.id === 'jelly') {
     const dome = new T.Mesh(new T.SphereGeometry(1, 28, 20, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xffb7d5, { transparent: true, opacity: 0.9 }));
     dome.position.y = 0.15; g.add(dome);
@@ -115,7 +129,7 @@ function buildFriend(f) {
       const p = sph(r, 0xffffff); p.position.set(x, y, z); g.add(p);
     }
     const cap = new T.Mesh(new T.ConeGeometry(0.42, 0.55, 16), mat(0x8fb8ff)); cap.position.set(0.15, 1.95, 0); cap.rotation.z = 0.35; g.add(cap);
-    face = makeFace(); face.grp.position.y = 0.7; g.add(face.grp);
+    face = makeFace(); face.grp.position.set(0, 0.7, 0.22); g.add(face.grp);
   }
   g.add(blobShadow(1.15));
   return { grp: g, face, ...extra };
@@ -125,12 +139,19 @@ export class View {
   constructor(canvas) {
     this.renderer = new T.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    if (T.SRGBColorSpace) this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.scene = new T.Scene();
-    this.scene.background = new T.Color(0x9fdcff);
-    this.scene.fog = new T.Fog(0x9fdcff, 90, 190);
+    // そら（漢字ゲームと おなじ ゆめかわ グラデーション：ピンク→ラベンダー→みずいろ→ミント）
+    const skyC = document.createElement('canvas'); skyC.width = 2; skyC.height = 256;
+    const sg = skyC.getContext('2d'); const grd = sg.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, '#ffc9e6'); grd.addColorStop(0.45, '#f1d3ff'); grd.addColorStop(0.8, '#d6ecff'); grd.addColorStop(1, '#e8fff6');
+    sg.fillStyle = grd; sg.fillRect(0, 0, 2, 256);
+    const skyTex = new T.CanvasTexture(skyC); if (T.SRGBColorSpace) skyTex.colorSpace = T.SRGBColorSpace;
+    this.scene.background = skyTex;
+    this.scene.fog = new T.Fog(0xf3e6ff, 55, 130);
     this.camera = new T.PerspectiveCamera(30, 1, 0.1, 300);
-    this.scene.add(new T.HemisphereLight(0xffffff, 0x77bb66, 1.05));
-    const sun = new T.DirectionalLight(0xffffff, 1.4); sun.position.set(18, 30, 12); this.scene.add(sun);
+    this.scene.add(new T.HemisphereLight(0xffffff, 0xe4d4ff, 1.6));
+    const sun = new T.DirectionalLight(0xffffff, 1.5); sun.position.set(-5, 12, 9); this.scene.add(sun);
     this.pickables = [];
     this.effects = [];
     this.fireworksOn = false;
@@ -156,10 +177,20 @@ export class View {
 
   buildIsland() {
     const S = this.scene;
-    const side = new T.Mesh(new T.CylinderGeometry(27.5, 24, 3.4, 40), mat(0xc9a06a)); side.position.y = -1.75; S.add(side);
-    const top = new T.Mesh(new T.CircleGeometry(27.5, 40), mat(0x8fdc6e)); top.rotation.x = -Math.PI / 2; top.position.y = 0; S.add(top);
-    const sand = new T.Mesh(new T.CircleGeometry(7, 24), mat(0xf7e3a1)); sand.rotation.x = -Math.PI / 2; sand.position.set(16, 0.02, 12); S.add(sand);
-    const pond = new T.Mesh(new T.CircleGeometry(5, 24), mat(0x6ec6e8)); pond.rotation.x = -Math.PI / 2; pond.position.set(-16, 0.02, 10); S.add(pond);
+    const side = new T.Mesh(new T.CylinderGeometry(27.5, 24, 3.4, 40), mat(0xa8e58f)); side.position.y = -1.75; S.add(side);
+    const top = new T.Mesh(new T.CircleGeometry(27.5, 40), mat(0xbdf0a4)); top.rotation.x = -Math.PI / 2; top.position.y = 0; S.add(top);
+    // うかぶ しまの うらがわ（漢字ゲーム風の ピーチ色の すい）
+    const under = new T.Mesh(new T.ConeGeometry(25.5, 11, 28), mat(0xf2c9a8)); under.rotation.x = Math.PI; under.position.y = -8.9; S.add(under);
+    const under2 = new T.Mesh(new T.ConeGeometry(15, 6.5, 20), mat(0xe8b896)); under2.rotation.x = Math.PI; under2.position.set(5, -13, 2); S.add(under2);
+    const sand = new T.Mesh(new T.CircleGeometry(7, 24), mat(0xfff1c9)); sand.rotation.x = -Math.PI / 2; sand.position.set(16, 0.02, 12); S.add(sand);
+    const pond = new T.Mesh(new T.CircleGeometry(5, 24), mat(0x8fd8ff, { emissive: 0x2c7fb8, emissiveIntensity: 0.25 })); pond.rotation.x = -Math.PI / 2; pond.position.set(-16, 0.02, 10); S.add(pond);
+    // そらの くも（ゆっくり ながれる）
+    this.clouds = [];
+    for (const [x, y, z, s] of [[-30, 13, -38, 1.6], [18, 16, -44, 2.1], [38, 12, -20, 1.3], [-42, 15, -14, 1.8], [2, 18, -52, 2.4]]) {
+      const cl = new T.Group();
+      for (const [dx, dy, r] of [[-1.1, 0, 1], [0, 0.25, 1.3], [1.15, 0, 0.9]]) { const p = sph(r, 0xffffff, { transparent: true, opacity: 0.95 }); p.scale.y = 0.62; p.position.set(dx, dy, 0); cl.add(p); }
+      cl.position.set(x, y, z); cl.scale.setScalar(s); S.add(cl); this.clouds.push(cl);
+    }
     // くもくもさんの たかだい（くも）
     for (const [x, z, r] of [[0, -18, 3.4], [-2.4, -17.4, 2.2], [2.4, -18.4, 2.4]]) {
       const c = sph(r, 0xffffff); c.scale.y = 0.38; c.position.set(x, 0.25, z); S.add(c);
@@ -172,27 +203,27 @@ export class View {
     // き
     const treeAt = (x, z, s = 1) => {
       const g = new T.Group();
-      const trunk = new T.Mesh(new T.CylinderGeometry(0.32 * s, 0.42 * s, 1.6 * s, 8), mat(0xa9744f)); trunk.position.y = 0.8 * s; g.add(trunk);
+      const trunk = new T.Mesh(new T.CylinderGeometry(0.32 * s, 0.42 * s, 1.6 * s, 8), mat(0xc8915e)); trunk.position.y = 0.8 * s; g.add(trunk);
       for (const [dx, dy, dz, r] of [[0, 2.4, 0, 1.5], [-0.9, 1.9, 0.2, 1.0], [0.9, 2.0, -0.2, 1.1]]) {
-        const leaf = sph(r * s, 0x5fbf4d); leaf.position.set(dx * s, dy * s, dz * s); g.add(leaf);
+        const leaf = sph(r * s, 0x8fdc6e); leaf.position.set(dx * s, dy * s, dz * s); g.add(leaf);
       }
       g.position.set(x, 0, z); S.add(g);
     };
     treeAt(-7, -3); treeAt(7, 12, 1.2); treeAt(-21, -9, 0.9); treeAt(21, -13); treeAt(-3, 21, 1.1); treeAt(15, 19, 0.85); treeAt(-22, 16);
     // はな と くさ
-    const flowerColors = [0xff8fb3, 0xffd84a, 0xffffff, 0xff9f68, 0xc39bff];
+    const flowerColors = [0xff8fb5, 0xffe066, 0xffffff, 0xb79cff, 0xff6f91, 0x8fd8ff];
     for (let i = 0; i < 52; i++) {
       const a = rnd() * Math.PI * 2, r = 4 + rnd() * 21, x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (Math.hypot(x - 16, z - 12) < 6.4 || Math.hypot(x + 16, z - 10) < 4.6) continue;
-      const stem = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.5, 5), mat(0x4da843)); stem.position.set(x, 0.25, z); S.add(stem);
+      const stem = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.5, 5), mat(0x6fbf5f)); stem.position.set(x, 0.25, z); S.add(stem);
       const head = sph(0.17, flowerColors[i % flowerColors.length]); head.position.set(x, 0.55, z); S.add(head);
     }
     for (let i = 0; i < 36; i++) {
       const a = rnd() * Math.PI * 2, r = 3 + rnd() * 22, x = Math.cos(a) * r, z = Math.sin(a) * r;
-      const tuft = new T.Mesh(new T.ConeGeometry(0.32, 0.7, 6), mat(0x74cc5e)); tuft.position.set(x, 0.3, z); S.add(tuft);
+      const tuft = new T.Mesh(new T.ConeGeometry(0.32, 0.7, 6), mat(0x7fcf6a)); tuft.position.set(x, 0.3, z); S.add(tuft);
     }
     for (const [x, z, r] of [[-12, 16, 0.9], [22, 6, 1.2], [-19, -14, 1.0]]) {
-      const rock = new T.Mesh(new T.DodecahedronGeometry(r), mat(0xb9c2c9)); rock.position.set(x, r * 0.5, z); S.add(rock);
+      const rock = new T.Mesh(new T.DodecahedronGeometry(r), mat(0xc9c2d6)); rock.position.set(x, r * 0.5, z); S.add(rock);
     }
   }
 
@@ -219,7 +250,7 @@ export class View {
     });
     // かけら
     this.shardGrps = SHARD_SPOTS.map((p, i) => {
-      const m = new T.Mesh(new T.OctahedronGeometry(0.3), mat(0xffd84a, { emissive: 0x886600 }));
+      const m = new T.Mesh(new T.OctahedronGeometry(0.3), mat(0xffd84a, { emissive: 0x6b4a00, emissiveIntensity: 0.35 }));
       m.position.set(p.x, 0.8, p.z); m.userData.pick = { kind: 'shard', index: i };
       S.add(m); this.pickables.push(m); return m;
     });
@@ -301,6 +332,8 @@ export class View {
   }
 
   update(dt) {
+    // くもを ゆっくり ながす
+    if (this.clouds) for (const cl of this.clouds) { cl.position.x += dt * 0.35; if (cl.position.x > 65) cl.position.x = -65; }
     // パーティクル
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i]; e.t += dt;
