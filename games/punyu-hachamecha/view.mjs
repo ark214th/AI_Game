@@ -100,7 +100,7 @@ function buildFriend(f) {
       const eye = sph(0.14, 0x3a2a3a); eye.material = basic(0x3a2a3a); eye.position.set(sx * 0.35, 1.72, 0.2); g.add(eye);
     }
     // カニの めは くきの さきの 2つだけ（つうじょうの かおの めは かさなるので かくす）
-    face = makeFace(); face.eyes.forEach((e) => { e.visible = false; }); face.grp.position.set(0, 0.55, 0.12); g.add(face.grp);
+    face = makeFace(); face.eyes.forEach((e) => { e.visible = false; }); face.grp.position.set(0, 0.62, 0.12); g.add(face.grp);
   } else if (f.id === 'chapu') {
     const body = sph(0.95, 0xa9744f); body.position.y = 0.85; g.add(body);
     const belly = sph(0.62, 0xf3ddba); belly.scale.set(1, 1, 0.55); belly.position.set(0, 0.66, 0.55); g.add(belly);
@@ -129,7 +129,8 @@ function buildFriend(f) {
       const p = sph(r, 0xffffff); p.position.set(x, y, z); g.add(p);
     }
     const cap = new T.Mesh(new T.ConeGeometry(0.42, 0.55, 16), mat(0x8fb8ff)); cap.position.set(0.15, 1.95, 0); cap.rotation.z = 0.35; g.add(cap);
-    face = makeFace(); face.grp.position.set(0, 0.7, 0.22); g.add(face.grp);
+    // くもは もこもこで かおが うもれやすいので、おおきく まえに だす
+    face = makeFace(); face.grp.position.set(0, 0.78, 0.55); face.grp.scale.setScalar(1.25); g.add(face.grp);
   }
   g.add(blobShadow(1.15));
   return { grp: g, face, ...extra };
@@ -184,11 +185,11 @@ export class View {
     const under2 = new T.Mesh(new T.ConeGeometry(15, 6.5, 20), mat(0xe8b896)); under2.rotation.x = Math.PI; under2.position.set(5, -13, 2); S.add(under2);
     const sand = new T.Mesh(new T.CircleGeometry(7, 24), mat(0xfff1c9)); sand.rotation.x = -Math.PI / 2; sand.position.set(16, 0.02, 12); S.add(sand);
     const pond = new T.Mesh(new T.CircleGeometry(5, 24), mat(0x8fd8ff, { emissive: 0x2c7fb8, emissiveIntensity: 0.25 })); pond.rotation.x = -Math.PI / 2; pond.position.set(-16, 0.02, 10); S.add(pond);
-    // そらの くも（ゆっくり ながれる）
+    // そらの くも（地平線の たかさで、しまの まわりを ゆっくり ながれる。霧で きえないよう fog は きる）
     this.clouds = [];
-    for (const [x, y, z, s] of [[-30, 13, -38, 1.6], [18, 16, -44, 2.1], [38, 12, -20, 1.3], [-42, 15, -14, 1.8], [2, 18, -52, 2.4]]) {
+    for (const [x, y, z, s] of [[-40, 2, -14, 3], [42, 3, -20, 2.7], [-27, 2, -42, 3.4], [29, 2.5, -44, 2.9], [2, 3, -54, 3.8], [-50, 2.5, 8, 2.5], [50, 2, 6, 2.6]]) {
       const cl = new T.Group();
-      for (const [dx, dy, r] of [[-1.1, 0, 1], [0, 0.25, 1.3], [1.15, 0, 0.9]]) { const p = sph(r, 0xffffff, { transparent: true, opacity: 0.95 }); p.scale.y = 0.62; p.position.set(dx, dy, 0); cl.add(p); }
+      for (const [dx, dy, r] of [[-1.1, 0, 1], [0, 0.25, 1.3], [1.15, 0, 0.9]]) { const p = sph(r, 0xffffff, { transparent: true, opacity: 0.95, fog: false }); p.scale.y = 0.62; p.position.set(dx, dy, 0); cl.add(p); }
       cl.position.set(x, y, z); cl.scale.setScalar(s); S.add(cl); this.clouds.push(cl);
     }
     // くもくもさんの たかだい（くも）
@@ -333,7 +334,7 @@ export class View {
 
   update(dt) {
     // くもを ゆっくり ながす
-    if (this.clouds) for (const cl of this.clouds) { cl.position.x += dt * 0.35; if (cl.position.x > 65) cl.position.x = -65; }
+    if (this.clouds) for (const cl of this.clouds) { cl.position.x += dt * 0.35; if (cl.position.x > 78) cl.position.x = -78; }
     // パーティクル
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i]; e.t += dt;
