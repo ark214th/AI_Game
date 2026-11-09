@@ -33,16 +33,9 @@
   </header>
   <div id="callout" aria-live="polite"></div>
 
-  <div id="touch" hidden>
-    <div class="dpad" aria-hidden="true">
-      <div class="dbtn up" data-dir="up">▲</div>
-      <div class="dbtn left" data-dir="left">◀</div>
-      <div class="dbtn right" data-dir="right">▶</div>
-      <div class="dbtn down" data-dir="down">▼</div>
-    </div>
-    <div class="pad right">
-      <div class="btn action" id="btnAction" aria-hidden="true">！</div>
-    </div>
+  <div id="touch" hidden aria-hidden="true">
+    <div id="stick"><div id="knob"></div></div>
+    <div class="btn action" id="btnAction">！</div>
   </div>
 
   <section id="title" class="screen">
@@ -72,20 +65,22 @@
     </div>
   </section>
 
-  <section id="janken" class="screen shade" hidden>
+  <section id="janken" class="screen dock" hidden>
     <div class="panel janken-panel">
-      <div id="jankenHands" class="janken-hands">
+      <button id="jankenQuit" class="quit" aria-label="やめる">✕</button>
+      <div class="janken-hands">
+        <span class="who">🦀</span>
         <span id="oppHand" class="opp-hand">❓</span>
-        <span class="vs">と</span>
+        <span id="jankenMsg" class="janken-msg">じゃんけん…</span>
         <span id="youHand" class="opp-hand">❓</span>
+        <span class="who">🐹</span>
       </div>
-      <div id="jankenMsg" class="janken-msg">じゃんけん…</div>
       <div class="janken-btns">
         <button class="hand-btn" data-hand="gu">✊</button>
         <button class="hand-btn" data-hand="choki">✌️</button>
         <button class="hand-btn" data-hand="pa">✋</button>
       </div>
-      <div id="jankenWins" class="janken-wins">⭐ ⭐</div>
+      <div id="jankenWins" class="janken-wins">☆ ☆ ☆</div>
     </div>
   </section>
 
@@ -93,14 +88,13 @@
     <div class="panel reward-panel">
       <div class="reward-emoji" id="rewardEmoji">🎉</div>
       <div class="reward-title">やったー！</div>
+      <div id="rewardFlowers" class="flowers" aria-label="はなまる"></div>
       <div id="rewardItems" class="reward-items"></div>
-      <button id="rewardClose" class="big small-big">やったー</button>
+      <div class="row">
+        <button id="rewardAgain" class="small">🔁 もういちど</button>
+        <button id="rewardClose" class="big small-big">つぎへ</button>
+      </div>
     </div>
-  </section>
-
-  <section id="ending" class="screen" hidden>
-    <div class="ending-text">みんな えがおに なったよ！</div>
-    <button id="endingClose" class="big">あそび つづける</button>
   </section>
 
   <div id="rotate">📱 よこに してね</div>

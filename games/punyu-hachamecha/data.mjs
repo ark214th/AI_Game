@@ -1,82 +1,90 @@
-// ゲームのデータ（ともだち・ミッション・シール・おてがみ・かけら）
+// ゲームのデータ（しま・はし・ともだち・あそび・シール・おてがみ・かけら）
 // 画面に出る字は ひらがな・カタカナ だけにする（漢字を使わない）
 
-// ともだち。pos は しまの うえの ばしょ（x, z）。bubble は こまった ときの ふきだしの え
+// ---- しま と はし ----
+// しまは まるい。r は みための はんけい、あるける のは r - EDGE まで
+export const EDGE = 1.4;
+export const ISLANDS = [
+  { id: 'nohara', name: 'おはなの のはら', x: 0, z: 0, r: 22 },
+  { id: 'umibe', name: 'きらきら うみべ', x: 54, z: 0, r: 20 },
+  // ここから さきは じゅんびちゅう（もやの むこうに みえる だけ）
+  { id: 'okashi', name: 'おかしの もり', x: 0, z: -56, r: 18, soon: true },
+];
+
+// はし。a → b を むすぶ。fog が あると、その もやが はれるまで わたれない
+export const BRIDGES = [
+  { id: 'b-umibe', from: 'nohara', to: 'umibe', a: { x: 20, z: 0 }, b: { x: 35.5, z: 0 }, hw: 1.7 },
+  { id: 'b-okashi', from: 'nohara', to: 'okashi', a: { x: 0, z: -20 }, b: { x: 0, z: -39.5 }, hw: 1.7, fog: 'okashi', soon: true },
+];
+
+// もや。えがおが need に なると はれる
+export const FOGS = [
+  { id: 'okashi', need: 2, x: 0, z: -30 },
+];
+
+// とおれない もの（き・いわ・いけ）。まるで あたりを とる
+export const TREES = [
+  { x: -8, z: -6, s: 1 }, { x: 9, z: 9, s: 1.15 }, { x: -17, z: -9, s: 0.9 }, { x: 14, z: -12, s: 1 },
+  { x: -4, z: 17, s: 1.05 }, { x: 12, z: 16, s: 0.85 }, { x: -18, z: 2, s: 1 },
+  { x: 43, z: -10, s: 1, palm: true }, { x: 66, z: -13, s: 1.1, palm: true }, { x: 48, z: -15, s: 0.9, palm: true },
+];
+export const ROCKS = [
+  { x: -11, z: 15, r: 0.9 }, { x: 17, z: 6, r: 1.1 }, { x: -15, z: -14, r: 1.0 },
+  { x: 68, z: -3, r: 1.2 }, { x: 40, z: 4, r: 0.9 },
+];
+export const POND = { x: -12, z: 7, r: 4.2 };
+
+// ---- うみべの なみ ----
+// うみは まるく、はんけいが ひろがったり ちぢんだり する（＝なみが よせて ひく）
+export const SEA = { x: 54, z: 23, mid: 15.6, amp: 2.1, period: 7.5, deep: 12.4 };
+
+// ---- ともだち ----
+// home は しまの うえの ばしょ。bubble は こまった ときの ふきだしの え
 export const FRIENDS = [
-  { id: 'kani', name: 'おおきなカニ', icon: '🦀', bubble: '✊', pos: { x: 17, z: 10 }, color: 0xff7a59 },
-  { id: 'chapu', name: 'ちゃぷ', icon: '🦦', bubble: '🐚', pos: { x: -16, z: 10 }, color: 0xa9744f },
-  { id: 'kaze', name: 'いたずらかぜ', icon: '🌀', bubble: '🎩', pos: { x: 12, z: -12 }, color: 0x9fd8ef },
-  { id: 'jelly', name: 'ぷるるんゼリー', icon: '🍮', bubble: '🍦', pos: { x: -14, z: -8 }, color: 0xffb7d5 },
-  { id: 'kumokumo', name: 'くもくもさん', icon: '💤', bubble: '⭐', pos: { x: 0, z: -15.5 }, color: 0xffffff },
+  { id: 'chapu', name: 'ちゃぷ', icon: '🦦', bubble: '🐚', home: { x: -5, z: 3 }, island: 'nohara', play: 'shells' },
+  { id: 'kani', name: 'おおきなカニ', icon: '🦀', bubble: '✊', home: { x: 61, z: -7 }, island: 'umibe', play: 'janken' },
 ];
 
-// こまった が でてくる じゅんばん（だんかい かいほう）
-export const STAGES = [
-  ['kani', 'chapu'],
-  ['kaze', 'jelly'],
-  ['kumokumo'],
+// ---- あそび ----
+// かいがら：3つ ひろえば せいこう。にじいろの かいがら（なみが いちばん ひいた ときだけ でる）で はなまるが ふえる
+// d は うみの まんなか からの きょり。なみの はんけいが d より ちいさい ときだけ ひろえる
+export const SHELLS = [
+  { ang: -2.05, d: 16.6 }, { ang: -1.57, d: 17.0 }, { ang: -1.1, d: 16.5 },
+  { ang: -1.82, d: 14.3, rainbow: true }, { ang: -1.33, d: 14.2, rainbow: true },
 ];
+export const SHELL_NEED = 3;
+export const shellPos = (sh) => ({ x: SEA.x + Math.cos(sh.ang) * sh.d, z: SEA.z + Math.sin(sh.ang) * sh.d });
+// ちょうちょが あんないする はまべの まんなか
+export const BEACH_SPOT = { x: 54, z: 4.5 };
 
-// ミッションの ないよう（かず・しかた）
-export const MISSIONS = {
-  kani: { type: 'janken', wins: 2 },        // じゃんけん：2かい かったら せいこう
-  kaze: { type: 'hat', touches: 5 },        // ぼうし：5かい さわったら せいこう
-  kumokumo: { type: 'stars', count: 5 },    // ほし：5つ あつめたら せいこう（1つは にげる）
-  chapu: { type: 'shells', count: 3 },      // かいがら：3つ さがしたら せいこう
-  jelly: { type: 'cream', taps: 5 },        // クリーム：5かい トントンしたら せいこう
-};
-
-// じゃんけんの て（あいての て と くらべる）
+// じゃんけん：3かい かてば せいこう。だす まえに カニの はさみが「ぴくっ」と うごいて てが みえる
 export const HANDS = ['gu', 'choki', 'pa'];
 export const HAND_ICON = { gu: '✊', choki: '✌️', pa: '✋' };
+export const BEATS = { gu: 'choki', choki: 'pa', pa: 'gu' };   // key が value に かつ
+export const JANKEN_WINS = 3;
+// てが みえる ながさ（ミリびょう）。かいを かさねると みじかく なる
+export const TELL_MS = [1300, 1000, 800, 650, 520, 430];
 
-// ぼうしが とんでいく ばしょの こうほ
-export const HAT_SPOTS = [
-  { x: 0, z: 16 }, { x: -10, z: 2 }, { x: 8, z: 6 }, { x: -4, z: -14 },
-  { x: 18, z: -4 }, { x: -19, z: -2 }, { x: 4, z: -4 }, { x: -8, z: 17 },
-];
-
-// ほしの おちている ばしょ（kumokumo ミッション）。runner は 1かい にげる ほし
-export const STAR_SPOTS = [
-  { x: -6, z: -14 }, { x: 7, z: -16 }, { x: -12, z: -19 }, { x: 11, z: -9 }, { x: 0, z: -10 },
-];
-export const STAR_RUNNER = 2;
-export const STAR_RUNNER_TO = { x: 14, z: -19 };
-
-// かいがらの かくれている ばしょ（chapu ミッション）
-export const SHELL_SPOTS = [
-  { x: 12, z: 17 }, { x: -11, z: 14 }, { x: 20, z: 3 },
-];
-
-// きらきらのかけら（あつめると シールちょうの「はっけん」に きろく）
-export const SHARD_SPOTS = [
-  { x: 5, z: 19 }, { x: -5, z: 7 }, { x: 14, z: 0 }, { x: -18, z: 4 }, { x: 9, z: -7 },
-  { x: -9, z: -13 }, { x: 20, z: 14 }, { x: -20, z: 13 }, { x: 3, z: -20 }, { x: -14, z: 19 },
+// ---- きらきらのかけら ----
+export const SHARDS = [
+  { x: 6, z: 14 }, { x: -6, z: -13 }, { x: 15, z: -4 }, { x: -14, z: 13 }, { x: 3, z: -17 }, { x: -13, z: -3 },
+  { x: 28, z: 0 }, { x: 44, z: -4 }, { x: 58, z: -15 }, { x: 69, z: 4 }, { x: 50, z: 5 }, { x: 62, z: 2 },
 ];
 export const SHARD_NAME = 'きらきらのかけら';
 
-// えがおシール（ともだちを たすけると もらえる）
+// ---- シール と おてがみ ----
 export const STICKERS = [
-  { id: 'kani', icon: '🦀', name: 'かにシール' },
   { id: 'chapu', icon: '🦦', name: 'ちゃぷシール' },
-  { id: 'kaze', icon: '🌀', name: 'かぜシール' },
-  { id: 'jelly', icon: '🍮', name: 'ゼリーシール' },
-  { id: 'kumokumo', icon: '💤', name: 'くもシール' },
-  { id: 'niji', icon: '🌈', name: 'にじシール' },
+  { id: 'kani', icon: '🦀', name: 'かにシール' },
 ];
-
-// おてがみ（絵が ちゅうしん。ぶんは ひとこと だけ）
 export const LETTERS = [
-  { id: 'kani', from: 'おおきなカニ', icon: '🦀', text: 'じゃんけん たのしかったー！' },
-  { id: 'chapu', from: 'ちゃぷ', icon: '🦦', text: 'かいがら みつけて くれて ありがとう' },
-  { id: 'kaze', from: 'いたずらかぜ', icon: '🌀', text: 'ぼうし とんでっちゃったのに ありがとう' },
-  { id: 'jelly', from: 'ぷるるんゼリー', icon: '🍮', text: 'クリーム もりもり うれしい！' },
-  { id: 'kumokumo', from: 'くもくもさん', icon: '💤', text: 'ほしが もどって ぐっすり ねむれるよ' },
+  { id: 'chapu', from: 'ちゃぷ', icon: '🦦', text: 'かいがら いっしょに さがして くれて ありがとう' },
+  { id: 'kani', from: 'おおきなカニ', icon: '🦀', text: 'じゃんけん たのしかったー！ また やろうね' },
 ];
 
-// しまの おおきさ と プレイヤーの はやさ
-export const ISLAND_R = 26;
-export const PLAYER_R = 24.2;
-export const SPEED = 7;
-export const NEAR = 2.6;
-export const PLAYER_START = { x: 0, z: 15 };
+// ---- うごき ----
+export const SPEED = 8;
+export const PLAYER_START = { x: 0, z: 9 };
+export const TALK_R = 3.4;      // はなしかけ られる きょり
+export const TOUCH_R = 1.7;     // かけら・かいがらに ふれる きょり
+export const FOLLOW_GAP = 2.4;  // ついてくる ともだちの あいだ

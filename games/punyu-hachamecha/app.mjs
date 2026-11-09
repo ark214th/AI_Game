@@ -2,7 +2,7 @@
 import * as C from './core.mjs';
 import { View } from './view.mjs';
 import { Sound } from './audio.mjs';
-import { FRIENDS, STICKERS, LETTERS, HAND_ICON, SHARD_SPOTS, SHARD_NAME } from './data.mjs';
+import { FRIENDS, FOGS, ISLANDS, STICKERS, LETTERS, HAND_ICON, SHARDS, SHARD_NAME, SHELL_NEED, JANKEN_WINS } from './data.mjs';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -13,106 +13,138 @@ const store = {
 let state = store.load() || C.newSave();
 const view = new View($('world'));
 const sound = new Sound(state.sound);
-let playing = false, uiOpen = false, pendingEnding = false, saveTimer = 0;
+let playing = false, uiOpen = false, saveTimer = 0;
+let look = null;          // カメラが よそを みている あいだ（もやが はれる えんしゅつ）
+let tell = false;         // カニが てを みせている あいだ
+let pendingCleared = [];
 
 const show = (el, on) => { el.hidden = !on; };
-function callout(text, ms = 1100) {
+function callout(text, ms = 1300) {
   const c = $('callout'); c.textContent = text; c.classList.add('show');
   clearTimeout(callout._t); callout._t = setTimeout(() => c.classList.remove('show'), ms);
 }
 const friendDef = (id) => FRIENDS.find((f) => f.id === id);
+const flowersHtml = (n) => [0, 1, 2].map((i) => `<span class="${i < n ? 'yes' : 'no'}">🌸</span>`).join('');
 
 function updateHud() {
-  $('smileCount').textContent = state.smiles;
+  $('smileCount').textContent = C.smiles(state);
   $('shardCount').textContent = state.shards.length;
   $('soundBtn').textContent = state.sound ? '🔊' : '🔇';
-  const m = state.mission, pill = $('missionPill');
-  if (!m) { pill.hidden = true; return; }
-  pill.hidden = false;
-  const f = friendDef(m.friend);
-  if (m.type === 'janken') pill.textContent = `${f.icon} ⭐ ${m.wins}/2`;
-  else if (m.type === 'hat') pill.textContent = `🎩 ${m.touches}/5`;
-  else if (m.type === 'stars') pill.textContent = `⭐ ${m.got.length}/5`;
-  else if (m.type === 'shells') pill.textContent = `🐚 ${m.got.length}/3`;
-  else if (m.type === 'cream') pill.textContent = `🍦 ${m.taps}/5`;
+  const pill = $('missionPill');
+  pill.hidden = !state.shells;
+  if (state.shells) pill.textContent = `🐚 ${state.shells.got.length}/${SHELL_NEED}`;
 }
 
-// ---- ごほうび と エンディング ----
-function onMissionDone(res) {
+// ---- えがお と ごほうび ----
+let lastDone = null;
+function onDone(res) {
+  lastDone = res;
+  uiOpen = true;
   const f = friendDef(res.friend);
   sound.play('fanfare');
-  view.burstHearts(f.pos.x, f.pos.z);
-  const st = STICKERS.find((x) => x.id === res.friend);
-  const lt = LETTERS.find((x) => x.id === res.friend);
-  $('rewardEmoji').textContent = f.icon;
-  $('rewardItems').innerHTML =
-    `<div class="book-item"><div class="ic">${st.icon}</div><div class="nm">${st.name}</div></div>` +
-    `<div class="book-item"><div class="ic">💌</div><div class="nm">${lt.from}から</div></div>`;
-  uiOpen = true; show($('reward'), true);
-  pendingEnding = res.ending;
-  if (res.born?.length) setTimeout(() => callout('あたらしい おともだち！', 1600), 400);
+  view.celebrate(res.friend);
+  if (res.first) { const isl = ISLANDS.find((i) => i.id === f.island); view.burstFlowers(isl.x, isl.z); }
   store.save(state); updateHud();
+  // まず えがおを みせて から、ごほうびの がめん
+  setTimeout(() => {
+    const st = STICKERS.find((x) => x.id === res.friend), lt = LETTERS.find((x) => x.id === res.friend);
+    $('rewardEmoji').textContent = f.icon;
+    $('rewardFlowers').innerHTML = flowersHtml(res.flowers);
+    $('rewardItems').innerHTML = res.first
+      ? `<div class="book-item"><div class="ic">${st.icon}</div><div class="nm">${st.name}</div></div>` +
+        `<div class="book-item"><div class="ic">💌</div><div class="nm">${lt.from}から</div></div>`
+      : '';
+    show($('rewardAgain'), res.flowers < 3);
+    show($('reward'), true);
+    pendingCleared = pendingCleared.concat(res.cleared || []);
+  }, 1500);
 }
+function closeReward() { sound.play('tap'); show($('reward'), false); uiOpen = false; }
 $('rewardClose').addEventListener('click', () => {
-  sound.play('tap'); show($('reward'), false); uiOpen = false;
-  if (pendingEnding) {
-    pendingEnding = false;
-    show($('ending'), true); uiOpen = true;
-    view.fireworksOn = true; sound.play('fanfare');
-    setTimeout(() => { view.fireworksOn = false; }, 14000);
-  }
+  closeReward();
+  if (pendingCleared.length) { const id = pendingCleared[0]; pendingCleared = []; fogCleared(id); }
 });
-$('endingClose').addEventListener('click', () => { sound.play('tap'); show($('ending'), false); uiOpen = false; view.fireworksOn = false; });
+$('rewardAgain').addEventListener('click', () => {
+  closeReward();
+  const r = C.replay(state, lastDone.friend);
+  if (r) afterBegin(r);
+  // もやの えんしゅつは、あとで「つぎへ」を えらんだ ときに みせる
+});
 
-// ---- ミッション開始と アクション ----
-function startMission(id) {
-  const m = C.startMission(state, id);
-  if (!m) return;
-  sound.play('pop');
-  const f = friendDef(id);
-  callout(f.bubble, 900);
-  if (m.type === 'janken') openJanken();
-  updateHud();
+// もやが はれる：カメラが そちらを みて、はなびが あがる
+function fogCleared(id) {
+  const fog = FOGS.find((f) => f.id === id), isl = ISLANDS.find((i) => i.id === id);
+  uiOpen = true;
+  look = { x: fog.x, z: fog.z - 4, zoom: 1.35 };
+  view.fwAt = { x: isl.x, z: isl.z + 6 }; view.fireworksOn = true;
+  sound.play('fanfare');
+  setTimeout(() => callout('もやが はれた！', 2600), 900);
+  setTimeout(() => { look = null; uiOpen = false; view.fireworksOn = false; }, 5200);
 }
 
-function doAction() {
+// ---- はなしかける ----
+function afterBegin(r) {
+  sound.play('pop');
+  if (r.play === 'shells') callout('🐚 いっしょに さがそう！', 1800);
+  if (r.play === 'janken') openJanken();
+  updateHud(); store.save(state);
+}
+function doTalk(id) {
   if (!playing || uiOpen) return;
-  const a = C.findAction(state);
-  if (!a) return;
-  if (a.kind === 'talk') startMission(a.friend);
-  else if (a.kind === 'hat') { const r = C.touchHat(state); if (r) { sound.play('pop'); view.burstStars(state.player.x, state.player.z); if (r.done) onMissionDone(r); updateHud(); } }
-  else if (a.kind === 'star') { const r = C.collectStar(state, a.index); if (r?.ran) { sound.play('pop'); callout('にげた！', 700); } else if (r) { sound.play('get'); view.burstStars(state.player.x, state.player.z); if (r.done) onMissionDone(r); updateHud(); } }
-  else if (a.kind === 'shell') { const r = C.collectShell(state, a.index); if (r) { sound.play('get'); view.burstStars(state.player.x, state.player.z); if (r.done) onMissionDone(r); updateHud(); } }
-  else if (a.kind === 'cream') { const r = C.tapCream(state); if (r) { sound.play('pop'); if (r.done) onMissionDone(r); updateHud(); } }
+  const r = C.talk(state, id || C.nearTalkable(state));
+  if (r) afterBegin(r);
 }
 
 // ---- じゃんけん ----
-let jankenBusy = false;
+// カニは だす まえに、はさみを「ぴくっ」と うごかして てを ちらっと みせる。みぬけば かてる
+let jankenTimers = [];
+const later = (fn, ms) => { const t = setTimeout(fn, ms); jankenTimers.push(t); };
+const handBtns = [...document.querySelectorAll('.hand-btn')];
+const setHands = (on) => handBtns.forEach((b) => { b.disabled = !on; });
+function winsText(w) { return Array.from({ length: JANKEN_WINS }, (_, i) => (i < w ? '⭐' : '☆')).join(' '); }
 function openJanken() {
-  uiOpen = true; jankenBusy = false;
-  $('oppHand').textContent = '❓'; $('youHand').textContent = '❓';
-  $('jankenMsg').textContent = 'じゃんけん…';
-  $('jankenWins').textContent = '☆ ☆';
+  uiOpen = true;
+  $('jankenWins').textContent = winsText(0);
   show($('janken'), true);
+  jankenRound();
 }
-document.querySelectorAll('.hand-btn').forEach((b) => b.addEventListener('click', () => {
-  if (jankenBusy || !state.mission) return;
-  jankenBusy = true;
-  const r = C.jankenPlay(state, b.dataset.hand);
-  if (!r) { jankenBusy = false; return; }
-  $('oppHand').textContent = HAND_ICON[r.opp];
-  $('youHand').textContent = HAND_ICON[r.you];
-  $('jankenMsg').textContent = r.result === 'win' ? 'かった！' : r.result === 'lose' ? 'まけた…' : 'あいこ！';
-  const w = r.done ? 2 : state.mission.wins;
-  $('jankenWins').textContent = ['☆', '☆'].map((_, i) => (i < w ? '⭐' : '☆')).join(' ');
+function jankenRound() {
+  if (!state.janken) return;
+  const opp = $('oppHand');
+  opp.textContent = '❓'; opp.classList.remove('peek'); $('youHand').textContent = '❓';
+  $('jankenMsg').textContent = 'じゃんけん…';
+  setHands(false);
+  later(() => {
+    if (!state.janken) return;
+    tell = true; sound.play('kira');
+    opp.textContent = HAND_ICON[state.janken.opp]; opp.classList.add('peek');
+    $('jankenMsg').textContent = 'ちらっ';
+    setHands(true);
+    later(() => { tell = false; opp.textContent = '❓'; opp.classList.remove('peek'); $('jankenMsg').textContent = 'ぽん！'; }, C.tellMs(state.janken.rounds));
+  }, 650);
+}
+function closeJanken() {
+  jankenTimers.forEach(clearTimeout); jankenTimers = []; tell = false;
+  show($('janken'), false); uiOpen = false;
+}
+function playHand(hand) {
+  if (!state.janken || handBtns[0].disabled) return;
+  jankenTimers.forEach(clearTimeout); jankenTimers = []; tell = false;
+  setHands(false);
+  const r = C.jankenPlay(state, hand);
+  if (!r) return;
+  const opp = $('oppHand'); opp.classList.remove('peek');
+  opp.textContent = HAND_ICON[r.opp]; $('youHand').textContent = HAND_ICON[r.you];
+  $('jankenMsg').textContent = r.result === 'win' ? 'かった！' : r.result === 'lose' ? 'おしい！' : 'あいこ！';
+  $('jankenWins').textContent = winsText(r.wins);
   sound.play(r.result === 'win' ? 'win' : r.result === 'lose' ? 'lose' : 'draw');
-  updateHud();
-  setTimeout(() => {
-    jankenBusy = false;
-    if (r.done) { show($('janken'), false); uiOpen = false; onMissionDone(r); }
-    else { $('oppHand').textContent = '❓'; $('youHand').textContent = '❓'; $('jankenMsg').textContent = 'じゃんけん…'; }
-  }, 950);
-}));
+  if (r.result === 'win') view.burstStars(state.player.x, state.player.z);
+  later(() => {
+    if (r.done) { closeJanken(); onDone(r); } else jankenRound();
+  }, 1150);
+}
+handBtns.forEach((b) => b.addEventListener('click', () => playHand(b.dataset.hand)));
+$('jankenQuit').addEventListener('click', () => { sound.play('tap'); C.jankenQuit(state); closeJanken(); updateHud(); });
 
 // ---- シールちょう / おてがみ ----
 let bookTab = 'sticker';
@@ -122,8 +154,8 @@ function renderBook() {
   const body = $('bookBody');
   if (bookTab === 'sticker') {
     body.innerHTML = STICKERS.map((st) => {
-      const has = state.stickers.includes(st.id);
-      return `<div class="book-item ${has ? '' : 'off'}"><div class="ic">${st.icon}</div><div class="nm">${has ? st.name : '？？？'}</div></div>`;
+      const has = state.stickers.includes(st.id), best = state.friends[st.id]?.best || 0;
+      return `<div class="book-item ${has ? '' : 'off'}"><div class="ic">${st.icon}</div><div class="nm">${has ? st.name : '？？？'}</div>${has ? `<div class="fl flowers">${flowersHtml(best)}</div>` : ''}</div>`;
     }).join('');
   } else if (bookTab === 'letter') {
     const got = LETTERS.filter((l) => state.letters.includes(l.id));
@@ -132,57 +164,71 @@ function renderBook() {
       : '<div class="book-empty">💌</div>';
   } else {
     const n = state.shards.length;
-    body.innerHTML = `<div class="book-item"><div class="ic">✦</div><div class="nm">${SHARD_NAME}<br>${n} / ${SHARD_SPOTS.length}</div></div>` +
-      SHARD_SPOTS.map((_, i) => `<div class="book-item ${state.shards.includes(i) ? '' : 'off'}"><div class="ic">✦</div><div class="nm">${state.shards.includes(i) ? 'みつけた' : '？？？'}</div></div>`).join('');
+    body.innerHTML = `<div class="book-item"><div class="ic">✦</div><div class="nm">${SHARD_NAME}<br>${n} / ${SHARDS.length}</div></div>` +
+      SHARDS.map((_, i) => `<div class="book-item ${state.shards.includes(i) ? '' : 'off'}"><div class="ic">✦</div><div class="nm">${state.shards.includes(i) ? 'みつけた' : '？？？'}</div></div>`).join('');
   }
 }
-function openBook(tab) { bookTab = tab; renderBook(); uiOpen = true; show($('book'), true); sound.play('tap'); }
+let bookWasOpen = false;
+function openBook(tab) { if (uiOpen && playing) return; bookTab = tab; renderBook(); bookWasOpen = uiOpen; uiOpen = true; show($('book'), true); sound.unlock(); sound.play('tap'); }
 $('bookBtn').addEventListener('click', () => openBook('sticker'));
 $('letterBtn').addEventListener('click', () => openBook('letter'));
 $('bookBtn2').addEventListener('click', () => openBook('sticker'));
-$('bookClose').addEventListener('click', () => { show($('book'), false); uiOpen = false; sound.play('tap'); });
+$('bookClose').addEventListener('click', () => { show($('book'), false); uiOpen = bookWasOpen; sound.play('tap'); });
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { bookTab = t.dataset.tab; renderBook(); }));
 
 // ---- 入力 ----
-const held = new Set();
-const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-document.querySelectorAll('.dbtn').forEach((b) => {
-  const d = b.dataset.dir;
-  const on = (e) => { e.preventDefault(); held.add(d); b.classList.add('on'); sound.unlock(); };
-  const off = () => { held.delete(d); b.classList.remove('on'); };
-  b.addEventListener('pointerdown', on);
-  b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
-});
-const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
-addEventListener('keydown', (e) => {
-  if (KEYMAP[e.code]) { held.add(KEYMAP[e.code]); e.preventDefault(); }
-  if (e.code === 'Space') { e.preventDefault(); doAction(); }
-});
-addEventListener('keyup', (e) => { if (KEYMAP[e.code]) held.delete(KEYMAP[e.code]); });
-$('btnAction').addEventListener('pointerdown', (e) => { e.preventDefault(); sound.unlock(); doAction(); });
-
-// キャンバスの タップ（レイキャスト）
-$('world').addEventListener('pointerdown', (e) => {
+// スティック：がめんの どこを さわっても、そこが スティックの まんなかに なる
+const stick = { id: null, ox: 0, oy: 0, x: 0, z: 0 };
+const STICK_R = 58;
+const stickEl = $('stick'), knob = $('knob');
+function drawStick() {
+  stickEl.classList.toggle('on', stick.id !== null);
+  if (stick.id === null) { stickEl.style.left = stickEl.style.top = stickEl.style.bottom = ''; knob.style.transform = ''; return; }
+  stickEl.style.left = `${stick.ox - 66}px`; stickEl.style.top = `${stick.oy - 66}px`; stickEl.style.bottom = 'auto';
+  knob.style.transform = `translate(${stick.x * STICK_R}px, ${stick.z * STICK_R}px)`;
+}
+const world = $('world');
+world.addEventListener('pointerdown', (e) => {
   sound.unlock();
   if (!playing || uiOpen) return;
+  // ともだちを ちょくせつ タップしても はなしかけられる
   const pick = view.pick((e.clientX / innerWidth) * 2 - 1, -((e.clientY / innerHeight) * 2 - 1));
-  if (!pick) return;
-  if (pick.kind === 'friend') { const a = C.findAction(state); if (a?.kind === 'talk' && a.friend === pick.id) startMission(pick.id); }
-  else if (pick.kind === 'hat' || pick.kind === 'star' || pick.kind === 'shell' || pick.kind === 'shard') doActionFor(pick);
+  if (pick?.kind === 'friend' && C.nearTalkable(state) === pick.id) { doTalk(pick.id); return; }
+  if (stick.id !== null) return;
+  stick.id = e.pointerId; stick.ox = e.clientX; stick.oy = e.clientY; stick.x = stick.z = 0;
+  try { world.setPointerCapture(e.pointerId); } catch { /* なくても うごく */ }
+  drawStick();
 });
-function doActionFor(pick) {
-  const a = C.findAction(state);
-  if (!a) return;
-  if (pick.kind === 'hat' && a.kind === 'hat') doAction();
-  if ((pick.kind === 'star' && a.kind === 'star' && a.index === pick.index) || (pick.kind === 'shell' && a.kind === 'shell' && a.index === pick.index)) doAction();
-}
+world.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== stick.id) return;
+  let dx = e.clientX - stick.ox, dy = e.clientY - stick.oy;
+  const d = Math.hypot(dx, dy);
+  // ゆびが とおくへ いったら、スティックの まんなかも ついていく（ゆびが はなれても とまらない）
+  if (d > STICK_R) { stick.ox += dx * (1 - STICK_R / d); stick.oy += dy * (1 - STICK_R / d); dx *= STICK_R / d; dy *= STICK_R / d; }
+  stick.x = dx / STICK_R; stick.z = dy / STICK_R;
+  drawStick();
+});
+const stickEnd = (e) => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.z = 0; drawStick(); };
+world.addEventListener('pointerup', stickEnd); world.addEventListener('pointercancel', stickEnd);
+
+const held = new Set();
+const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+const HANDKEY = { Digit1: 'gu', Digit2: 'choki', Digit3: 'pa' };
+addEventListener('keydown', (e) => {
+  if (KEYMAP[e.code]) { held.add(KEYMAP[e.code]); e.preventDefault(); }
+  if (e.code === 'Space') { e.preventDefault(); doTalk(); }
+  if (HANDKEY[e.code] && state.janken) playHand(HANDKEY[e.code]);
+});
+addEventListener('keyup', (e) => { if (KEYMAP[e.code]) held.delete(KEYMAP[e.code]); });
+addEventListener('blur', () => held.clear());
+$('btnAction').addEventListener('pointerdown', (e) => { e.preventDefault(); sound.unlock(); doTalk(); });
 
 // ---- 画面の ボタン ----
 $('playBtn').addEventListener('click', () => {
   sound.unlock(); sound.startBgm(); sound.play('tap');
   playing = true;
   show($('title'), false); show($('hud'), true); show($('touch'), true);
-  if (state.ending) { /* クリア後の じゆう あそび */ }
   updateHud();
 });
 $('soundBtn').addEventListener('click', () => {
@@ -193,27 +239,45 @@ $('soundBtn').addEventListener('click', () => {
 if (new URLSearchParams(location.search).has('debug')) {
   show($('debugBar'), true);
   $('resetBtn').addEventListener('click', () => { localStorage.removeItem(C.SAVE_KEY); location.reload(); });
+  window.__game = { get state() { return state; }, C, view };
 }
 
 // ---- ループ ----
 view.resize(); addEventListener('resize', () => view.resize());
-let last = performance.now();
+let last = performance.now(), nearId = null;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (playing && !uiOpen) {
-    let x = 0, z = 0;
+  const free = playing && !uiOpen;
+  let x = 0, z = 0;
+  if (free) {
+    x = stick.x; z = stick.z;
     for (const d of held) { x += DIRS[d][0]; z += DIRS[d][1]; }
-    C.setDir(state, x, z);
-    if (C.stepPlayer(state, dt)) {
-      // かけら は ふれたら あつめる
-      for (let i = 0; i < SHARD_SPOTS.length; i++) {
-        if (C.collectShard(state, i)) { sound.play('get'); view.burstStars(state.player.x, state.player.z); updateHud(); store.save(state); break; }
-      }
+  }
+  C.setDir(state, x, z);
+  if (C.stepPlayer(state, dt)) {
+    if (C.touchShards(state) >= 0) { sound.play('get'); view.burstStars(state.player.x, state.player.z); updateHud(); store.save(state); }
+  }
+  if (free) {
+    const r = C.touchShells(state);
+    if (r) {
+      sound.play('get'); view.burstStars(state.player.x, state.player.z);
+      if (r.rainbow) callout('にじいろ！', 1100);
+      updateHud(); store.save(state);
+      if (r.done) onDone(r);
     }
-  } else C.setDir(state, 0, 0);
+  }
+  // はなしかけ られる とき だけ、ボタンが ひかる
+  const near = free ? C.nearTalkable(state) : null;
+  if (near !== nearId) {
+    nearId = near;
+    const btn = $('btnAction');
+    btn.classList.toggle('ready', !!near);
+    btn.textContent = near ? friendDef(near).bubble : '！';
+    if (near) sound.play('kira');
+  }
   saveTimer += dt;
   if (saveTimer > 5) { saveTimer = 0; if (playing) store.save(state); }
-  view.sync(state, now / 1000);
+  view.sync(state, now / 1000, dt, { guide: free ? C.guideStep(state) : null, tell, look });
   view.update(dt);
   requestAnimationFrame(frame);
 }

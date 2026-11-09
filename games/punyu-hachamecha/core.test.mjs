@@ -3,199 +3,236 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as C from './core.mjs';
-import { FRIENDS, STAGES, STICKERS, LETTERS, HAT_SPOTS, STAR_SPOTS, STAR_RUNNER, SHELL_SPOTS, SHARD_SPOTS } from './data.mjs';
+import * as D from './data.mjs';
 
+const { FRIENDS, SHELLS, SHARDS, ISLANDS, BRIDGES, TREES, ROCKS, SEA, shellPos } = D;
 const seq = (...v) => { let i = 0; return () => v[i++ % v.length]; };
-// あいてが いつも チョキを だす らんすう（グーで かてる）
-const chokiRng = seq(0.5);
-// プレイヤーを ばしょへ ワープ
 const warp = (s, p) => { s.player.x = p.x; s.player.z = p.z; };
-// ともだちを「こまった」に して ミッションを はじめる
-function startAt(s, id) {
-  const f = FRIENDS.find((x) => x.id === id);
-  warp(s, f.pos);
-  return C.startMission(s, id);
+const home = (id) => FRIENDS.find((f) => f.id === id).home;
+// なみが いちばん ひいた じかん
+const EBB = SEA.period * 0.75;
+// めざす ほうへ あるく（あんないの とおりに すすむ）
+function walkTo(s, goal, maxSec = 60) {
+  for (let t = 0; t < maxSec; t += 1 / 30) {
+    const dx = goal.x - s.player.x, dz = goal.z - s.player.z;
+    if (Math.hypot(dx, dz) < 0.6) return true;
+    C.setDir(s, dx, dz); C.stepPlayer(s, 1 / 30);
+  }
+  return false;
+}
+function followGuide(s, done, maxSec = 90) {
+  for (let t = 0; t < maxSec; t += 1 / 30) {
+    if (done()) return true;
+    const g = C.guideStep(s);
+    if (!g) return false;
+    C.setDir(s, g.x - s.player.x, g.z - s.player.z); C.stepPlayer(s, 1 / 30);
+  }
+  return done();
+}
+function winJanken(s, { lose = 0 } = {}) {
+  let r;
+  for (let i = 0; i < 20 && s.janken; i++) {
+    const opp = s.janken.opp;
+    const win = Object.keys(D.BEATS).find((h) => D.BEATS[h] === opp);
+    r = C.jankenPlay(s, lose-- > 0 ? D.BEATS[opp] : win);
+  }
+  return r;
 }
 
-test('さいしょは カニと ちゃぷが こまっている', () => {
+test('さいしょは ふたりとも こまっていて、もやは はれていない', () => {
   const s = C.newSave();
-  assert.equal(s.friends.kani.state, 'sad');
   assert.equal(s.friends.chapu.state, 'sad');
-  assert.equal(s.friends.kaze.state, 'away');
-  assert.equal(s.friends.jelly.state, 'away');
-  assert.equal(s.friends.kumokumo.state, 'away');
-  assert.equal(s.stage, 0);
-  assert.equal(s.smiles, 0);
+  assert.equal(s.friends.kani.state, 'sad');
+  assert.equal(C.smiles(s), 0);
+  assert.deepEqual(s.cleared, []);
+  assert.ok(C.walkable(s, s.player));
 });
 
-test('いどう：あるけて、しまの そとへ でない', () => {
+test('ばしょの データが しまの うえに ある', () => {
   const s = C.newSave();
-  const x0 = s.player.x;
-  C.setDir(s, 1, 0);
-  for (let i = 0; i < 30; i++) C.stepPlayer(s, 0.1);
-  assert.ok(s.player.x > x0, 'ひがしへ すすむ');
-  for (let i = 0; i < 300; i++) C.stepPlayer(s, 0.1);
-  assert.ok(Math.hypot(s.player.x, s.player.z) <= 24.21, 'はしで とまる');
-  C.setDir(s, 0, 0);
-  const px = s.player.x;
-  C.stepPlayer(s, 0.1);
-  assert.equal(s.player.x, px, 'とまると うごかない');
+  for (const f of FRIENDS) assert.ok(C.walkable(s, f.home) || C.islandAt(f.home), `${f.id} の ばしょ`);
+  SHARDS.forEach((p, i) => assert.ok(C.walkable(s, p), `かけら ${i}`));
+  SHELLS.forEach((sh, i) => assert.ok(C.walkable(s, shellPos(sh)), `かいがら ${i}`));
+  for (const o of [...TREES, ...ROCKS]) assert.ok(C.islandAt(o), 'き・いわ');
 });
 
-test('じゃんけん：2かい かったら せいこう、カニが おおきくなる', () => {
+test('しまの そとへは でられない・きを すりぬけない', () => {
   const s = C.newSave();
-  const m = startAt(s, 'kani');
-  assert.equal(m.type, 'janken');
-  let r = C.jankenPlay(s, 'gu', chokiRng);
-  assert.equal(r.result, 'win');
-  assert.equal(r.done, false);
-  assert.ok(s.mission.crab > 1, 'カニが すこし おおきい');
-  r = C.jankenPlay(s, 'gu', chokiRng);
+  for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, -0.7]]) {
+    warp(s, D.PLAYER_START); C.setDir(s, x, z);
+    for (let i = 0; i < 600; i++) { C.stepPlayer(s, 1 / 30); assert.ok(C.walkable(s, s.player)); }
+    for (const t of TREES) assert.ok(Math.hypot(s.player.x - t.x, s.player.z - t.z) > 0.7 * t.s);
+  }
+  // きた（もやの はし）には わたれない
+  const okashi = ISLANDS.find((i) => i.id === 'okashi');
+  assert.ok(Math.hypot(s.player.x - okashi.x, s.player.z - okashi.z) > okashi.r + 5);
+});
+
+test('はしを わたって うみべへ いける', () => {
+  const s = C.newSave();
+  assert.ok(walkTo(s, BRIDGES[0].a));
+  assert.ok(walkTo(s, BRIDGES[0].b));
+  assert.ok(walkTo(s, home('kani')));
+  assert.equal(C.islandAt(s.player), 'umibe');
+});
+
+test('スティックの かたむきが はやさに なる', () => {
+  const a = C.newSave(), b = C.newSave();
+  C.setDir(a, 1, 0); C.setDir(b, 0.5, 0);
+  C.stepPlayer(a, 0.1); C.stepPlayer(b, 0.1);
+  assert.ok(a.player.x > b.player.x * 1.8 && b.player.x > 0);
+  C.setDir(a, 0.05, 0); assert.deepEqual(a.dir, { x: 0, z: 0 });
+});
+
+test('とおくからは はなしかけられない', () => {
+  const s = C.newSave();
+  warp(s, { x: 10, z: 10 });
+  assert.equal(C.nearTalkable(s), null);
+  assert.equal(C.talk(s, 'chapu'), null);
+  warp(s, { x: home('chapu').x + 1.5, z: home('chapu').z });
+  assert.equal(C.nearTalkable(s), 'chapu');
+});
+
+test('ちゃぷ：はなしかけると ついてきて、かいがら 3つで えがお', () => {
+  const s = C.newSave();
+  warp(s, { x: home('chapu').x + 1, z: home('chapu').z });
+  assert.deepEqual(C.talk(s, 'chapu'), { friend: 'chapu', play: 'shells' });
+  assert.equal(s.friends.chapu.state, 'play');
+  assert.deepEqual(s.party, ['chapu']);
+  s.time = EBB;
+  let r;
+  for (const i of [0, 1, 2]) { warp(s, shellPos(SHELLS[i])); r = C.touchShells(s); assert.ok(r); }
   assert.equal(r.done, true);
-  assert.equal(s.friends.kani.state, 'happy');
-  assert.equal(s.mission, null);
-  assert.ok(s.stickers.includes('kani'));
-  assert.ok(s.letters.includes('kani'));
-  assert.equal(s.smiles, 1);
-});
-
-test('じゃんけん：まけと あいこは へんてん なしで つづく', () => {
-  const s = C.newSave();
-  startAt(s, 'kani');
-  // あいては パー（0.9→index2）→ グーは まけ
-  let r = C.jankenPlay(s, 'gu', seq(0.9));
-  assert.equal(r.result, 'lose');
-  assert.equal(r.done, false);
-  // あいても グー（0.1→index0）→ あいこ
-  r = C.jankenPlay(s, 'gu', seq(0.1));
-  assert.equal(r.result, 'draw');
-  assert.equal(s.friends.kani.state, 'sad', 'まだ おわらない');
-});
-
-test('かいがら：3つ あつめたら せいこう', () => {
-  const s = C.newSave();
-  startAt(s, 'chapu');
-  let r = null;
-  for (let i = 0; i < 3; i++) { warp(s, SHELL_SPOTS[i]); r = C.collectShell(s, i); assert.ok(r); }
-  assert.equal(r.done, true);
+  assert.equal(r.flowers, 1);
   assert.equal(s.friends.chapu.state, 'happy');
+  assert.equal(s.shells, null);
+  assert.ok(s.stickers.includes('chapu') && s.letters.includes('chapu'));
 });
 
-test('だんかい かいほう：カニと ちゃぷを たすけると つぎの 2にん', () => {
+test('かいがらは なみに かくれている あいだは ひろえない', () => {
   const s = C.newSave();
-  startAt(s, 'kani');
-  C.jankenPlay(s, 'gu', chokiRng); C.jankenPlay(s, 'gu', chokiRng);
-  assert.equal(s.friends.kaze.state, 'away', 'ちゃぷが まだ なので でてこない');
-  startAt(s, 'chapu');
-  for (let i = 0; i < 3; i++) { warp(s, SHELL_SPOTS[i]); C.collectShell(s, i); }
-  assert.equal(s.friends.kaze.state, 'sad');
-  assert.equal(s.friends.jelly.state, 'sad');
-  assert.equal(s.friends.kumokumo.state, 'away');
-  assert.equal(s.stage, 1);
+  warp(s, { x: home('chapu').x + 1, z: home('chapu').z }); C.talk(s, 'chapu');
+  warp(s, shellPos(SHELLS[0]));
+  s.time = SEA.period * 0.25;            // なみが いちばん よせた とき
+  assert.equal(C.touchShells(s), null);
+  s.time = EBB;
+  assert.equal(C.touchShells(s).index, 0);
+  // にじいろは いちばん ひいた ときだけ
+  s.time = 0;
+  assert.equal(C.shellShown(SHELLS[3], s.time), false);
+  assert.equal(C.shellShown(SHELLS[3], EBB), true);
 });
 
-test('ぼうし：5かい さわったら せいこう、さわるたび うごく', () => {
+test('にじいろの かいがらで はなまるが ふえる', () => {
   const s = C.newSave();
-  s.friends.kaze.state = 'sad';
-  startAt(s, 'kaze');
-  const spots = new Set();
-  const hatRng = seq(0.13, 0.37, 0.61, 0.83, 0.29);
-  let r = null;
-  for (let i = 0; i < 5; i++) {
-    warp(s, C.hatPos(s));
-    spots.add(s.mission.hat);
-    r = C.touchHat(s, hatRng);
-    assert.ok(r);
-  }
+  warp(s, { x: home('chapu').x + 1, z: home('chapu').z }); C.talk(s, 'chapu');
+  s.time = EBB;
+  let r;
+  for (const i of [3, 4, 0]) { warp(s, shellPos(SHELLS[i])); r = C.touchShells(s); }
+  assert.equal(r.flowers, 3);
+  assert.equal(s.friends.chapu.best, 3);
+});
+
+test('カニ：てを みぬいて 3かい かつと えがお。まけなしで はなまる 3つ', () => {
+  const s = C.newSave();
+  warp(s, { x: home('kani').x - 2, z: home('kani').z });
+  assert.equal(C.talk(s, 'kani', seq(0.1, 0.5, 0.9)).play, 'janken');
+  assert.ok(D.HANDS.includes(s.janken.opp));
+  C.setDir(s, 1, 0); assert.equal(C.stepPlayer(s, 0.1), false);   // じゃんけん ちゅうは うごかない
+  const r = winJanken(s);
   assert.equal(r.done, true);
-  assert.equal(s.friends.kaze.state, 'happy');
-  assert.ok(spots.size >= 3, 'ぼうしは いろんな ばしょへ うごく');
+  assert.equal(r.flowers, 3);
+  assert.equal(s.friends.kani.state, 'happy');
+  assert.deepEqual(s.party, ['kani']);
 });
 
-test('クリーム：5かい トントンで せいこう', () => {
+test('カニ：まけ・あいこ でも つづけられる。まけが おおいと はなまるは 1つ', () => {
   const s = C.newSave();
-  s.friends.jelly.state = 'sad';
-  startAt(s, 'jelly');
-  let r = null;
-  for (let i = 0; i < 5; i++) r = C.tapCream(s);
-  assert.equal(r.done, true);
-  assert.equal(s.friends.jelly.state, 'happy');
-  // とおくでは トントン できない
-  const s2 = C.newSave(); s2.friends.jelly.state = 'sad'; C.startMission(s2, 'jelly');
-  warp(s2, { x: 20, z: 20 });
-  assert.equal(C.tapCream(s2), null);
+  warp(s, { x: home('kani').x - 2, z: home('kani').z }); C.talk(s, 'kani');
+  const d = C.jankenPlay(s, s.janken.opp);
+  assert.equal(d.result, 'draw'); assert.equal(d.done, false);
+  const r = winJanken(s, { lose: 3 });
+  assert.equal(r.done, true); assert.equal(r.flowers, 1);
 });
 
-test('ほし：にげる ほしは 1かい にげて、5つで せいこう', () => {
+test('じゃんけんは とちゅうで やめても また できる', () => {
   const s = C.newSave();
-  s.friends.kumokumo.state = 'sad';
-  const m = startAt(s, 'kumokumo');
-  assert.equal(m.type, 'stars');
-  warp(s, m.spots[STAR_RUNNER]);
-  const ran = C.collectStar(s, STAR_RUNNER);
-  assert.equal(ran.ran, true, '1かいめは にげる');
-  assert.notDeepEqual(m.spots[STAR_RUNNER], STAR_SPOTS[STAR_RUNNER], 'べつの ばしょへ うごいた');
-  let r = null;
-  for (let i = 0; i < 5; i++) { warp(s, m.spots[i]); r = C.collectStar(s, i); assert.ok(r, `${i}つめ`); }
-  assert.equal(r.done, true);
-  assert.equal(s.friends.kumokumo.state, 'happy');
+  warp(s, { x: home('kani').x - 2, z: home('kani').z }); C.talk(s, 'kani');
+  assert.ok(C.jankenQuit(s));
+  assert.equal(s.friends.kani.state, 'sad');
+  assert.ok(C.talk(s, 'kani'));
 });
 
-test('かけら：10こ あつめられ、かさねて とれない', () => {
-  const s = C.newSave();
-  for (let i = 0; i < SHARD_SPOTS.length; i++) {
-    warp(s, SHARD_SPOTS[i]);
-    assert.equal(C.collectShard(s, i), true);
-    assert.equal(C.collectShard(s, i), false, 'おなじ かけらは 2かい とれない');
-  }
-  assert.equal(s.shards.length, 10);
+test('てが みえる じかんは かいを かさねると みじかく なる', () => {
+  assert.ok(C.tellMs(0) > C.tellMs(3));
+  assert.ok(C.tellMs(99) >= 400);
 });
 
-test('さいごまで：5にん たすけると エンディングと にじシール', () => {
+test('ふたり えがおで もやが はれる。もういちど あそぶと はなまるを ふやせる', () => {
   const s = C.newSave();
-  // 1だんめ
-  startAt(s, 'kani'); C.jankenPlay(s, 'gu', chokiRng); C.jankenPlay(s, 'gu', chokiRng);
-  startAt(s, 'chapu'); for (let i = 0; i < 3; i++) { warp(s, SHELL_SPOTS[i]); C.collectShell(s, i); }
-  // 2だんめ
-  startAt(s, 'kaze'); for (let i = 0; i < 5; i++) { warp(s, C.hatPos(s)); C.touchHat(s, seq(0.2, 0.5, 0.8)); }
-  startAt(s, 'jelly'); for (let i = 0; i < 5; i++) C.tapCream(s);
-  assert.equal(s.friends.kumokumo.state, 'sad', 'さいごの 1にんが でてくる');
-  // 3だんめ
-  const m = startAt(s, 'kumokumo');
-  let last = null;
-  for (let i = 0; i < 5; i++) { warp(s, m.spots[i]); last = C.collectStar(s, i); if (last?.ran) { warp(s, m.spots[i]); last = C.collectStar(s, i); } }
-  assert.equal(last.done, true);
-  assert.equal(last.ending, true);
-  assert.equal(s.ending, true);
-  assert.equal(s.smiles, 5);
-  assert.equal(s.stickers.length, 6, '5にんぶん ＋ にじ');
-  assert.ok(s.stickers.includes('niji'));
-  assert.equal(s.letters.length, 5);
-  assert.ok(C.allHappy(s));
+  warp(s, { x: home('kani').x - 2, z: home('kani').z }); C.talk(s, 'kani');
+  const r1 = winJanken(s, { lose: 1 });
+  assert.deepEqual(r1.cleared, []); assert.equal(r1.flowers, 2);
+  warp(s, { x: home('chapu').x + 1, z: home('chapu').z }); C.talk(s, 'chapu');
+  s.time = EBB; let r2;
+  for (const i of [0, 1, 2]) { warp(s, shellPos(SHELLS[i])); r2 = C.touchShells(s); }
+  assert.deepEqual(r2.cleared, ['okashi']);
+  assert.equal(C.smiles(s), 2);
+  assert.ok(C.replay(s, 'kani'));
+  const r3 = winJanken(s);
+  assert.equal(r3.first, false); assert.equal(r3.better, true); assert.equal(s.friends.kani.best, 3);
+  assert.equal(C.smiles(s), 2);
 });
 
-test('ほぞん：かきだして よみなおせる', () => {
+test('あんない：ちゃぷ → はしを わたって はまべ → カニ → もやの はし', () => {
   const s = C.newSave();
-  startAt(s, 'kani'); C.jankenPlay(s, 'gu', chokiRng); C.jankenPlay(s, 'gu', chokiRng);
-  warp(s, SHARD_SPOTS[0]); C.collectShard(s, 0);
-  s.sound = false;
-  const back = C.deserialize(C.serialize(s));
-  assert.equal(back.friends.kani.state, 'happy');
-  assert.deepEqual(back.shards, [0]);
-  assert.equal(back.smiles, 1);
-  assert.equal(back.sound, false);
-  assert.equal(C.deserialize('こわれたデータ'), null);
-  assert.equal(C.deserialize(null), null);
+  assert.equal(C.guideGoal(s).id, 'chapu');
+  assert.ok(followGuide(s, () => C.nearTalkable(s) === 'chapu'));
+  C.talk(s, 'chapu');
+  assert.equal(C.guideGoal(s).kind, 'beach');
+  assert.equal(C.guideStep(s).kind, 'bridge');
+  assert.ok(followGuide(s, () => C.islandAt(s.player) === 'umibe' && Math.hypot(s.player.x - D.BEACH_SPOT.x, s.player.z - D.BEACH_SPOT.z) < 1.5));
+  s.time = EBB;
+  for (const i of [0, 1, 2]) { warp(s, shellPos(SHELLS[i])); C.touchShells(s); }
+  assert.equal(C.guideGoal(s).id, 'kani');
+  assert.ok(followGuide(s, () => C.nearTalkable(s) === 'kani'));
+  C.talk(s, 'kani'); assert.equal(C.guideGoal(s), null);
+  winJanken(s);
+  assert.equal(C.guideGoal(s).kind, 'soon');
+  assert.ok(followGuide(s, () => C.islandAt(s.player) === 'nohara' && s.player.z < -18));
 });
 
-test('はなしかけ：ちかくの こまった こが わかる', () => {
+test('かけらは ふれると あつまる（1かい だけ）', () => {
   const s = C.newSave();
-  warp(s, { x: 0, z: 15 });
-  assert.equal(C.nearSadFriend(s), null, 'とおいと はなせない');
-  warp(s, FRIENDS[0].pos);
-  assert.equal(C.nearSadFriend(s), 'kani');
-  const a = C.findAction(s);
-  assert.equal(a.kind, 'talk'); assert.equal(a.friend, 'kani');
+  warp(s, SHARDS[2]);
+  assert.equal(C.touchShards(s), 2);
+  assert.equal(C.touchShards(s), -1);
+  assert.deepEqual(s.shards, [2]);
+});
+
+test('ほぞんデータを よみなおせる', () => {
+  const s = C.newSave();
+  warp(s, { x: home('chapu').x + 1, z: home('chapu').z }); C.talk(s, 'chapu');
+  s.time = EBB; warp(s, shellPos(SHELLS[3])); C.touchShells(s);
+  warp(s, SHARDS[0]); C.touchShards(s);
+  const t = C.deserialize(C.serialize(s));
+  assert.equal(t.friends.chapu.state, 'play');
+  assert.deepEqual(t.shells, { got: [3] });
+  assert.deepEqual(t.party, ['chapu']);
+  assert.deepEqual(t.shards, [0]);
+  assert.deepEqual(t.player, s.player);
+});
+
+test('こわれた ほぞんデータは つかわない・なおして よむ', () => {
+  assert.equal(C.deserialize('{'), null);
+  assert.equal(C.deserialize('{"version":1,"friends":{}}'), null);
+  const t = C.deserialize({ version: 2, friends: { kani: { state: 'play', best: 9 }, chapu: { state: 'happy' } }, player: { x: 999, z: 0 }, shards: [1, 1, 99, 'a'], party: ['x'] });
+  assert.equal(t.friends.kani.state, 'sad');
+  assert.equal(t.friends.kani.best, 3);
+  assert.deepEqual(t.party, ['chapu']);
+  assert.deepEqual(t.stickers, ['chapu']);
+  assert.deepEqual(t.shards, [1]);
+  assert.deepEqual(t.player, D.PLAYER_START);
 });
 
 // ---- 漢字チェック ----
@@ -207,9 +244,7 @@ function stringsOf(v, out = []) {
   return out;
 }
 test('データの もじに 漢字が ない', () => {
-  for (const str of stringsOf({ FRIENDS, STAGES, STICKERS, LETTERS })) {
-    assert.ok(!KANJI.test(str), `漢字が まざっている: ${str}`);
-  }
+  for (const str of stringsOf({ ...D })) assert.ok(!KANJI.test(str), `漢字が まざっている: ${str}`);
 });
 test('index.html の もじに 漢字が ない', () => {
   const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
