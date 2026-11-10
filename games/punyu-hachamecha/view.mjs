@@ -3,9 +3,11 @@
 import * as T from '../punyu-kirakira/vendor/three.module.min.js';
 import {
   ISLANDS, BRIDGES, FOGS, TREES, ROCKS, POND, CAKE, PAD, SEA, FRIENDS, RESIDENTS, SHELLS, shellPos, SHARDS, FOLLOW_GAP,
-  STAR_NEED, DECO_MAX, CHEER_NEED,
+  STAR_NEED, DECO_MAX, CHEER_NEED, HOUSE, RAINBOW, PEARL, SKY_SHAPES,
 } from './data.mjs';
-import { waveR, shellShown, blocksOf, ringSize, ringGood } from './core.mjs';
+import { waveR, shellShown, blocksOf, ringSize, ringGood, spotsOf, castleBuilt, DECO_SPOTS, CASTLE_SPOT } from './core.mjs';
+import { applyOutfit } from './outfit.mjs';
+import { buildDeco } from './props.mjs';
 import { handCanvas } from './hands.mjs';
 
 // 漢字ゲーム『ゆめかわ かんじの しま』と おなじ トゥーンの ざいりょう（3だんかいの かげ）
@@ -107,19 +109,24 @@ const ball = (parent, color, pos, scale, rotZ = 0, useBasic = false) => {
 function buildPunyu() {
   const g = new T.Group(), inner = new T.Group(), head = new T.Group(); g.add(inner); inner.add(head);
   head.position.y = 0.88; head.rotation.x = -0.3;
-  const skin = 0xfff4f7, pink = 0xff9fb8;
+  const skin = mat(0xfff4f7), pink = 0xff9fb8;
+  const skinBall = (parent, pos, scale, rotZ = 0) => { const m = new T.Mesh(new T.SphereGeometry(1, 22, 16), skin); m.position.set(...pos); m.scale.set(...scale); m.rotation.z = rotZ; parent.add(m); return m; };
   // 『きらきらランド』『かんじの しま』の ぷにゅと おなじ つくり（まるい からだ・ちいさな みみ・ほっぺ・ピンクの あし）
-  ball(head, skin, [0, 0, 0], [0.9, 0.86, 0.86]);
+  skinBall(head, [0, 0, 0], [0.9, 0.86, 0.86]);
+  const ears = [], cheeks = [];
   for (const sx of [-1, 1]) {
-    ball(head, skin, [sx * 0.43, 0.73, -0.08], [0.24, 0.34, 0.2], -sx * 0.4);
-    ball(head, pink, [sx * 0.43, 0.75, 0.1], [0.12, 0.19, 0.09], -sx * 0.4);
-    ball(head, pink, [sx * 0.5, -0.1, 0.68], [0.16, 0.1, 0.07]);
+    ears.push(skinBall(head, [sx * 0.43, 0.73, -0.08], [0.24, 0.34, 0.2], -sx * 0.4));
+    ears.push(ball(head, pink, [sx * 0.43, 0.75, 0.1], [0.12, 0.19, 0.09], -sx * 0.4));
+    cheeks.push(ball(head, pink, [sx * 0.5, -0.1, 0.68], [0.16, 0.1, 0.07]));
     ball(inner, 0xffd6e2, [sx * 0.32, 0.12, 0.12], [0.22, 0.13, 0.26]);
   }
-  ball(head, skin, [0, -0.2, -0.82], [0.18, 0.18, 0.18]);
+  skinBall(head, [0, -0.2, -0.82], [0.18, 0.18, 0.18]);
   const face = makeFace({ ex: 0.27, ey: 0.1, ez: 0.8, my: -0.1, mz: 0.84, es: 1.05 }); head.add(face.grp);
+  // きせかえ（『かんじの しま』の applyOutfit）を つける ところ。あちらの ぷにゅ（はんけい 0.45）に あわせて かくだい
+  const wear = new T.Group(); wear.scale.setScalar(0.88 / 0.45); head.add(wear);
+  const outfit = { userData: { skin, body: wear, ears, cheeks, flaps: [], acc: null } };
   g.add(blobShadow(0.95));
-  return { grp: g, inner, head, face };
+  return { grp: g, inner, head, face, outfit, outfitKey: '' };
 }
 
 function buildFriend(id) {
@@ -255,9 +262,11 @@ function buildResident(r) {
     face = makeFace({ ex: 0.2, ey: 0.1, ez: 0.9, my: -0.14, mz: 0.93, es: 0.95 }); head.add(face.grp);
   } else {
     // かずうさ（『ゆめかわ かずうさガーデン』）：ブロックを つみあげた うさぎ。いちばん うえの ブロックに かお と みみ
-    const cubeMat = mat(r.color); extra.cubes = [];
-    for (let i = 0; i < 5; i++) {
-      const c = new T.Mesh(new T.BoxGeometry(0.9, 0.9, 0.9), cubeMat); c.position.y = 0.45 + i * 0.92; inner.add(c); extra.cubes.push(c);
+    // 7 は にじいろ、10 は パールいろ（かずうさガーデンと おなじ）。5こ つんだら となりの れつへ
+    const total = r.n || 5; extra.cubes = [];
+    for (let i = 0; i < total; i++) {
+      const col = total === 7 ? RAINBOW[i % 7] : total === 10 ? PEARL[i % 5] : r.color;
+      const c = new T.Mesh(new T.BoxGeometry(0.9, 0.9, 0.9), mat(col)); c.position.set(i < 5 ? 0 : 0.93, 0.45 + (i % 5) * 0.92, 0); inner.add(c); extra.cubes.push(c);
       const hi = new T.Mesh(new T.BoxGeometry(0.6, 0.6, 0.02), basic(0xffffff, { transparent: true, opacity: 0.25 })); hi.position.set(0, 0, 0.455); c.add(hi);
     }
     head.rotation.x = -0.18;
@@ -362,9 +371,16 @@ export class View {
     sg.fillStyle = grd; sg.fillRect(0, 0, 2, 256);
     const skyTex = new T.CanvasTexture(skyC); if (T.SRGBColorSpace) skyTex.colorSpace = T.SRGBColorSpace;
     this.scene.background = skyTex;
+    // ゆうがたの そら
+    const eveC = document.createElement('canvas'); eveC.width = 2; eveC.height = 256;
+    const eg = eveC.getContext('2d'); const egr = eg.createLinearGradient(0, 0, 0, 256);
+    egr.addColorStop(0, '#8f7fd6'); egr.addColorStop(0.4, '#ff9fc0'); egr.addColorStop(0.75, '#ffc98f'); egr.addColorStop(1, '#fff0c9');
+    eg.fillStyle = egr; eg.fillRect(0, 0, 2, 256);
+    const eveTex = new T.CanvasTexture(eveC); if (T.SRGBColorSpace) eveTex.colorSpace = T.SRGBColorSpace;
+    this.skyTex = { day: skyTex, evening: eveTex }; this.skyNow = 'day';
     this.scene.fog = new T.Fog(0xf3e6ff, 70, 170);
     this.camera = new T.PerspectiveCamera(30, 1, 0.1, 400);
-    this.scene.add(new T.HemisphereLight(0xffffff, 0xe4d4ff, 1.6));
+    this.hemi = new T.HemisphereLight(0xffffff, 0xe4d4ff, 1.6); this.scene.add(this.hemi);
     const sun = new T.DirectionalLight(0xffffff, 1.5); sun.position.set(-5, 12, 9); this.scene.add(sun);
     this.pickables = [];
     this.effects = [];
@@ -391,7 +407,7 @@ export class View {
       const bubble = bubbleSprite('❗' + r.icon); bubble.visible = false; this.scene.add(bubble);
       const proxy = new T.Mesh(new T.SphereGeometry(2.1, 10, 8), basic(0xffffff, { visible: false }));
       proxy.position.set(r.home.x, 1.1, r.home.z); proxy.userData.pick = { kind: 'res', id: r.id }; this.scene.add(proxy); this.pickables.push(proxy);
-      const items = (r.spots || []).map((p) => { const it = buildItem(r.item, r.color); it.position.set(p.x, 0, p.z); it.visible = false; this.scene.add(it); return it; });
+      const items = Array.from({ length: r.spots ? r.spots.length : r.find || 0 }, () => { const it = buildItem(r.item, r.color); it.visible = false; this.scene.add(it); return it; });
       this.residents[r.id] = { ...b, bubble, proxy, items, joy: 0 };
       this.scene.add(b.grp);
     }
@@ -575,12 +591,27 @@ export class View {
     }
     // ほし（くもくもさんの あそび）：しまに おちている → ぷにゅの まわりを まわる → そらへ とんで せいざに なる
     const kumoI = ISLANDS.find((i) => i.id === 'kumo');
-    this.sky = [[-7, 13.5], [-3.2, 16.5], [0, 13], [3.2, 16.5], [7, 13.5]].map(([dx, y]) => new T.Vector3(kumoI.x + dx, y, kumoI.z - 20));
+    this.skyBase = { x: kumoI.x, z: kumoI.z - 20 }; this.skyIdx = -1;
+    this.sky = SKY_SHAPES[0].pts.map(([dx, y]) => new T.Vector3(kumoI.x + dx, y, kumoI.z - 20));
     this.stars = Array.from({ length: STAR_NEED }, () => { const m = starMesh(0.7); m.visible = false; S.add(m); return { m, pos: new T.Vector3(), init: false }; });
     this.starLine = new T.Line(new T.BufferGeometry().setFromPoints(this.sky), new T.LineBasicMaterial({ color: 0xfff2a0 })); this.starLine.visible = false; S.add(this.starLine);
     this.ring = new T.Mesh(new T.TorusGeometry(1, 0.09, 8, 40), basic(0xffffff)); this.ring.rotation.x = Math.PI / 2; this.ring.position.set(PAD.x, 0.8, PAD.z); this.ring.visible = false; S.add(this.ring);
     this.ringGoal = new T.Mesh(new T.TorusGeometry(2.6, 0.05, 6, 40), basic(0xffd84a)); this.ringGoal.rotation.x = Math.PI / 2; this.ringGoal.position.copy(this.ring.position); this.ringGoal.visible = false; S.add(this.ringGoal);
     this.topKey = '';
+    // ぷにゅの おうち（ゆうがたに ここで ねむる）
+    const house = new T.Group();
+    const wall = new T.Mesh(new T.CylinderGeometry(HOUSE.r - 0.2, HOUSE.r - 0.1, 1.9, 20), mat(0xfff6e6)); wall.position.y = 0.95; house.add(wall);
+    const roof = new T.Mesh(new T.ConeGeometry(HOUSE.r + 0.5, 1.9, 20), mat(0xff9fc0)); roof.position.y = 2.8; house.add(roof);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.4; const dot = sph(0.22, 0xffffff); dot.scale.z = 0.4; dot.position.set(Math.cos(a) * 1.35, 2.5, Math.sin(a) * 1.35); dot.lookAt(0, 3.6, 0); house.add(dot); }
+    const door = new T.Mesh(new T.BoxGeometry(0.8, 1.2, 0.12), mat(0xc77dab)); door.position.set(0, 0.6, HOUSE.r - 0.16); house.add(door);
+    const knob = sph(0.07, 0xffe066); knob.position.set(0.24, 0.6, HOUSE.r - 0.06); house.add(knob);
+    this.window = new T.Mesh(new T.CircleGeometry(0.3, 16), basic(0xbfeaff)); this.window.position.set(0.95, 1.25, HOUSE.r - 0.62); this.window.rotation.y = 0.55; house.add(this.window);
+    const top = starMesh(0.3); top.position.y = 3.95; house.add(top);
+    house.position.set(HOUSE.x, 0, HOUSE.z); S.add(house);
+    this.zzz = canvasSprite(128, 128, (g) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '96px serif'; g.fillText('💤', 64, 70); }, 1.8, 1.8);
+    this.zzz.position.set(HOUSE.x + 1.6, 4.6, HOUSE.z); this.zzz.visible = false; S.add(this.zzz);
+    // しまの かざり（おみせで かった もの）と、ブロックの おしろ
+    this.decoObjs = []; this.castle = null;
     this.heartTex = emojiTexture('💗'); this.starTex = emojiTexture('✦', 64); this.flowerTex = emojiTexture('🌸');
   }
 
@@ -648,6 +679,16 @@ export class View {
     const squash = moving ? bounce : 0;
     this.punyu.inner.scale.set(1 + squash * 0.3, 1 - squash * 0.3, 1);
     setFace(this.punyu.face, jk?.result === 'win' || this.pJoy > 0 || (smilesOf(s) > 0 && !moving && !s.janken) ? 'happy' : 'normal', t);
+    // きせかえ
+    const ok = `${s.outfit.head},${s.outfit.face},${s.outfit.back},${s.outfit.color}`;
+    if (ok !== this.punyu.outfitKey) { this.punyu.outfitKey = ok; applyOutfit(this.punyu.outfit, s.outfit); }
+    const ou = this.punyu.outfit.userData;
+    if (ou.rainbow) ou.skin.color.setHSL((t * 0.15) % 1, 0.75, 0.86);
+    for (const f of ou.flaps) {
+      if (f.kind === 'wing') f.m.rotation.y = f.sx * (0.35 + Math.sin(t * 5) * 0.35);
+      else if (f.kind === 'cape') f.m.rotation.x = 0.25 + Math.sin(t * 4) * 0.08;
+      else f.m.position.y = 0.45 + 0.85 + Math.sin(t * 2.5) * 0.05;
+    }
     if (inSea && moving && Math.random() < dt * 9) this.spawnParticles(this.starTex, P.x, 0.3, P.z, 1, [0xffffff, 0xbfefff], 1.6, 2.2, -6);
 
     // ともだち：ついてくる こは まえの こを おいかける
@@ -673,7 +714,7 @@ export class View {
       else { place(id, lead, FOLLOW_GAP); lead = this.friends[id].pos; }
     }
     for (const f of FRIENDS) {
-      const b = this.friends[f.id], st = s.friends[f.id].state;
+      const b = this.friends[f.id], st = s.friends[f.id].state, ever = s.friends[f.id].ever;
       const playing = partnerId === f.id;
       const chased = f.id === 'kaze' && s.chase;
       if (chased) {
@@ -690,22 +731,23 @@ export class View {
       const lost = s.janken && playing && jk?.result === 'win', won = s.janken && playing && jk?.result === 'lose';
       const hop = b.joy > 0 ? Math.abs(Math.sin(b.joy * 7)) * 1.1
         : won ? Math.abs(Math.sin(t * 9)) * 0.5
-        : b.moving * Math.abs(Math.sin(t * 10 + f.home.x)) * 0.22 + (st === 'happy' ? Math.abs(Math.sin(t * 3 + f.home.x)) * 0.07 : 0) + (playing ? beatHop : 0);
+        : b.moving * Math.abs(Math.sin(t * 10 + f.home.x)) * 0.22 + (st === 'happy' ? Math.abs(Math.sin(t * 3 + f.home.x)) * 0.07 : st === 'sad' && ever ? Math.abs(Math.sin(t * 5 + f.home.x)) * 0.25 : 0) + (playing ? beatHop : 0);
       b.grp.position.set(b.pos.x, 0, b.pos.z);
       b.inner.position.y = hop + (b.float ? b.float + Math.sin(t * 2 + f.home.x) * 0.12 : 0);
       turn(b.grp, b.rot, 8);
       if (b.joy > 0.6) b.grp.rotation.y += dt * 11;
       // いたずらかぜは なかない（にやにや している）
-      const sad = st === 'sad' && f.id !== 'kaze';
+      // まいにちの「あそぼう」は なかない（ふきだし だけ）
+      const sad = st === 'sad' && !ever && f.id !== 'kaze';
       const wob = f.id === 'jelly' ? 1 + Math.sin(t * 9) * 0.04 * (opt.wobble ? 3 : 0.4) : 1;
       b.inner.scale.set(wob, (sad ? 0.94 + Math.sin(t * 1.6) * 0.015 : 1) * (2 - wob), wob);
       b.inner.rotation.z = lost ? 0.3 + Math.sin(t * 14) * 0.05 : sad ? Math.sin(t * 1.3) * 0.04 : 0;
-      setFace(b.face, sad || lost ? 'sad' : st === 'happy' || won ? 'happy' : 'normal', t + f.home.x);
+      setFace(b.face, sad || lost ? 'sad' : st === 'happy' || won || (ever && st === 'sad') ? 'happy' : 'normal', t + f.home.x);
       if (b.bigMouth) b.face.mouth.scale.multiplyScalar(b.bigMouth), b.face.open.scale.set(b.bigMouth, 1.05 * b.bigMouth, 0.45);
       b.bubble.visible = st === 'sad' && !opt.talking;
       b.bubble.position.set(b.pos.x, (f.id === 'moya' ? 6.4 : 4.1 + (b.float || 0)) + Math.sin(t * 3) * 0.12, b.pos.z);
       b.proxy.position.set(b.pos.x, 1.1, b.pos.z); b.proxy.visible = st === 'sad';
-      if (b.shell) b.shell.visible = st === 'happy';
+      if (b.shell) b.shell.visible = ever && !s.shells;
       if (b.ring) b.ring.rotation.z = t * 2.5;
       if (b.claws) {
         for (const c of b.claws) {
@@ -736,7 +778,7 @@ export class View {
       }
       if (b.skin) {
         // でかもやもや：えがおを もらう たびに ピンクに ちかづく
-        const k = st === 'happy' ? 1 : s.cheer ? s.cheer.n / CHEER_NEED : 0;
+        const k = ever ? 1 : s.cheer ? s.cheer.n / CHEER_NEED : 0;
         this.moyaK = ease(this.moyaK || 0, k, dt, 2.5);
         b.skin.color.setHex(0xb4adc8).lerp(PINK, this.moyaK);
         this.moyaTop.color.setHex(0xcfc8e0).lerp(PINK2, this.moyaK); this.moyaSide.color.setHex(0xb9b2cc).lerp(PINK3, this.moyaK);
@@ -748,12 +790,14 @@ export class View {
 
     // すんでいる こ
     for (const r of RESIDENTS) {
-      const b = this.residents[r.id], st = s.res[r.id].state;
+      const b = this.residents[r.id], st = s.res[r.id].state, ever = s.res[r.id].ever;
+      b.grp.visible = st !== 'away';
+      if (st === 'away') { b.bubble.visible = b.proxy.visible = false; b.items.forEach((it) => { it.visible = false; }); if (b.cubes) b.shown = -1; continue; }
       const near = Math.hypot(P.x - r.home.x, P.z - r.home.z) < 9;
       turn(b.grp, near ? Math.atan2(P.x - r.home.x, P.z - r.home.z) * 0.55 : 0, 6);
       b.joy = Math.max(0, b.joy - dt);
       b.inner.position.y = b.joy > 0 ? Math.abs(Math.sin(b.joy * 7)) * 0.9 : st === 'happy' ? Math.abs(Math.sin(t * 3 + r.home.x)) * 0.1 : 0;
-      setFace(b.face, st === 'sad' ? 'sad' : st === 'happy' ? 'happy' : 'normal', t + r.home.z);
+      setFace(b.face, st === 'sad' && !ever && !r.arrive ? 'sad' : st === 'happy' || st === 'sad' ? 'happy' : 'normal', t + r.home.z);
       if (b.bigMouth) b.face.mouth.scale.multiplyScalar(b.bigMouth), b.face.open.scale.set(b.bigMouth, 1.05 * b.bigMouth, 0.45);
       b.bubble.visible = st === 'sad' && !opt.talking;
       b.proxy.visible = st === 'sad';
@@ -762,19 +806,29 @@ export class View {
         const n = blocksOf(s, r.id);
         if (n !== b.shown) { if (b.shown >= 0 && n > b.shown) { b.joy = 0.9; this.burstStars(r.home.x, r.home.z); } b.shown = n; }
         b.cubes.forEach((c, i) => { c.visible = i < n; });
-        b.head.position.y = 0.45 + (n - 1) * 0.92;
-        b.bubble.position.set(r.home.x, n * 0.92 + 2.6 + Math.sin(t * 3) * 0.12, r.home.z);
+        const tall = Math.min(n, 5);
+        b.head.position.y = 0.45 + (tall - 1) * 0.92;
+        b.bubble.position.set(r.home.x, tall * 0.92 + 2.6 + Math.sin(t * 3) * 0.12, r.home.z);
       } else b.bubble.position.set(r.home.x, 3.7 + Math.sin(t * 3) * 0.12, r.home.z);
+      const spots = spotsOf(s, r);
       b.items.forEach((it, i) => {
-        it.visible = st === 'play' && !s.res[r.id].got.includes(i);
+        it.visible = st === 'play' && i < spots.length && !s.res[r.id].got.includes(i);
         if (!it.visible) return;
+        it.position.x = spots[i].x; it.position.z = spots[i].z;
         it.rotation.y = t * 1.6 + i; it.position.y = Math.sin(t * 2.6 + i * 2) * 0.15;
         if (Math.random() < dt * 2.2) this.spawnParticles(this.starTex, it.position.x, 1.4, it.position.z, 1, [0xffffff, 0xfff2a0], 1.4, 2.2, -1);
       });
     }
 
     // ほし：おちている → ついてくる → そらへ
-    const sq = s.stars, kumoHappy = s.friends.kumokumo.state === 'happy';
+    const sq = s.stars, kumoHappy = s.friends.kumokumo.ever;
+    // せいざの かたち（あそぶ たびに かわる。あそんでいる あいだは つぎの かたち）
+    const cur = s.friends.kumokumo.sky, shapeIdx = sq ? (cur === undefined ? 0 : (cur + 1) % SKY_SHAPES.length) : cur || 0;
+    if (shapeIdx !== this.skyIdx) {
+      this.skyIdx = shapeIdx;
+      SKY_SHAPES[shapeIdx].pts.forEach(([dx, y], i) => this.sky[i].set(this.skyBase.x + dx, y, this.skyBase.z));
+      this.starLine.geometry.setFromPoints([...this.sky, this.sky[0]]);
+    }
     this.stars.forEach((o, i) => {
       let tgt = null, quick = 6;
       if (sq) {
@@ -811,7 +865,7 @@ export class View {
 
     // えがおで はなが さく
     for (const id of Object.keys(this.blooms)) {
-      const bl = this.blooms[id], on = s.friends[id]?.state === 'happy';
+      const bl = this.blooms[id], on = !!s.friends[id]?.ever;
       if (!bl.started) { bl.started = true; bl.amt = on ? 1 : 0; }
       bl.amt = Math.min(1, Math.max(0, bl.amt + (on ? dt * 0.55 : -dt)));
       for (const f of bl.list) {
@@ -844,6 +898,28 @@ export class View {
       f.g.visible = f.amt > 0.01; f.m.opacity = 0.94 * f.amt;
       f.g.children.forEach((p, i) => { p.scale.setScalar(0.4 + 0.6 * f.amt + Math.sin(t * 0.8 + i) * 0.05); p.position.y += Math.sin(t * 0.7 + i * 1.7) * 0.003; });
     }
+
+    // しまの かざり：かった ぶんだけ、きまった ばしょに ぽんと あらわれる
+    while (this.decoObjs.length < s.decos.length) {
+      const i = this.decoObjs.length, o = buildDeco(s.decos[i]) || new T.Group();
+      o.position.set(DECO_SPOTS[i].x, 0, DECO_SPOTS[i].z); o.scale.setScalar(this.booted ? 0.001 : 1); o.userData.k = this.booted ? 0 : 1;
+      this.scene.add(o); this.decoObjs.push(o);
+    }
+    if (!this.castle && castleBuilt(s)) {
+      this.castle = buildDeco('castle'); this.castle.position.set(CASTLE_SPOT.x, 0, CASTLE_SPOT.z); this.castle.userData.k = this.booted ? 0 : 1; this.castle.userData.big = 1.5;
+      this.scene.add(this.castle);
+    }
+    this.booted = true;
+    for (const o of this.castle ? [...this.decoObjs, this.castle] : this.decoObjs) {
+      if (o.userData.k < 1) { o.userData.k = Math.min(1, o.userData.k + dt * 1.4); }
+      const k = o.userData.k; o.scale.setScalar(Math.max(0.001, (k + Math.sin(k * Math.PI) * 0.3) * (o.userData.big || 1)));
+      if (o.userData.tick) o.userData.tick(t);
+    }
+    // ゆうがた：そらの いろが かわり、おうちの まどが ひかる
+    const eve = s.phase === 'evening' ? 'evening' : 'day';
+    if (eve !== this.skyNow) { this.skyNow = eve; this.scene.background = this.skyTex[eve]; this.hemi.color.setHex(eve === 'evening' ? 0xffe2c4 : 0xffffff); this.scene.fog.color.setHex(eve === 'evening' ? 0xffd9c0 : 0xf3e6ff); }
+    this.window.material.color.setHex(eve === 'evening' ? 0xffe066 : 0xbfeaff);
+    this.zzz.visible = eve === 'evening'; this.zzz.position.y = 4.6 + Math.sin(t * 2) * 0.2;
 
     // ちょうちょ：めざす ばしょの ほうへ、ぷにゅの すこし まえを とぶ
     const g = opt.guide;

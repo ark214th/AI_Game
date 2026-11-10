@@ -140,6 +140,78 @@ export const RESIDENTS = [
   },
 ];
 
+// ひっこして くる かずうさ（エンディングの あと、1にちに ひとり）。n＝ブロックの かず。home は core が きめる
+const BUNNY = [
+  [1, 'いちちゃん', 0xff86c0, 'nohara'], [2, 'にちゃん', 0xffa48f, 'umibe'], [4, 'よんちゃん', 0x86dea0, 'okashi'], [6, 'ろくちゃん', 0xb29bff, 'kumo'],
+  [7, 'ななちゃん', 0xff8fa3, 'hoshi'], [8, 'はちちゃん', 0xf28fe0, 'moya'], [9, 'きゅうちゃん', 0x8ea8ff, 'nohara'], [10, 'じゅうちゃん', 0xffd9ee, 'okashi'],
+];
+BUNNY.forEach(([n, name, color, island], i) => RESIDENTS.push({
+  id: 'b' + n, name, icon: '🐰', kind: 'bunny', island, n, color, arrive: i + 1, home: { x: 0, z: 0 },
+  item: 'block', itemName: 'ブロック', find: Math.min(n - 1, 4),
+  say: n === 1
+    ? { ask: ['ぼく いちちゃん。ひっこして きたよ！', 'これから よろしくね！'], done: 'よろしくね！' }
+    : { ask: [`わたし ${name}。ひっこして きたよ！`, 'でも とちゅうで ブロックを おとしちゃった。さがして くれる？'], done: 'ブロックが そろった！ これから よろしくね！' },
+}));
+export const RAINBOW = [0xff8fa3, 0xffb36b, 0xffe066, 0x9ee493, 0x7fd0f5, 0xa39bff, 0xe79bff];
+export const PEARL = [0xffd9ee, 0xe9dcff, 0xd6f1ff, 0xfff0cf, 0xdcfbe8];
+
+// ---- まいにち（エンディングの あと） ----
+// あさ、ともだち ふたりと すんでいる こ ひとりが「あそぼう」と まっている。ぜんぶ おわると ゆうがた。おうちで ねむると つぎの ひ
+export const HOUSE = { x: 6.5, z: 4.5, r: 1.9 };
+export const DAILY_RES = ['popuri', 'gorota', 'fuwari', 'san'];
+export const DAY_TEXT = { morning: 'にちめの あさだよ！', evening: 'きょうも みんな えがお！', sleep: 'おやすみ…', bed: 'おうちに かえって ねむろう', castle: 'ブロックの おしろが できた！' };
+
+// ---- ハート と おみせ ----
+// えがおに すると ハートが もらえる。きせかえ（『かんじの しま』の もの）と しまの かざり（『かずうさガーデン』の もの）と こうかん できる
+export const OUTFITS = [
+  { id: 'head-none', slot: 'head', name: 'なし', icon: '・' },
+  { id: 'ribbon', slot: 'head', name: 'リボン', icon: '🎀' }, { id: 'flower', slot: 'head', name: 'はなかんむり', icon: '🌼' },
+  { id: 'strawberry', slot: 'head', name: 'いちごぼうし', icon: '🍓' }, { id: 'cloud', slot: 'head', name: 'くもぼうし', icon: '☁️' },
+  { id: 'straw', slot: 'head', name: 'むぎわらぼうし', icon: '👒' }, { id: 'witch', slot: 'head', name: 'まじょの ぼうし', icon: '🧙' },
+  { id: 'starpin', slot: 'head', name: 'ほしの ピン', icon: '⭐' }, { id: 'bunny', slot: 'head', name: 'うさみみ', icon: '🐰' },
+  { id: 'tiara', slot: 'head', name: 'ティアラ', icon: '💎' }, { id: 'crown', slot: 'head', name: 'おうかん', icon: '👑' },
+  { id: 'princess', slot: 'head', name: 'おひめさまぼうし', icon: '🏰' },
+  { id: 'face-none', slot: 'face', name: 'なし', icon: '・' },
+  { id: 'glasses', slot: 'face', name: 'まるめがね', icon: '👓' }, { id: 'hearts', slot: 'face', name: 'ハートめがね', icon: '💗' },
+  { id: 'starcheek', slot: 'face', name: 'ほしの ほっぺ', icon: '✨' }, { id: 'starglasses', slot: 'face', name: 'ほしめがね', icon: '🤩' },
+  { id: 'hige', slot: 'face', name: 'おひげ', icon: '🥸' },
+  { id: 'back-none', slot: 'back', name: 'なし', icon: '・' },
+  { id: 'randoseru', slot: 'back', name: 'ランドセル', icon: '🎒' }, { id: 'cape', slot: 'back', name: 'マント', icon: '🦸' },
+  { id: 'balloon', slot: 'back', name: 'ふうせん', icon: '🎈' }, { id: 'angel', slot: 'back', name: 'てんしの はね', icon: '🪽' },
+  { id: 'butterfly', slot: 'back', name: 'ちょうちょの はね', icon: '🦋' },
+  { id: 'milk', slot: 'color', name: 'ミルク', icon: '🤍', color: 0xfff4f7 }, { id: 'pink', slot: 'color', name: 'さくら', icon: '🩷', color: 0xffc9dc },
+  { id: 'mint', slot: 'color', name: 'ミント', icon: '💚', color: 0xc8f2dc }, { id: 'sky', slot: 'color', name: 'そら', icon: '🩵', color: 0xc9e8ff },
+  { id: 'lemon', slot: 'color', name: 'レモン', icon: '💛', color: 0xfff1a8 }, { id: 'lavender', slot: 'color', name: 'ラベンダー', icon: '💜', color: 0xe2d4ff },
+  { id: 'red', slot: 'color', name: 'あか', icon: '❤️', color: 0xff9a9a }, { id: 'blue', slot: 'color', name: 'あお', icon: '💙', color: 0x9cc8ff },
+  { id: 'gold', slot: 'color', name: 'きんいろ', icon: '🌟', color: 0xffe08a }, { id: 'rainbow', slot: 'color', name: 'にじいろ', icon: '🌈', color: 0xffffff },
+];
+export const SLOTS = [{ id: 'head', name: 'あたま' }, { id: 'face', name: 'かお' }, { id: 'back', name: 'せなか' }, { id: 'color', name: 'いろ' }];
+export const START_OWNED = ['head-none', 'face-none', 'back-none', 'milk'];
+export const DEFAULT_OUTFIT = { head: 'head-none', face: 'face-none', back: 'back-none', color: 'milk' };
+export const PRICE = { head: 4, face: 3, back: 5, color: 2, deco: 6 };
+export const DECOS = [
+  { id: 'flowerbed', name: 'おはなばたけ', icon: '🌷' }, { id: 'balloons', name: 'ハートの ふうせん', icon: '🎈' },
+  { id: 'swing', name: 'ブランコ', icon: '🌳' }, { id: 'mushroom', name: 'きのこの おうち', icon: '🍄' },
+  { id: 'slide', name: 'すべりだい', icon: '🛝' }, { id: 'teaset', name: 'おちゃかい', icon: '☕' },
+  { id: 'fountain', name: 'ふんすい', icon: '⛲' }, { id: 'tent', name: 'おほしさま テント', icon: '⛺' },
+  { id: 'icecream', name: 'アイスやさん', icon: '🍦' }, { id: 'heartarch', name: 'ハートの アーチ', icon: '💞' },
+  { id: 'snowman', name: 'ゆきだるま', icon: '⛄' }, { id: 'cake', name: 'ケーキの おうち', icon: '🎂' },
+  { id: 'carousel', name: 'メリーゴーランド', icon: '🎠' }, { id: 'hotair', name: 'ききゅう', icon: '🌤️' },
+];
+export const SHOP_TEXT = { title: 'おみせ', deco: 'しまの かざり', wear: 'きる', worn: 'きている', placed: 'かざった', short: 'ハートが たりないよ', full: 'かざる ばしょが いっぱい' };
+
+// ---- アルバム ----
+// くもくもさんの ほしは、とばす たびに ちがう せいざに なる（dx, y）
+export const SKY_SHAPES = [
+  { name: 'やまの せいざ', pts: [[-7, 13.5], [-3.2, 16.5], [0, 13], [3.2, 16.5], [7, 13.5]] },
+  { name: 'ハートの せいざ', pts: [[-4.5, 16.5], [0, 14.6], [4.5, 16.5], [3, 12.6], [-3, 12.6]] },
+  { name: 'おうかんの せいざ', pts: [[-6, 12.5], [-6, 16.5], [0, 14], [6, 16.5], [6, 12.5]] },
+  { name: 'うさぎの せいざ', pts: [[-2.5, 18], [-1.5, 14.5], [1.5, 14.5], [2.5, 18], [0, 12.4]] },
+  { name: 'にじの せいざ', pts: [[-7.5, 12.4], [-4.5, 15.6], [0, 17], [4.5, 15.6], [7.5, 12.4]] },
+  { name: 'おさかなの せいざ', pts: [[-7, 16.5], [-3, 14.5], [-7, 12.6], [4, 16.6], [4, 12.6]] },
+];
+export const ALBUM_TEXT = { title: 'アルバム', sky: 'せいざ', jelly: 'ゼリーの さくひん', bunny: 'かずうさ', none: 'まだ ないよ' };
+
 // がめんの うえに でる「いま する こと」
 export const GOALS = {
   move: 'がめんを さわって ひっぱると あるけるよ',
@@ -151,6 +223,7 @@ export const GOALS = {
   chase: 'いたずらかぜに タッチ しよう',
   find: 'を さがそう',
   guide: 'ちょうちょが みちを おしえて くれるよ',
+  bed: 'おうちに かえって ねむろう',
   end: 'みんな えがお！ すきな ところで あそぼう',
 };
 export const FOG_CLEAR = 'もやが はれた！';

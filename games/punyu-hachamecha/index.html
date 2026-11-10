@@ -24,9 +24,12 @@
     <div class="hud-left">
       <div class="pill" aria-label="えがお">😊 <b id="smileCount">0</b></div>
       <div class="pill" aria-label="かけら">✦ <b id="shardCount">0</b></div>
+      <div class="pill heart" aria-label="ハート">💗 <b id="heartCount">0</b></div>
+      <div class="pill day" id="dayPill" hidden></div>
       <div class="pill" id="missionPill" hidden></div>
     </div>
     <div class="hud-right">
+      <button id="shopBtn" class="round" aria-label="おみせ">🎀</button>
       <button id="bookBtn2" class="round" aria-label="シールちょう">📒</button>
       <button id="soundBtn" class="round" aria-label="おと">🔊</button>
     </div>
@@ -61,9 +64,20 @@
         <button class="tab on" data-tab="sticker">シール</button>
         <button class="tab" data-tab="letter">おてがみ</button>
         <button class="tab" data-tab="find">はっけん</button>
+        <button class="tab" data-tab="album">アルバム</button>
       </div>
       <div id="bookBody" class="book-body"></div>
       <button id="bookClose" class="big small-big">とじる</button>
+    </div>
+  </section>
+
+  <section id="shop" class="screen shade" hidden>
+    <div class="panel shop-panel">
+      <h2><span id="shopTitle"></span> <span class="pill heart">💗 <b id="shopHearts">0</b></span></h2>
+      <div id="shopTabs" class="tabs"></div>
+      <div id="shopBody" class="book-body"></div>
+      <div id="shopMsg" class="shop-msg"></div>
+      <button id="shopClose" class="big small-big">とじる</button>
     </div>
   </section>
 
@@ -128,6 +142,7 @@
     </div>
   </section>
 
+  <div id="night" hidden><div id="nightText"></div></div>
   <div id="rotate">📱 よこに してね</div>
   <div id="debugBar" hidden><button id="resetBtn">ほぞんを けす</button></div>
 </main>

@@ -5,6 +5,7 @@ import { Sound } from './audio.mjs';
 import {
   FRIENDS, RESIDENTS, FOGS, ISLANDS, STICKERS, LETTERS, GOALS, FOG_CLEAR, ENDING_TEXT, SHARDS, SHARD_NAME,
   SHELL_NEED, JANKEN_WINS, TOPPINGS, TOPPING_NAME, DECO_MIN, DECO_MAX, STAR_NEED, CHASE_NEED, CHEER_NEED, MAIN_IDS,
+  DAY_TEXT, OUTFITS, SLOTS, DECOS, SHOP_TEXT, SKY_SHAPES, ALBUM_TEXT, RAINBOW, PEARL,
 } from './data.mjs';
 import { handCanvas, toppingCanvas } from './hands.mjs';
 
@@ -35,7 +36,14 @@ const who = (id) => FRIENDS.find((f) => f.id === id) || RESIDENTS.find((r) => r.
 const flowersHtml = (n) => [0, 1, 2].map((i) => `<span class="${i < n ? 'yes' : 'no'}">🌸</span>`).join('');
 const chantOn = (el, text, cls = '') => { el.textContent = text; el.className = 'chant ' + cls; void el.offsetWidth; el.classList.add('pop'); };
 
+let heartsShown = -1;
 function updateHud() {
+  if (state.hearts !== heartsShown) {
+    const el = $('heartCount'); el.textContent = state.hearts;
+    if (heartsShown >= 0 && state.hearts > heartsShown) { const p = el.parentElement; p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
+    heartsShown = state.hearts;
+  }
+  const dp = $('dayPill'); dp.hidden = !state.ending; dp.textContent = `${state.phase === 'evening' ? '🌙' : '☀️'} ${state.day}`;
   $('smileCount').textContent = C.smiles(state);
   $('shardCount').textContent = state.shards.length;
   $('soundBtn').textContent = state.sound ? '🔊' : '🔇';
@@ -48,12 +56,13 @@ function goalText() {
   if (!moved) return `👆 ${GOALS.move}`;
   const g = C.guideGoal(state);
   if (!g) return state.ending ? `🌈 ${GOALS.end}` : '';
+  if (g.kind === 'bed') return `🌙 ${GOALS.bed}`;
   if (g.kind === 'friend' || g.kind === 'res') return `💬 ${who(g.id).name}${GOALS.talk}`;
   if (g.kind === 'beach') return C.islandAt(state.player) === 'umibe' ? `🐚 ${GOALS.shells}（${state.shells.got.length}/${SHELL_NEED}）` : `🌈 ${GOALS.toBeach}`;
   if (g.kind === 'star') return `⭐ ${GOALS.stars}（${state.stars.got.length}/${STAR_NEED}）`;
   if (g.kind === 'pad') return `⭐ ${GOALS.pad}`;
   if (g.kind === 'kaze') return `💨 ${GOALS.chase}（${state.chase.caught}/${CHASE_NEED}）`;
-  if (g.kind === 'item') { const r = who(g.res); return `✨ ${r.itemName}${GOALS.find}（${state.res[r.id].got.length}/${r.spots.length}）`; }
+  if (g.kind === 'item') { const r = who(g.res); return `✨ ${r.itemName}${GOALS.find}（${state.res[r.id].got.length}/${C.spotsOf(state, r).length}）`; }
   return '';
 }
 function updateGoal() {
@@ -105,7 +114,7 @@ function onDone(res) {
   setTimeout(() => {
     const st = STICKERS.find((x) => x.id === res.friend), lt = LETTERS.find((x) => x.id === res.friend);
     $('rewardEmoji').textContent = f.icon;
-    $('rewardFlowers').innerHTML = res.ending ? '' : flowersHtml(res.flowers);
+    $('rewardFlowers').innerHTML = (res.ending ? '' : flowersHtml(res.flowers)) + `<span class="yes" style="font-size:.6em;color:#d94b93;font-weight:900"> 💗+${res.hearts + (res.bonus || 0)}</span>`;
     const also = (res.also || []).map((id) => STICKERS.find((x) => x.id === id)).map((x) => `<div class="book-item"><div class="ic">${x.icon}</div><div class="nm">${x.name}</div></div>`).join('');
     $('rewardItems').innerHTML = res.first
       ? `<div class="book-item"><div class="ic">${st.icon}</div><div class="nm">${st.name}</div></div>` +
@@ -118,7 +127,8 @@ function onDone(res) {
 function closeReward() { sound.play('tap'); show($('reward'), false); uiOpen = false; }
 $('rewardClose').addEventListener('click', () => {
   closeReward();
-  if (lastDone?.ending) { lastDone = null; pendingCleared = []; showEnding(); } else nextFog();
+  const ld = lastDone;
+  if (ld?.ending) { lastDone = null; pendingCleared = []; showEnding(); } else { nextFog(); if (ld?.evening) eveningCome(); }
 });
 $('rewardAgain').addEventListener('click', () => { closeReward(); startReplay(lastDone.friend); });
 function startReplay(id) {
@@ -139,6 +149,44 @@ function nextFog() {
   setTimeout(() => { look = null; uiOpen = false; view.fireworksOn = false; nextFog(); }, 5000);
 }
 
+// きょうの おねがいが ぜんぶ おわった：ゆうがたに なる
+function eveningCome() {
+  updateHud();
+  setTimeout(() => { callout(DAY_TEXT.evening, 2400); sound.play('fanfare'); mutter('🌙', DAY_TEXT.bed, 4200); }, 600);
+}
+// おうちで ねむる → つぎの ひの あさ
+function doSleep() {
+  uiOpen = true; sound.play('tap');
+  const n = $('night'); $('nightText').textContent = `💤 ${DAY_TEXT.sleep}`;
+  n.hidden = false; void n.offsetWidth; n.classList.add('on');
+  setTimeout(() => {
+    const r = C.sleep(state); store.save(state); updateHud();
+    $('nightText').textContent = `☀️ ${state.day}${DAY_TEXT.morning}`; sound.play('fanfare');
+    setTimeout(() => {
+      n.classList.remove('on');
+      setTimeout(() => { n.hidden = true; uiOpen = false; }, 900);
+      const names = r.today.filter((t) => t.id !== r.comer).map((t) => who(t.id).name).join('・');
+      mutter('💬', names, 4500);
+      if (r.comer) setTimeout(() => mutter('🐰', who(r.comer).say.ask[0], 4500), 4700);
+    }, 1700);
+  }, 1500);
+}
+// すんでいる この おねがいが かなった
+function resDone(id, r) {
+  const rd = who(id);
+  sound.play('fanfare'); view.celebrate(id); mutter(rd.icon, rd.say.done, 3200);
+  pendingCleared = pendingCleared.concat(r.cleared || []);
+  if (r.castle) {
+    setTimeout(() => {
+      uiOpen = true; look = { x: C.CASTLE_SPOT.x, z: C.CASTLE_SPOT.z + 2, zoom: 0.9 };
+      view.fwAt = { x: C.CASTLE_SPOT.x, z: C.CASTLE_SPOT.z + 4 }; view.fireworksOn = true; sound.play('fanfare');
+      callout(DAY_TEXT.castle, 3200);
+      setTimeout(() => { look = null; uiOpen = false; view.fireworksOn = false; if (r.evening) eveningCome(); }, 5200);
+    }, 1800);
+  } else { setTimeout(nextFog, 1800); if (r.evening) setTimeout(eveningCome, 2200); }
+  updateHud(); store.save(state);
+}
+
 // エンディング：にじ と はなび
 function showEnding() {
   uiOpen = true;
@@ -153,6 +201,7 @@ function showEnding() {
 $('endingClose').addEventListener('click', () => {
   sound.play('tap'); show($('ending'), false); look = null; uiOpen = false;
   setTimeout(() => { view.fireworksOn = false; }, 6000);
+  eveningCome();
 });
 
 // ---- はなしかける ----
@@ -166,8 +215,9 @@ function doAction(pick) {
   if (!playing || uiOpen) return;
   const a = C.nearAction(state);
   if (!a || (pick && (pick.kind !== a.kind || pick.id !== a.id))) return;
-  if (a.kind === 'friend') say(a.id, who(a.id).say.ask, () => { const r = C.talk(state, a.id); if (r) afterBegin(r); });
-  else if (a.kind === 'res') say(a.id, who(a.id).say.ask, () => { C.talkRes(state, a.id); store.save(state); });
+  if (a.kind === 'friend') say(a.id, state.friends[a.id].ever ? who(a.id).say.again : who(a.id).say.ask, () => { const r = C.talk(state, a.id); if (r) afterBegin(r); });
+  else if (a.kind === 'res') say(a.id, who(a.id).say.ask, () => { const r = C.talkRes(state, a.id); if (r?.done) resDone(a.id, r); store.save(state); });
+  else if (a.kind === 'bed') doSleep();
   else if (a.kind === 'pad') {
     const go = () => { if (C.starAim(state)) openAim(); };
     if (state.seen.includes('pad')) go(); else { state.seen.push('pad'); say('kumokumo', who('kumokumo').say.pad, go); }
@@ -216,7 +266,7 @@ function jankenRound() {
     jk.tell = true; jk.crab = state.janken.opp; sound.play('kira');
     chant('ちらっ', 'small');
     setHands(true);
-    later(() => { jk.tell = false; jk.crab = null; chant('どれを だす？', 'small'); }, C.tellMs(state.janken.rounds));
+    later(() => { jk.tell = false; jk.crab = null; chant('どれを だす？', 'small'); }, C.tellMs(state.janken.rounds, state.janken.lv));
   }, 1100);
 }
 function closeJanken() { clearTimers(); jk = null; show($('janken'), false); uiOpen = false; }
@@ -319,14 +369,15 @@ $('cheerBtn').addEventListener('pointerdown', (e) => {
 // ---- シールちょう / おてがみ ----
 let bookTab = 'sticker';
 function renderBook() {
-  $('bookTitle').textContent = bookTab === 'letter' ? 'おてがみ' : 'シールちょう';
+  $('bookTitle').textContent = bookTab === 'letter' ? 'おてがみ' : bookTab === 'album' ? ALBUM_TEXT.title : 'シールちょう';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === bookTab));
   const body = $('bookBody');
   if (bookTab === 'sticker') {
     body.innerHTML = STICKERS.map((st) => {
       const has = state.stickers.includes(st.id), best = state.friends[st.id]?.best || 0;
       const again = has && playing && MAIN_IDS.includes(st.id) ? `<button class="replay" data-replay="${st.id}">🔁 あそぶ</button>` : '';
-      const fl = has && MAIN_IDS.includes(st.id) ? `<div class="fl flowers">${flowersHtml(best)}</div>` : '';
+      const lv = state.friends[st.id]?.lv || 0;
+      const fl = has && MAIN_IDS.includes(st.id) ? `<div class="fl flowers">${flowersHtml(best)}</div>${lv ? `<div class="lv">${'👑'.repeat(lv)}</div>` : ''}` : '';
       return `<div class="book-item ${has ? '' : 'off'}"><div class="ic">${st.icon}</div><div class="nm">${has ? st.name : '？？？'}</div>${fl}${again}</div>`;
     }).join('');
     body.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => {
@@ -339,6 +390,19 @@ function renderBook() {
     body.innerHTML = got.length ? got.map((l) =>
       `<div class="book-item letter"><div class="ic">${l.icon}</div><div class="tx">${l.text}<br><small>${l.from} より</small></div></div>`).join('')
       : '<div class="book-empty">💌</div>';
+  } else if (bookTab === 'album') {
+    // せいざ・ゼリーの さくひん・かずうさ
+    const sky = SKY_SHAPES.map((sh, i) => { const has = state.album.sky.includes(i); return `<div class="book-item ${has ? '' : 'off'}"><div class="ic">⭐</div><div class="nm">${has ? sh.name : '？？？'}</div></div>`; }).join('');
+    const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+    const bunnies = RESIDENTS.filter((r) => r.kind === 'bunny').map((r) => ({ r, n: r.n || r.base + (r.spots ? r.spots.length : r.need) })).sort((a, b) => a.n - b.n).map(({ r, n }) => {
+      const has = state.res[r.id].ever;
+      const cubes = Array.from({ length: n }, (_, i) => `<i style="background:${hex(n === 7 ? RAINBOW[i % 7] : n === 10 ? PEARL[i % 5] : r.color)}"></i>`).join('');
+      return `<div class="book-item ${has ? '' : 'off'}"><div class="blocks">${cubes}</div><div class="nm">${has ? r.name : '？？？'}</div></div>`;
+    }).join('');
+    body.innerHTML = `<div class="album-h">⭐ ${ALBUM_TEXT.sky}</div>${sky}<div class="album-h">🍮 ${ALBUM_TEXT.jelly}</div>` +
+      (state.album.jelly.length ? state.album.jelly.map((_, i) => `<div class="book-item album-jelly" data-j="${i}"></div>`).join('') : `<div class="book-item off"><div class="nm">${ALBUM_TEXT.none}</div></div>`) +
+      `<div class="album-h">🐰 ${ALBUM_TEXT.bunny}</div>${bunnies}`;
+    body.querySelectorAll('[data-j]').forEach((el) => el.append(...state.album.jelly[+el.dataset.j].map((t) => toppingCanvas(t, 68))));
   } else {
     const n = state.shards.length;
     body.innerHTML = `<div class="book-item"><div class="ic">✦</div><div class="nm">${SHARD_NAME}<br>${n} / ${SHARDS.length}</div></div>` +
@@ -351,6 +415,45 @@ $('letterBtn').addEventListener('click', () => openBook('letter'));
 $('bookBtn2').addEventListener('click', () => openBook('sticker'));
 $('bookClose').addEventListener('click', () => { show($('book'), false); uiOpen = false; sound.play('tap'); });
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { bookTab = t.dataset.tab; renderBook(); }));
+
+// ---- おみせ（きせかえ と しまの かざり） ----
+let shopTab = 'head';
+$('shopTitle').textContent = SHOP_TEXT.title;
+$('shopTabs').append(...[...SLOTS, { id: 'deco', name: SHOP_TEXT.deco }].map((t) => {
+  const b = document.createElement('button'); b.className = 'tab'; b.dataset.shop = t.id; b.textContent = t.name;
+  b.addEventListener('click', () => { shopTab = t.id; sound.play('tap'); renderShop(); });
+  return b;
+}));
+function renderShop(msg = '') {
+  $('shopHearts').textContent = state.hearts; $('shopMsg').textContent = msg;
+  document.querySelectorAll('[data-shop]').forEach((t) => t.classList.toggle('on', t.dataset.shop === shopTab));
+  const list = shopTab === 'deco' ? DECOS : OUTFITS.filter((o) => o.slot === shopTab);
+  $('shopBody').replaceChildren(...list.map((it) => {
+    const deco = shopTab === 'deco', price = C.priceOf(it.id);
+    const have = deco ? state.decos.includes(it.id) : state.owned.includes(it.id), worn = !deco && state.outfit[shopTab] === it.id;
+    const el = document.createElement('div');
+    el.className = `book-item shop-item${worn ? ' worn' : ''}${!have && state.hearts < price ? ' cant' : ''}`;
+    const tag = have ? (deco ? SHOP_TEXT.placed : worn ? SHOP_TEXT.worn : SHOP_TEXT.wear) : `💗 ${price}`;
+    el.innerHTML = `<div class="ic">${it.icon}</div><div class="nm">${it.name}</div><span class="price${have ? ' have' : ''}">${tag}</span>`;
+    el.addEventListener('click', () => {
+      const r = C.buy(state, it.id);
+      if (r.ok) {
+        sound.play(r.placed !== undefined ? 'fanfare' : 'get'); store.save(state); updateHud();
+        if (r.placed !== undefined) {
+          // かざりを おいた ばしょを みせる
+          show($('shop'), false);
+          look = { x: r.spot.x, z: r.spot.z + 2, zoom: 0.8 }; callout(it.name, 2200);
+          setTimeout(() => { look = null; uiOpen = false; }, 3200);
+          return;
+        }
+        renderShop();
+      } else { sound.play('lose'); renderShop(r.short ? SHOP_TEXT.short : r.full ? SHOP_TEXT.full : ''); }
+    });
+    return el;
+  }));
+}
+$('shopBtn').addEventListener('click', () => { if (uiOpen) return; uiOpen = true; sound.play('tap'); renderShop(); show($('shop'), true); });
+$('shopClose').addEventListener('click', () => { show($('shop'), false); uiOpen = false; sound.play('tap'); });
 
 // ---- 入力 ----
 // スティック：がめんの どこを さわっても、そこが スティックの まんなかに なる
@@ -448,13 +551,8 @@ function frame(now) {
     // すんでいる この おねがいの もの
     const it = C.touchItems(state);
     if (it) {
-      const rd = who(it.res);
       sound.play('get'); view.burstStars(P.x, P.z);
-      if (it.done) {
-        sound.play('fanfare'); view.celebrate(it.res); mutter(rd.icon, rd.say.done, 3200);
-        pendingCleared = pendingCleared.concat(it.cleared);
-        setTimeout(nextFog, 1800);
-      }
+      if (it.done) resDone(it.res, it);
       updateHud(); store.save(state);
     }
     // ほし
@@ -477,7 +575,7 @@ function frame(now) {
     nearKey = key;
     const btn = $('btnAction');
     btn.classList.toggle('ready', !!near);
-    btn.textContent = !near ? '！' : near.kind === 'pad' ? '⭐' : near.kind === 'res' ? who(near.id).icon : who(near.id).bubble;
+    btn.textContent = !near ? '！' : near.kind === 'pad' ? '⭐' : near.kind === 'bed' ? '💤' : near.kind === 'res' ? who(near.id).icon : who(near.id).bubble;
     if (near) sound.play('kira');
   }
   saveTimer += dt;

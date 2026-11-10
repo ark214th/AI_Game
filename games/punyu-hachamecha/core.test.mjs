@@ -9,6 +9,7 @@ const { FRIENDS, RESIDENTS, SHELLS, SHARDS, ISLANDS, BRIDGES, TREES, ROCKS, SEA,
 const res = (id) => RESIDENTS.find((r) => r.id === id);
 const allOpen = () => { const s = C.newSave(); s.cleared = D.FOGS.map((f) => f.id); return s; };
 const seq = (...v) => { let i = 0; return () => v[i++ % v.length]; };
+const mul = (seed) => () => { seed = (seed + 0x6D2B79F5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
 const warp = (s, p) => { s.player.x = p.x; s.player.z = p.z; };
 const home = (id) => FRIENDS.find((f) => f.id === id).home;
 // なみが いちばん ひいた じかん
@@ -79,7 +80,7 @@ function talkTo(s, id) { near(s, home(id)); return C.talk(s, id); }
 test('さいしょは みんな こまっていて、もやは はれていない', () => {
   const s = C.newSave();
   for (const f of FRIENDS) assert.equal(s.friends[f.id].state, 'sad');
-  for (const r of RESIDENTS) assert.equal(s.res[r.id].state, 'sad');
+  for (const r of RESIDENTS) assert.equal(s.res[r.id].state, r.arrive ? 'away' : 'sad');
   assert.equal(C.smiles(s), 0);
   assert.deepEqual(s.cleared, []);
   assert.ok(C.walkable(s, s.player));
@@ -263,11 +264,125 @@ test('さいしょから さいごまで、あんないの とおりに あそ�
   assert.equal(C.smiles(s), 11);
   assert.equal(order[order.length - 1], 'moya');
   assert.deepEqual(s.cleared.slice().sort(), ['hoshi', 'kumo', 'moya', 'okashi']);
-  assert.equal(C.guideGoal(s), null);
+  // エンディングの あとは ゆうがた。おうちへ あんない する
+  assert.equal(s.phase, 'evening');
+  assert.equal(C.guideGoal(s).kind, 'bed');
+  assert.ok(s.hearts >= 20);
   // もういちど あそぶと、その この しまへ とぶ
   assert.ok(C.replay(s, 'kani')); assert.equal(C.islandAt(s.player), 'umibe');
   assert.equal(winJanken(s).first, false);
   assert.equal(C.smiles(s), 11);
+});
+
+// ---- まいにち・おみせ・アルバム ----
+// エンディングまで すすめた データ
+function cleared() {
+  const s = allOpen();
+  for (const id of D.MAIN_IDS) { s.friends[id].state = 'happy'; s.friends[id].ever = true; s.friends[id].best = 3; s.party.push(id); }
+  s.friends.kumokumo.sky = 0; s.res.go.state = 'happy'; s.res.go.ever = true;
+  talkTo(s, 'moya'); let r; for (let i = 0; i < D.CHEER_NEED; i++) r = C.cheer(s);
+  assert.equal(r.evening, true);
+  return s;
+}
+// きょうの おねがいを ぜんぶ かたづける
+function doDay(s) {
+  const play = { chapu: () => doShells(s), kani: () => winJanken(s), jelly: () => doJelly(s), kumokumo: () => doStars(s, 5), kaze: () => doChase(s) };
+  let last;
+  for (const t of s.today.slice()) {
+    if (t.kind === 'friend') { assert.ok(talkTo(s, t.id), t.id); last = play[t.id](); assert.equal(last.done, true, t.id); }
+    else { near(s, res(t.id).home); const r = C.talkRes(s, t.id); assert.ok(r, t.id); last = r.done ? r : doItems2(s, t.id); assert.equal(last.done, true, t.id); }
+  }
+  return last;
+}
+function doItems2(s, id) { let r; for (const p of C.spotsOf(s, res(id))) { warp(s, p); r = C.touchItems(s); } return r; }
+
+test('まいにち：ゆうがたに おうちで ねむると つぎの ひ。3にんが まっていて、かずうさが ひっこして くる', () => {
+  const s = cleared();
+  assert.equal(C.sleep({ ...C.newSave() }), null);            // ゆうがた では ない
+  warp(s, { x: D.HOUSE.x, z: D.HOUSE.z + 2.6 });
+  assert.deepEqual(C.nearAction(s), { kind: 'bed', id: 'house' });
+  const smilesBefore = C.smiles(s);
+  const r = C.sleep(s, seq(0.13, 0.57, 0.31, 0.83, 0.45));
+  assert.equal(r.day, 2); assert.equal(r.comer, 'b1');
+  assert.deepEqual(s.today.map((t) => t.id), ['chapu', 'kani', 'popuri', 'b1']);
+  assert.equal(s.friends.chapu.state, 'sad'); assert.ok(!s.party.includes('chapu') && s.party.includes('jelly'));
+  assert.equal(C.smiles(s), smilesBefore, 'えがおの かずは へらない');
+  assert.equal(s.cleared.length, 4);
+  for (const p of C.spotsOf(s, res('popuri'))) assert.ok(C.walkable(s, p));
+  assert.notDeepEqual(C.spotsOf(s, res('popuri')), res('popuri').spots);
+  const before = s.hearts;
+  const last = doDay(s);
+  assert.equal(last.evening, true); assert.equal(last.bonus, 3);
+  assert.equal(s.phase, 'evening');
+  assert.ok(s.hearts >= before + 3 + 2 + 3 + 2);
+  assert.equal(s.res.b1.ever, true);
+  assert.equal(C.smiles(s), smilesBefore + 2);   // ぽぷり（はじめて）と いちちゃん
+});
+
+test('まいにち：10にちめまで あそべる。かずうさが 10にん そろうと おしろが たつ', () => {
+  const s = cleared();
+  const rng = mul(7);
+  let castle = false;
+  for (let d = 2; d <= 10; d++) {
+    const r = C.sleep(s, rng);
+    assert.equal(r.day, d);
+    for (const t of s.today) if (t.kind === 'res') for (const p of C.spotsOf(s, res(t.id))) assert.ok(C.walkable(s, p), `${t.id} の もの`);
+    if (r.comer) { assert.equal(C.blocksOf(s, r.comer), res(r.comer).n - res(r.comer).find); }
+    const today = s.today.slice();
+    for (const t of today) {
+      if (t.kind !== 'res') continue;
+      near(s, res(t.id).home); const q = C.talkRes(s, t.id); const fin = q.done ? q : doItems2(s, t.id);
+      if (fin.castle) castle = true;
+    }
+    s.today = s.today.filter((t) => t.kind === 'friend');
+    doDay(s);
+    assert.equal(s.phase, 'evening', `${d}にちめ`);
+    if (r.comer) assert.equal(C.blocksOf(s, r.comer), res(r.comer).n);
+  }
+  assert.equal(C.bunniesHome(s), 10);
+  assert.ok(castle && C.castleBuilt(s));
+  assert.ok(s.friends.kani.lv >= 1, 'じょうずに なると レベルが あがる');
+  assert.ok(C.tellMs(0, 2) < C.tellMs(0, 0));
+  assert.ok(s.album.sky.length >= 2 && s.album.jelly.length >= 2);
+  assert.equal(C.sleep(s, rng).comer, null);
+});
+
+test('おみせ：ハートで きせかえを かって きる。かざりは じゅんばんに しまへ おかれる', () => {
+  const s = C.newSave();
+  assert.deepEqual(C.buy(s, 'ribbon'), { ok: false, short: true });
+  s.hearts = 20;
+  assert.deepEqual(C.buy(s, 'ribbon'), { ok: true, worn: true });
+  assert.equal(s.hearts, 20 - D.PRICE.head); assert.equal(s.outfit.head, 'ribbon');
+  C.buy(s, 'head-none'); assert.equal(s.outfit.head, 'head-none');
+  C.buy(s, 'ribbon'); assert.equal(s.hearts, 20 - D.PRICE.head, 'もっている ものは ただで きられる');
+  const r = C.buy(s, 'swing');
+  assert.equal(r.ok, true); assert.deepEqual(r.spot, C.DECO_SPOTS[0]);
+  assert.equal(C.buy(s, 'swing').ok, false);
+  // かざりは とおれない
+  warp(s, { x: r.spot.x, z: r.spot.z + 3 }); C.setDir(s, 0, -1);
+  for (let i = 0; i < 60; i++) C.stepPlayer(s, 1 / 30);
+  assert.ok(Math.hypot(s.player.x - r.spot.x, s.player.z - r.spot.z) > 1.4);
+  const t = C.deserialize(C.serialize(s));
+  assert.deepEqual(t.outfit, s.outfit); assert.deepEqual(t.decos, ['swing']); assert.equal(t.hearts, s.hearts);
+});
+
+test('かざりの ばしょ と かずうさの おうちは、しまの うえで なにとも かさならない', () => {
+  const s = allOpen();
+  assert.ok(C.DECO_SPOTS.length >= D.DECOS.length);
+  const homes = RESIDENTS.filter((r) => r.arrive).map((r) => r.home);
+  const all = [...C.DECO_SPOTS, ...homes, C.CASTLE_SPOT];
+  all.forEach((p, i) => {
+    assert.ok(C.walkable(s, p), JSON.stringify(p));
+    all.forEach((q, j) => { if (i < j) assert.ok(Math.hypot(p.x - q.x, p.z - q.z) > 3, `${JSON.stringify(p)} ${JSON.stringify(q)}`); });
+    for (const f of FRIENDS) assert.ok(Math.hypot(p.x - f.home.x, p.z - f.home.z) > 4);
+  });
+});
+
+test('まえの ほぞんデータ（ハートが ない ころ）も よめる。えがおの ぶんの ハートを もらえる', () => {
+  const t = C.deserialize({ version: 2, friends: { chapu: { state: 'happy', best: 2 }, kani: { state: 'happy', best: 3 } }, res: { popuri: { state: 'happy', got: [0, 1, 2] } }, shards: [0, 1] });
+  assert.equal(t.friends.chapu.ever, true); assert.equal(C.smiles(t), 3);
+  assert.equal(t.hearts, 3 * 2 + 2);
+  assert.equal(t.day, 1); assert.equal(t.res.b1.state, 'away');
 });
 
 test('かけらは ふれると あつまる（1かい だけ）', () => {
@@ -287,7 +402,8 @@ test('ほぞんデータを よみなおせる', () => {
   assert.equal(t.friends.chapu.state, 'play');
   assert.deepEqual(t.shells, { got: [3] });
   assert.deepEqual(t.party, ['chapu', 'kani']);
-  assert.deepEqual(t.res.popuri, { state: 'play', got: [1] });
+  assert.deepEqual(t.res.popuri, { state: 'play', got: [1], ever: false });
+  assert.equal(t.hearts, s.hearts);
   assert.deepEqual(t.shards, [0]);
   assert.deepEqual(t.player, s.player);
   assert.equal(t.friends.kani.best, 3);
