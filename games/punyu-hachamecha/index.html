@@ -31,6 +31,8 @@
       <button id="soundBtn" class="round" aria-label="おと">🔊</button>
     </div>
   </header>
+  <div id="goal" hidden></div>
+  <div id="mutter" hidden><span id="mutterIcon"></span><span id="mutterText"></span></div>
   <div id="callout" aria-live="polite"></div>
 
   <div id="touch" hidden aria-hidden="true">
@@ -65,22 +67,25 @@
     </div>
   </section>
 
+  <section id="talk" class="screen dock" hidden>
+    <div class="talk-box">
+      <div id="talkIcon" class="talk-icon"></div>
+      <div class="talk-main">
+        <div id="talkName" class="talk-name"></div>
+        <div id="talkText" class="talk-text"></div>
+      </div>
+      <div class="talk-next">▼</div>
+    </div>
+  </section>
+
   <section id="janken" class="screen dock" hidden>
-    <div class="panel janken-panel">
-      <button id="jankenQuit" class="quit" aria-label="やめる">✕</button>
-      <div class="janken-hands">
-        <span class="who">🦀</span>
-        <span id="oppHand" class="opp-hand">❓</span>
-        <span id="jankenMsg" class="janken-msg">じゃんけん…</span>
-        <span id="youHand" class="opp-hand">❓</span>
-        <span class="who">🐹</span>
-      </div>
-      <div class="janken-btns">
-        <button class="hand-btn" data-hand="gu">✊</button>
-        <button class="hand-btn" data-hand="choki">✌️</button>
-        <button class="hand-btn" data-hand="pa">✋</button>
-      </div>
-      <div id="jankenWins" class="janken-wins">☆ ☆ ☆</div>
+    <button id="jankenQuit" class="quit">やめる</button>
+    <div id="jankenWins" class="janken-wins"></div>
+    <div id="jkChant" class="chant"></div>
+    <div class="janken-btns">
+      <button class="hand-btn" data-hand="gu"><span class="hand-pic"></span><b>グー</b></button>
+      <button class="hand-btn" data-hand="choki"><span class="hand-pic"></span><b>チョキ</b></button>
+      <button class="hand-btn" data-hand="pa"><span class="hand-pic"></span><b>パー</b></button>
     </div>
   </section>
 

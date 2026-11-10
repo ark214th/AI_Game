@@ -11,6 +11,7 @@
 - タッチ：画面のどこでも、さわって引っぱると移動（スティック）。右下のボタンが光ったら、押すと話しかける（ともだちを直接タップしてもよい）。
 - キーボード：矢印キー / WASD で移動、スペースで話しかける。じゃんけんは 1（グー）・2（チョキ）・3（パー）。
 - ピンクのちょうちょが、次に行くとよい方へ飛んで案内する。
+- 画面の上に「いま する こと」が1行で出る。ともだちとの会話は、画面をタップすると次へ進む。
 
 ## あそび
 
@@ -35,5 +36,6 @@ URL の末尾に `?debug` を付けると、画面の下に保存データの消
 - `core.mjs`：島と橋の上の移動と当たり判定（2Dで計算）、ともだちの状態、かいがら・じゃんけんの進行、はなまる、もや、あんないの道、保存データの整形・検証
 - `view.mjs`：three.js による3D表示（three.js は `../punyu-kirakira/vendor/` を流用）
 - `audio.mjs`：効果音とBGM（Web Audio で合成）
-- `app.mjs`：画面の切りかえ、スティックとキー入力、保存（localStorage `punyu-hachamecha-v2`）
+- `hands.mjs`：じゃんけんの手の絵（図形で描く）
+- `app.mjs`：画面の切りかえ、会話、スティックとキー入力、保存（localStorage `punyu-hachamecha-v2`）
 - `core.test.mjs`：`node --test games/punyu-hachamecha/core.test.mjs`

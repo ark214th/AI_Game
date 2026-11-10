@@ -40,10 +40,41 @@ export const SEA = { x: 54, z: 23, mid: 15.6, amp: 2.1, period: 7.5, deep: 12.4 
 
 // ---- ともだち ----
 // home は しまの うえの ばしょ。bubble は こまった ときの ふきだしの え
+// say：はなす ことば（みじかい ぶん。ひらがな・カタカナ だけ）
+//   ask＝はなしかけた とき ／ again＝もういちど あそぶ とき ／ done＝えがおに なった とき
 export const FRIENDS = [
-  { id: 'chapu', name: 'ちゃぷ', icon: '🦦', bubble: '🐚', home: { x: -5, z: 3 }, island: 'nohara', play: 'shells' },
-  { id: 'kani', name: 'おおきなカニ', icon: '🦀', bubble: '✊', home: { x: 61, z: -7 }, island: 'umibe', play: 'janken' },
+  {
+    id: 'chapu', name: 'ちゃぷ', icon: '🦦', bubble: '🐚', home: { x: -5, z: 3 }, island: 'nohara', play: 'shells',
+    say: {
+      ask: ['えーん… だいじな かいがらを なくしちゃった', 'はまべに あると おもうんだ。いっしょに さがして！'],
+      beach: ['なみが ひいたら かいがらが でてくるよ', 'かいがらに さわって ひろってね！'],
+      tip: 'うみの おくに にじいろの かいがらも あるよ',
+      again: ['もういちど さがそう！ にじいろの かいがらも みつけてね'],
+      done: 'ぜんぶ みつかった！ ありがとう！',
+    },
+  },
+  {
+    id: 'kani', name: 'おおきなカニ', icon: '🦀', bubble: '✊', home: { x: 61, z: -7 }, island: 'umibe', play: 'janken',
+    say: {
+      ask: ['ひまだなあ… だれか あそんで くれない かなあ', 'きみ、じゃんけん しようよ チョキ！ 3かい かったら きみの かち！', 'ぼくは だす まえに、てが ちらっと みえちゃうんだ。よーく みててね'],
+      again: ['もう ひとしょうぶ チョキ！ こんどは まけないぞ〜'],
+      done: 'まけた〜！ でも たのしかった チョキ！',
+    },
+  },
 ];
+
+// がめんの うえに でる「いま する こと」
+export const GOALS = {
+  move: 'がめんを さわって ひっぱると あるけるよ',
+  talk: 'に はなしかけよう',
+  toBeach: 'はしを わたって はまべへ いこう',
+  shells: 'なみが ひいたら かいがらを ひろおう',
+  soon: 'つづきは じゅんびちゅう。また あそんでね',
+  guide: 'ちょうちょが みちを おしえて くれるよ',
+};
+
+// じゃんけんの とき、ぷにゅが たつ ばしょ（カニの ばしょから みて）
+export const JANKEN_SPOT = { x: -4.1, z: 0.6 };
 
 // ---- あそび ----
 // かいがら：3つ ひろえば せいこう。にじいろの かいがら（なみが いちばん ひいた ときだけ でる）で はなまるが ふえる
@@ -85,6 +116,6 @@ export const LETTERS = [
 // ---- うごき ----
 export const SPEED = 8;
 export const PLAYER_START = { x: 0, z: 9 };
-export const TALK_R = 3.4;      // はなしかけ られる きょり
+export const TALK_R = 4.4;      // はなしかけ られる きょり
 export const TOUCH_R = 1.7;     // かけら・かいがらに ふれる きょり
 export const FOLLOW_GAP = 2.4;  // ついてくる ともだちの あいだ

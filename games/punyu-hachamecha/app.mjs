@@ -2,7 +2,8 @@
 import * as C from './core.mjs';
 import { View } from './view.mjs';
 import { Sound } from './audio.mjs';
-import { FRIENDS, FOGS, ISLANDS, STICKERS, LETTERS, HAND_ICON, SHARDS, SHARD_NAME, SHELL_NEED, JANKEN_WINS } from './data.mjs';
+import { FRIENDS, FOGS, ISLANDS, STICKERS, LETTERS, GOALS, SHARDS, SHARD_NAME, SHELL_NEED, JANKEN_WINS } from './data.mjs';
+import { handCanvas } from './hands.mjs';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -15,7 +16,9 @@ const view = new View($('world'));
 const sound = new Sound(state.sound);
 let playing = false, uiOpen = false, saveTimer = 0;
 let look = null;          // カメラが よそを みている あいだ（もやが はれる えんしゅつ）
-let tell = false;         // カニが てを みせている あいだ
+let jk = null;            // じゃんけんの みため { crab, punyu, tell, result }
+let faceTo = null;        // かいわの あいて の ばしょ
+let moved = false, movedAt = 0;
 let pendingCleared = [];
 
 const show = (el, on) => { el.hidden = !on; };
@@ -31,9 +34,50 @@ function updateHud() {
   $('shardCount').textContent = state.shards.length;
   $('soundBtn').textContent = state.sound ? '🔊' : '🔇';
   const pill = $('missionPill');
-  pill.hidden = !state.shells;
-  if (state.shells) pill.textContent = `🐚 ${state.shells.got.length}/${SHELL_NEED}`;
+  pill.hidden = true;   // かいがらの かずは「いま する こと」に だす
 }
+
+// いま する こと（がめんの うえ）
+let goalNow = '';
+function updateGoal() {
+  let text = '';
+  if (playing && !state.janken) {
+    const g = C.guideGoal(state);
+    if (!moved) text = `👆 ${GOALS.move}`;
+    else if (g?.kind === 'friend') text = `😢 ${friendDef(g.id).name}${GOALS.talk}`;
+    else if (g?.kind === 'beach') text = C.islandAt(state.player) === 'umibe' ? `🐚 ${GOALS.shells}（${state.shells.got.length}/${SHELL_NEED}）` : `🌈 ${GOALS.toBeach}`;
+    else if (g?.kind === 'soon') text = `🚧 ${GOALS.soon}`;
+  }
+  const el = $('goal');
+  if (text === goalNow) return;
+  goalNow = text; el.hidden = !text; el.textContent = text;
+  el.classList.remove('new'); void el.offsetWidth; el.classList.add('new');
+}
+// ひとこと（とめずに だす みじかい ことば）
+function mutter(icon, text, ms = 3200) {
+  $('mutterIcon').textContent = icon; $('mutterText').textContent = text;
+  const m = $('mutter'); m.hidden = true; void m.offsetWidth; m.hidden = false;
+  clearTimeout(mutter._t); mutter._t = setTimeout(() => { m.hidden = true; }, ms);
+}
+// かいわ（タップで つぎへ）。おわったら then を よぶ
+let talkQueue = [], talkThen = null, talkAt = 0;
+function say(id, lines, then) {
+  const f = friendDef(id);
+  uiOpen = true; faceTo = view.friendPos(id);
+  talkQueue = lines.slice(); talkThen = then;
+  $('talkIcon').textContent = f.icon; $('talkName').textContent = f.name;
+  show($('talk'), true); nextLine();
+}
+function nextLine() {
+  if (!talkQueue.length) {
+    show($('talk'), false); uiOpen = false; faceTo = null;
+    const t = talkThen; talkThen = null; if (t) t();
+    return;
+  }
+  $('talkText').textContent = talkQueue.shift();
+  talkAt = performance.now(); sound.play('pop');
+}
+$('talk').addEventListener('pointerdown', (e) => { e.preventDefault(); if (performance.now() - talkAt > 350) nextLine(); });
 
 // ---- えがお と ごほうび ----
 let lastDone = null;
@@ -44,6 +88,7 @@ function onDone(res) {
   sound.play('fanfare');
   view.celebrate(res.friend);
   if (res.first) { const isl = ISLANDS.find((i) => i.id === f.island); view.burstFlowers(isl.x, isl.z); }
+  mutter(f.icon, f.say.done, 2600);
   store.save(state); updateHud();
   // まず えがおを みせて から、ごほうびの がめん
   setTimeout(() => {
@@ -57,7 +102,7 @@ function onDone(res) {
     show($('rewardAgain'), res.flowers < 3);
     show($('reward'), true);
     pendingCleared = pendingCleared.concat(res.cleared || []);
-  }, 1500);
+  }, 2400);
 }
 function closeReward() { sound.play('tap'); show($('reward'), false); uiOpen = false; }
 $('rewardClose').addEventListener('click', () => {
@@ -66,8 +111,8 @@ $('rewardClose').addEventListener('click', () => {
 });
 $('rewardAgain').addEventListener('click', () => {
   closeReward();
-  const r = C.replay(state, lastDone.friend);
-  if (r) afterBegin(r);
+  const id = lastDone.friend;
+  say(id, friendDef(id).say.again, () => { const r = C.replay(state, id); if (r) afterBegin(r); });
   // もやの えんしゅつは、あとで「つぎへ」を えらんだ ときに みせる
 });
 
@@ -84,64 +129,76 @@ function fogCleared(id) {
 
 // ---- はなしかける ----
 function afterBegin(r) {
-  sound.play('pop');
-  if (r.play === 'shells') callout('🐚 いっしょに さがそう！', 1800);
   if (r.play === 'janken') openJanken();
   updateHud(); store.save(state);
 }
 function doTalk(id) {
   if (!playing || uiOpen) return;
-  const r = C.talk(state, id || C.nearTalkable(state));
-  if (r) afterBegin(r);
+  id = id || C.nearTalkable(state);
+  if (!id || C.nearTalkable(state) !== id) return;
+  say(id, friendDef(id).say.ask, () => { const r = C.talk(state, id); if (r) afterBegin(r); });
+}
+// はまべに ついたら、ちゃぷが ひろいかたを おしえる（1かい だけ）
+function beachHint() {
+  if (!state.shells || state.seen.includes('beach') || C.islandAt(state.player) !== 'umibe') return;
+  state.seen.push('beach');
+  say('chapu', friendDef('chapu').say.beach);
 }
 
 // ---- じゃんけん ----
-// カニは だす まえに、はさみを「ぴくっ」と うごかして てを ちらっと みせる。みぬけば かてる
+// 3Dの カニと ぷにゅが ならんで しょうぶ。「じゃん・けん」の あと、カニの てが「ちらっ」と みえる。みぬけば かてる
 let jankenTimers = [];
 const later = (fn, ms) => { const t = setTimeout(fn, ms); jankenTimers.push(t); };
+const clearTimers = () => { jankenTimers.forEach(clearTimeout); jankenTimers = []; };
 const handBtns = [...document.querySelectorAll('.hand-btn')];
-const setHands = (on) => handBtns.forEach((b) => { b.disabled = !on; });
-function winsText(w) { return Array.from({ length: JANKEN_WINS }, (_, i) => (i < w ? '⭐' : '☆')).join(' '); }
+handBtns.forEach((b) => { b.querySelector('.hand-pic').style.backgroundImage = `url(${handCanvas(b.dataset.hand, 'punyu', 192).toDataURL()})`; });
+const setHands = (on) => handBtns.forEach((b) => { b.disabled = !on; if (on) b.classList.remove('picked'); });
+function showWins(w) { $('jankenWins').innerHTML = Array.from({ length: JANKEN_WINS }, (_, i) => `<span class="${i < w ? 'on' : 'off'}">⭐</span>`).join(''); }
+function chant(text, cls = '') {
+  const c = $('jkChant'); c.textContent = text; c.className = 'chant ' + cls;
+  void c.offsetWidth; c.classList.add('pop');
+}
 function openJanken() {
-  uiOpen = true;
-  $('jankenWins').textContent = winsText(0);
+  uiOpen = true; jk = { crab: null, punyu: null, tell: false, result: null };
+  showWins(0); setHands(false);
   show($('janken'), true);
-  jankenRound();
+  chant('じゃんけん しょうぶ！', 'small'); sound.play('fanfare');
+  later(jankenRound, 1500);
 }
 function jankenRound() {
   if (!state.janken) return;
-  const opp = $('oppHand');
-  opp.textContent = '❓'; opp.classList.remove('peek'); $('youHand').textContent = '❓';
-  $('jankenMsg').textContent = 'じゃんけん…';
+  jk = { crab: null, punyu: null, tell: false, result: null };
   setHands(false);
+  chant('じゃん'); view.beat(); sound.play('draw');
+  later(() => { chant('けん'); view.beat(); sound.play('draw'); }, 520);
   later(() => {
     if (!state.janken) return;
-    tell = true; sound.play('kira');
-    opp.textContent = HAND_ICON[state.janken.opp]; opp.classList.add('peek');
-    $('jankenMsg').textContent = 'ちらっ';
+    jk.tell = true; jk.crab = state.janken.opp; sound.play('kira');
+    chant('ちらっ', 'small');
     setHands(true);
-    later(() => { tell = false; opp.textContent = '❓'; opp.classList.remove('peek'); $('jankenMsg').textContent = 'ぽん！'; }, C.tellMs(state.janken.rounds));
-  }, 650);
+    later(() => { jk.tell = false; jk.crab = null; chant('どれを だす？', 'small'); }, C.tellMs(state.janken.rounds));
+  }, 1100);
 }
 function closeJanken() {
-  jankenTimers.forEach(clearTimeout); jankenTimers = []; tell = false;
+  clearTimers(); jk = null;
   show($('janken'), false); uiOpen = false;
 }
 function playHand(hand) {
   if (!state.janken || handBtns[0].disabled) return;
-  jankenTimers.forEach(clearTimeout); jankenTimers = []; tell = false;
+  clearTimers();
   setHands(false);
+  handBtns.find((b) => b.dataset.hand === hand).classList.add('picked');
   const r = C.jankenPlay(state, hand);
   if (!r) return;
-  const opp = $('oppHand'); opp.classList.remove('peek');
-  opp.textContent = HAND_ICON[r.opp]; $('youHand').textContent = HAND_ICON[r.you];
-  $('jankenMsg').textContent = r.result === 'win' ? 'かった！' : r.result === 'lose' ? 'おしい！' : 'あいこ！';
-  $('jankenWins').textContent = winsText(r.wins);
-  sound.play(r.result === 'win' ? 'win' : r.result === 'lose' ? 'lose' : 'draw');
-  if (r.result === 'win') view.burstStars(state.player.x, state.player.z);
+  jk = { crab: r.opp, punyu: r.you, tell: false, result: null };
+  chant('ぽん！'); view.beat(); sound.play('pop');
   later(() => {
-    if (r.done) { closeJanken(); onDone(r); } else jankenRound();
-  }, 1150);
+    jk.result = r.result;
+    if (r.result === 'win') { chant('かち！', 'win'); sound.play('win'); view.cheer(); view.burstStars(state.player.x, state.player.z); showWins(r.wins); }
+    else if (r.result === 'lose') { chant('おしい！', 'lose'); sound.play('lose'); }
+    else { chant('あいこ！', 'draw'); sound.play('draw'); }
+  }, 600);
+  later(() => { if (r.done) { closeJanken(); onDone(r); } else jankenRound(); }, 2100);
 }
 handBtns.forEach((b) => b.addEventListener('click', () => playHand(b.dataset.hand)));
 $('jankenQuit').addEventListener('click', () => { sound.play('tap'); C.jankenQuit(state); closeJanken(); updateHud(); });
@@ -255,6 +312,7 @@ function frame(now) {
   }
   C.setDir(state, x, z);
   if (C.stepPlayer(state, dt)) {
+    if (!moved) { movedAt += dt; if (movedAt > 0.6) { moved = true; mutter('🦋', GOALS.guide, 4200); } }
     if (C.touchShards(state) >= 0) { sound.play('get'); view.burstStars(state.player.x, state.player.z); updateHud(); store.save(state); }
   }
   if (free) {
@@ -262,9 +320,11 @@ function frame(now) {
     if (r) {
       sound.play('get'); view.burstStars(state.player.x, state.player.z);
       if (r.rainbow) callout('にじいろ！', 1100);
+      else if (r.got === 1 && !state.seen.includes('tip')) { state.seen.push('tip'); mutter('🦦', friendDef('chapu').say.tip, 4200); }
       updateHud(); store.save(state);
       if (r.done) onDone(r);
     }
+    beachHint();
   }
   // はなしかけ られる とき だけ、ボタンが ひかる
   const near = free ? C.nearTalkable(state) : null;
@@ -277,7 +337,8 @@ function frame(now) {
   }
   saveTimer += dt;
   if (saveTimer > 5) { saveTimer = 0; if (playing) store.save(state); }
-  view.sync(state, now / 1000, dt, { guide: free ? C.guideStep(state) : null, tell, look });
+  updateGoal();
+  view.sync(state, now / 1000, dt, { guide: free ? C.guideStep(state) : null, jk, look, faceTo, talking: !!faceTo });
   view.update(dt);
   requestAnimationFrame(frame);
 }

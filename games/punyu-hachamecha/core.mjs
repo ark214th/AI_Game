@@ -2,7 +2,7 @@
 // あそび（かいがら・じゃんけん）・はなまる・もや・かけら・あんない・ほぞんデータの かたち
 import {
   ISLANDS, BRIDGES, FOGS, TREES, ROCKS, POND, SEA, EDGE, FRIENDS, SHELLS, SHELL_NEED, shellPos, BEACH_SPOT,
-  HANDS, BEATS, JANKEN_WINS, TELL_MS, SHARDS, SPEED, PLAYER_START, TALK_R, TOUCH_R,
+  HANDS, BEATS, JANKEN_WINS, TELL_MS, SHARDS, SPEED, PLAYER_START, TALK_R, TOUCH_R, JANKEN_SPOT,
 } from './data.mjs';
 
 export const SAVE_KEY = 'punyu-hachamecha-v2';
@@ -30,6 +30,7 @@ export function newSave() {
     stickers: [],
     letters: [],
     shards: [],
+    seen: [],           // いちど みた せつめい
     sound: true,
   };
 }
@@ -137,6 +138,10 @@ function beginPlay(s, id, rng) {
   }
   if (f.play === 'janken') {
     s.janken = { friend: id, wins: 0, losses: 0, rounds: 0, opp: null };
+    // ぷにゅは カニの となりに たつ（ふたりが ならんで みえる ように）
+    const spot = { x: f.home.x + JANKEN_SPOT.x, z: f.home.z + JANKEN_SPOT.z };
+    if (walkable(s, spot)) s.player = spot;
+    s.dir = { x: 0, z: 0 };
     jankenReady(s, rng);
   }
   return { friend: id, play: f.play };
@@ -259,6 +264,13 @@ function islandPath(s, from, to) {
   return null;
 }
 
+// はしの はしっこ から、しまの なかへ すこし はいった ところ（はしの うえで とまらない ように）
+function bridgeEnd(b, toB) {
+  const dx = b.b.x - b.a.x, dz = b.b.z - b.a.z, len = Math.hypot(dx, dz), k = (toB ? 1 : -1) * 2.5 / len;
+  const e = toB ? b.b : b.a;
+  return { x: e.x + dx * k, z: e.z + dz * k, kind: 'bridge' };
+}
+
 // めざす ばしょへ いく ための、つぎの とちゅうの ばしょ（はしを わたる ときは はしの いりぐち・でぐち）
 export function guideStep(s) {
   const goal = guideGoal(s);
@@ -272,13 +284,13 @@ export function guideStep(s) {
     if (!b) return goal;
     const path = islandPath(s, b.to, there), back = islandPath(s, b.from, there);
     const toB = path && (!back || path.length <= back.length);
-    return { ...(toB ? b.b : b.a), kind: 'bridge' };
+    return bridgeEnd(b, toB);
   }
   const path = islandPath(s, here, there);
   if (!path || path.length < 2) return goal;
   const b = BRIDGES.find((x) => bridgeOpen(s, x) && ((x.from === here && x.to === path[1]) || (x.to === here && x.from === path[1])));
-  const near = b.from === here ? b.a : b.b, far = b.from === here ? b.b : b.a;
-  return { ...(dist(s.player, near) > 2 ? near : far), kind: 'bridge' };
+  const near = b.from === here ? b.a : b.b;
+  return dist(s.player, near) > 2 ? { ...near, kind: 'bridge' } : bridgeEnd(b, b.from === here);
 }
 
 // ---- ほぞん ----
@@ -286,7 +298,7 @@ export function serialize(s) {
   return JSON.stringify({
     version: 2,
     player: s.player, friends: s.friends, party: s.party, shells: s.shells,
-    cleared: s.cleared, stickers: s.stickers, letters: s.letters, shards: s.shards, sound: s.sound,
+    cleared: s.cleared, stickers: s.stickers, letters: s.letters, shards: s.shards, seen: s.seen, sound: s.sound,
   });
 }
 
@@ -316,6 +328,7 @@ export function deserialize(json) {
     s.shards = Array.isArray(d.shards) ? [...new Set(d.shards)].filter((x) => Number.isInteger(x) && x >= 0 && x < SHARDS.length) : [];
     const p = { x: +d.player?.x, z: +d.player?.z };
     s.player = Number.isFinite(p.x) && Number.isFinite(p.z) && walkable(s, p) ? p : { ...PLAYER_START };
+    s.seen = Array.isArray(d.seen) ? [...new Set(d.seen)].filter((x) => typeof x === 'string').slice(0, 30) : [];
     s.sound = d.sound !== false;
     return s;
   } catch { return null; }
