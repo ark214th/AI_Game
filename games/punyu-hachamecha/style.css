@@ -112,6 +112,29 @@ button.small { background: rgba(255,255,255,.94); color: #4a3520; font-size: 20p
 .hand-btn.picked { opacity: 1; background: #fff2a0; transform: translateY(-10px) scale(1.08); }
 @media (max-height: 520px) { .hand-btn { width: 112px; height: 108px; font-size: 19px; border-radius: 24px; } .hand-pic { width: 62px; height: 62px; } .chant { font-size: 60px; top: 44%; } .chant.win { font-size: 84px; } .janken-wins { font-size: 32px; } }
 
+/* かざりつけ・ほし・えがおを とどける */
+#deco, #aim, #cheer, #ending { pointer-events: none; gap: 10px; }
+#deco > *, #aim > *, #cheer > *, #ending > * { pointer-events: auto; }
+.order { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; background: #fffdf4; border: 4px solid #ffb7d5; border-radius: 24px; padding: 6px 18px; box-shadow: 0 4px 12px rgba(0,0,0,.2); pointer-events: none !important; }
+.order-label { font-size: 19px; font-weight: 900; color: #d94b93; }
+.order-pics { display: flex; gap: 6px; }
+.order-pics canvas { width: 54px; height: 54px; transition: opacity .2s, transform .2s; }
+.order-pics canvas.ok { opacity: 1; transform: scale(1.12); filter: drop-shadow(0 0 6px #ffd84a); }
+.order-pics canvas.yet { opacity: .55; }
+.deco-tray { display: flex; gap: 12px; }
+.top-btn { width: 108px; height: 116px; border-radius: 24px; background: linear-gradient(180deg, #fffdf4, #ffe3f1); border: 4px solid #ff8fb3; box-shadow: 0 6px 0 #d95f87; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #d94b93; font-size: 16px; font-weight: 900; }
+.top-btn canvas { width: 66px; height: 66px; }
+.top-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #d95f87; }
+.top-btn:disabled { opacity: .45; }
+.deco-row { align-items: center; }
+button:disabled { opacity: .45; }
+button.big.huge { font-size: 38px; padding: 20px 56px; }
+#aimBtn:not(:disabled), #cheerBtn:not(:disabled) { animation: ready-pulse .6s infinite alternate ease-in-out; }
+#aim .chant, #cheer .chant { top: 34%; }
+.ending-text { font-size: 54px; font-weight: 900; color: #fff; -webkit-text-stroke: 3px #ff5fa2; paint-order: stroke fill; text-shadow: 0 6px 0 rgba(217,75,147,.5); animation: bounce .8s infinite alternate ease-in-out; margin-bottom: 10px; text-align: center; }
+.replay { margin-top: 4px; background: #ff8fb3; color: #fff; font-size: 13px; font-weight: 900; padding: 4px 10px; border-radius: 999px; }
+@media (max-height: 520px) { .top-btn { width: 92px; height: 88px; font-size: 13px; } .top-btn canvas { width: 48px; height: 48px; } .order-pics canvas { width: 40px; height: 40px; } button.big.huge { font-size: 30px; padding: 12px 44px; } .ending-text { font-size: 40px; } }
+
 /* ごほうび */
 .reward-emoji { font-size: 76px; animation: bounce 0.7s infinite alternate ease-in-out; }
 .reward-title { font-size: 36px; font-weight: 900; color: #4a3520; }

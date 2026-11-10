@@ -79,7 +79,7 @@
   </section>
 
   <section id="janken" class="screen dock" hidden>
-    <button id="jankenQuit" class="quit">やめる</button>
+    <button class="quit">やめる</button>
     <div id="jankenWins" class="janken-wins"></div>
     <div id="jkChant" class="chant"></div>
     <div class="janken-btns">
@@ -87,6 +87,32 @@
       <button class="hand-btn" data-hand="choki"><span class="hand-pic"></span><b>チョキ</b></button>
       <button class="hand-btn" data-hand="pa"><span class="hand-pic"></span><b>パー</b></button>
     </div>
+  </section>
+
+  <section id="deco" class="screen dock" hidden>
+    <button class="quit">やめる</button>
+    <div class="order"><span class="order-label">ちゅうもん</span><span id="decoOrder" class="order-pics"></span></div>
+    <div id="decoTray" class="deco-tray"></div>
+    <div class="row deco-row">
+      <button id="decoUndo" class="small">↩ もどす</button>
+      <button id="decoDone" class="big small-big">できた！</button>
+    </div>
+  </section>
+
+  <section id="aim" class="screen dock" hidden>
+    <button class="quit">やめる</button>
+    <div id="aimChant" class="chant small"></div>
+    <button id="aimBtn" class="big huge">⭐ えいっ！</button>
+  </section>
+
+  <section id="cheer" class="screen dock" hidden>
+    <div id="cheerChant" class="chant small"></div>
+    <button id="cheerBtn" class="big huge">💗 えがおを とどける！</button>
+  </section>
+
+  <section id="ending" class="screen dock" hidden>
+    <div id="endingText" class="ending-text"></div>
+    <button id="endingClose" class="big">あそび つづける</button>
   </section>
 
   <section id="reward" class="screen shade" hidden>

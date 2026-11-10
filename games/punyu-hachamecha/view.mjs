@@ -2,9 +2,10 @@
 // 動きと当たり判定は core.mjs（2D）で計算し、ここは見た目だけを担う
 import * as T from '../punyu-kirakira/vendor/three.module.min.js';
 import {
-  ISLANDS, BRIDGES, FOGS, TREES, ROCKS, POND, SEA, FRIENDS, SHELLS, shellPos, SHARDS, FOLLOW_GAP,
+  ISLANDS, BRIDGES, FOGS, TREES, ROCKS, POND, CAKE, PAD, SEA, FRIENDS, RESIDENTS, SHELLS, shellPos, SHARDS, FOLLOW_GAP,
+  STAR_NEED, DECO_MAX, CHEER_NEED,
 } from './data.mjs';
-import { waveR, shellShown } from './core.mjs';
+import { waveR, shellShown, blocksOf, ringSize, ringGood } from './core.mjs';
 import { handCanvas } from './hands.mjs';
 
 // 漢字ゲーム『ゆめかわ かんじの しま』と おなじ トゥーンの ざいりょう（3だんかいの かげ）
@@ -174,16 +175,151 @@ function buildFriend(id) {
     for (const sx of [-1, 1]) ball(shell, brown, [sx * 0.27, -0.02, 0.02], [0.13, 0.11, 0.1]);
     shell.position.set(0, -0.52, 0.86); shell.rotation.x = -0.25; head.add(shell); extra.shell = shell;
     face = makeFace({ ex: 0.3, ey: 0.24, ez: 0.9, my: -0.12, mz: 0.97, es: 1.05 }); head.add(face.grp);
+  } else if (id === 'jelly') {
+    // ぷるるんゼリー：すきとおった ピンクの ドーム。あたまに かざりが のる
+    head.position.y = 0.1; head.rotation.x = -0.12;
+    inner.scale.setScalar(1); g.scale.setScalar(1.25);
+    const dome = new T.Mesh(new T.SphereGeometry(1.1, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xff9fc8, { transparent: true, opacity: 0.92 }));
+    dome.scale.y = 1.05; head.add(dome); extra.dome = dome;
+    ball(head, 0xffd1e6, [0, 0.02, 0], [1.22, 0.16, 1.22]);
+    ball(head, 0xffffff, [-0.42, 0.72, 0.62], [0.2, 0.12, 0.06], 0.5);
+    for (const sx of [-1, 1]) ball(head, 0xff7fae, [sx * 0.58, 0.3, 0.86], [0.15, 0.09, 0.06]);
+    extra.top = new T.Group(); extra.top.position.y = 1.12; head.add(extra.top);
+    face = makeFace({ ex: 0.3, ey: 0.52, ez: 0.93, my: 0.3, mz: 1.0, es: 1.05 }); head.add(face.grp);
+  } else if (id === 'kumokumo') {
+    // くもくもさん：もこもこの くも。ナイトキャップ。ふわふわ うく
+    head.position.y = 1.0; head.rotation.x = -0.22; extra.float = 0.35;
+    for (const [x, y, z, r] of [[0, 0, 0, 0.95], [-0.85, -0.15, 0, 0.66], [0.85, -0.12, 0, 0.7], [-0.4, 0.5, -0.1, 0.6], [0.45, 0.48, -0.1, 0.62], [0, -0.3, 0.3, 0.7]]) ball(head, 0xf7f5ff, [x, y, z], [r, r * 0.9, r * 0.85]);
+    const cap = new T.Mesh(new T.ConeGeometry(0.46, 0.8, 16), mat(0x8fb8ff)); cap.position.set(0.3, 1.1, -0.1); cap.rotation.z = -0.5; head.add(cap);
+    ball(head, 0xffffff, [0.66, 1.36, -0.1], [0.16, 0.16, 0.16]);
+    for (const sx of [-1, 1]) ball(head, 0xffb3d0, [sx * 0.5, -0.1, 0.83], [0.15, 0.09, 0.06]);
+    face = makeFace({ ex: 0.3, ey: 0.1, ez: 0.92, my: -0.14, mz: 0.97, es: 1.1 }); head.add(face.grp);
+  } else if (id === 'kaze') {
+    // いたずらかぜ：うすむらさきの まるい かぜ。あたまに うずまき
+    head.position.y = 1.0; head.rotation.x = -0.25; extra.float = 0.45;
+    ball(head, 0xb9a8ff, [0, 0, 0], [0.92, 0.88, 0.88]);
+    const swirl = new T.Mesh(new T.TorusGeometry(0.34, 0.09, 8, 20, Math.PI * 1.5), mat(0xe6dcff)); swirl.position.set(0.15, 0.98, 0); head.add(swirl);
+    ball(head, 0xd9ceff, [0, -0.9, -0.2], [0.5, 0.3, 0.5]);
+    ball(head, 0xe6dcff, [0.1, -1.25, -0.4], [0.28, 0.2, 0.28]);
+    for (const sx of [-1, 1]) ball(head, 0xffb3d9, [sx * 0.52, -0.12, 0.72], [0.17, 0.11, 0.07]);
+    const ring = new T.Mesh(new T.TorusGeometry(1.15, 0.06, 8, 30), mat(0xe6dcff, { transparent: true, opacity: 0.8 })); ring.rotation.x = Math.PI / 2.3; head.add(ring); extra.ring = ring;
+    face = makeFace({ ex: 0.28, ey: 0.1, ez: 0.8, my: -0.12, mz: 0.85, es: 1.05 }); head.add(face.grp);
+  } else if (id === 'moya') {
+    // でかもやもや：おおきな もやの かたまり。えがおを もらうと ピンクに かわる
+    head.position.y = 1.9; head.rotation.x = -0.2; extra.float = 0.25;
+    const skin = mat(0xb4adc8); extra.skin = skin;
+    for (const [x, y, z, r] of [[0, 0, 0, 1.9], [-1.5, -0.4, 0, 1.2], [1.5, -0.35, 0, 1.25], [-0.8, 1.1, -0.2, 1.1], [0.9, 1.05, -0.2, 1.15], [0, -0.7, 0.5, 1.3]]) {
+      const m = new T.Mesh(new T.SphereGeometry(1, 22, 16), skin); m.position.set(x, y, z); m.scale.set(r, r * 0.9, r * 0.85); head.add(m);
+    }
+    for (const sx of [-1, 1]) ball(head, 0xffb3d0, [sx * 0.95, -0.2, 1.62], [0.26, 0.16, 0.1]);
+    face = makeFace({ ex: 0.55, ey: 0.2, ez: 1.78, my: -0.3, mz: 1.84, es: 1.9 }); face.mouth.scale.setScalar(1.8); head.add(face.grp); extra.bigMouth = 1.8;
   }
-  g.add(blobShadow(1.15));
+  g.add(blobShadow(id === 'moya' ? 2.4 : 1.15));
   return { grp: g, inner, head, face, ...extra };
+}
+
+// ---- すんでいる こ ----
+function buildResident(r) {
+  const g = new T.Group(), inner = new T.Group(), head = new T.Group(); g.add(inner); inner.add(head);
+  let face = null; const extra = {};
+  if (r.kind === 'popuri') {
+    // ぽぷり（はなの はりねずみ）：クリームいろの からだに ちゃいろの はり、あたまに おはな
+    head.position.y = 0.8; head.rotation.x = -0.25;
+    ball(head, 0xf6e3cf, [0, 0, 0.1], [0.8, 0.76, 0.78]);
+    ball(head, 0x9a7560, [0, 0.08, -0.22], [0.9, 0.86, 0.8]);
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2, up = 0.2 + (i % 3) * 0.28;
+      const sp = new T.Mesh(new T.ConeGeometry(0.13, 0.42, 6), mat(0x7d5a48));
+      sp.position.set(Math.cos(a) * 0.72 * (1 - up * 0.35), up * 1.0, -0.3 + Math.sin(a) * 0.5 - 0.1); sp.lookAt(sp.position.clone().multiplyScalar(3)); sp.rotateX(Math.PI / 2); head.add(sp);
+    }
+    ball(head, 0x3a2a3a, [0, -0.02, 0.9], [0.07, 0.055, 0.05], 0, true);
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; ball(head, 0xff8fb5, [0.3 + Math.cos(a) * 0.14, 0.78 + Math.sin(a) * 0.14, 0.3], [0.1, 0.1, 0.05]); }
+    ball(head, 0xffe066, [0.3, 0.78, 0.34], [0.08, 0.08, 0.05]);
+    for (const sx of [-1, 1]) { ball(head, 0xffa9be, [sx * 0.42, -0.1, 0.72], [0.12, 0.075, 0.05]); ball(inner, 0xe8cdb4, [sx * 0.3, 0.1, 0.25], [0.2, 0.1, 0.24]); }
+    face = makeFace({ ex: 0.24, ey: 0.14, ez: 0.82, my: -0.14, mz: 0.87 }); head.add(face.grp);
+  } else if (r.kind === 'gorota') {
+    // ごろた（こけの かめ）：みどりの こうら、うえに こけ
+    head.position.y = 0.62; head.rotation.x = -0.12;
+    ball(head, 0x8fbf7a, [0, 0.12, -0.2], [1.05, 0.72, 1.0]);
+    ball(head, 0x6fa85c, [0, 0.62, -0.25], [0.6, 0.22, 0.55]);
+    for (const [x, z] of [[-0.3, 0], [0.35, -0.3], [0, -0.6]]) ball(head, 0xa9d98f, [x, 0.74, z - 0.2], [0.2, 0.14, 0.2]);
+    ball(head, 0xd9e8b0, [0, 0.12, 0.82], [0.55, 0.52, 0.5]);
+    for (const sx of [-1, 1]) { ball(head, 0xffa9be, [sx * 0.34, 0.02, 1.2], [0.1, 0.065, 0.05]); ball(inner, 0xd9e8b0, [sx * 0.8, 0.14, 0.3], [0.3, 0.14, 0.3]); ball(inner, 0xd9e8b0, [sx * 0.75, 0.14, -0.7], [0.26, 0.13, 0.26]); }
+    face = makeFace({ ex: 0.2, ey: 0.2, ez: 1.26, my: 0.0, mz: 1.3, es: 0.9 }); head.add(face.grp);
+  } else if (r.kind === 'fuwari') {
+    // ふわり（くもの ひつじ）：しろい もこもこ、クリームいろの かお
+    head.position.y = 0.85; head.rotation.x = -0.25;
+    for (const [x, y, z, rr] of [[0, 0, -0.1, 0.85], [-0.6, 0.2, -0.1, 0.5], [0.6, 0.2, -0.1, 0.5], [0, 0.62, -0.05, 0.52], [-0.45, -0.3, 0.1, 0.5], [0.45, -0.3, 0.1, 0.5]]) ball(head, 0xffffff, [x, y, z], [rr, rr, rr]);
+    ball(head, 0xffe9d6, [0, 0.02, 0.5], [0.56, 0.52, 0.42]);
+    for (const sx of [-1, 1]) { ball(head, 0xffd0b8, [sx * 0.62, 0.12, 0.42], [0.2, 0.11, 0.1], sx * 0.5); ball(head, 0xffa9be, [sx * 0.34, -0.1, 0.86], [0.11, 0.07, 0.05]); ball(inner, 0xffd0b8, [sx * 0.3, 0.1, 0.2], [0.17, 0.1, 0.2]); }
+    face = makeFace({ ex: 0.2, ey: 0.1, ez: 0.9, my: -0.14, mz: 0.93, es: 0.95 }); head.add(face.grp);
+  } else {
+    // かずうさ（『ゆめかわ かずうさガーデン』）：ブロックを つみあげた うさぎ。いちばん うえの ブロックに かお と みみ
+    const cubeMat = mat(r.color); extra.cubes = [];
+    for (let i = 0; i < 5; i++) {
+      const c = new T.Mesh(new T.BoxGeometry(0.9, 0.9, 0.9), cubeMat); c.position.y = 0.45 + i * 0.92; inner.add(c); extra.cubes.push(c);
+      const hi = new T.Mesh(new T.BoxGeometry(0.6, 0.6, 0.02), basic(0xffffff, { transparent: true, opacity: 0.25 })); hi.position.set(0, 0, 0.455); c.add(hi);
+    }
+    head.rotation.x = -0.18;
+    for (const sx of [-1, 1]) {
+      const ear = new T.Group(); ear.position.set(sx * 0.2, 0.42, -0.04); ear.rotation.z = -sx * 0.14;
+      ball(ear, r.color, [0, 0.36, 0], [0.15, 0.4, 0.09]); ball(ear, 0xffd6e6, [0, 0.36, 0.06], [0.08, 0.28, 0.05]);
+      head.add(ear);
+      ball(head, 0xffa9be, [sx * 0.31, -0.1, 0.46], [0.09, 0.06, 0.03]);
+    }
+    ball(inner, 0xffffff, [0, 0.4, -0.52], [0.16, 0.16, 0.16]);
+    face = makeFace({ ex: 0.19, ey: 0.06, ez: 0.47, my: -0.1, mz: 0.48, es: 0.8 }); face.mouth.scale.setScalar(0.6); extra.bigMouth = 0.6; head.add(face.grp);
+    extra.shown = -1;
+  }
+  g.add(blobShadow(1.0));
+  return { grp: g, inner, head, face, ...extra };
+}
+
+// あつめる もの
+function buildItem(kind, color) {
+  const g = new T.Group();
+  if (kind === 'flower') {
+    const cols = [0xff8fa3, 0xffb36b, 0xffe066, 0x9ee493, 0x7fd0f5, 0xa39bff];
+    const stem = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.7, 5), mat(0x6fbf5f)); stem.position.y = 0.35; g.add(stem);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; ball(g, cols[i], [Math.cos(a) * 0.26, 0.85 + Math.sin(a) * 0.26, 0], [0.19, 0.19, 0.1]); }
+    ball(g, 0xfff2a0, [0, 0.85, 0.06], [0.14, 0.14, 0.1]);
+  } else if (kind === 'hitode') {
+    const sh = new T.Shape();
+    for (let i = 0; i < 10; i++) { const rr = i % 2 ? 0.26 : 0.6, a = (i / 10) * Math.PI * 2 - Math.PI / 2; i ? sh.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : sh.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    const m = new T.Mesh(new T.ExtrudeGeometry(sh, { depth: 0.16, bevelEnabled: false }), mat(0xffa46b, { emissive: 0xff6a3a, emissiveIntensity: 0.2 }));
+    m.position.y = 0.7; g.add(m);
+  } else if (kind === 'wata') {
+    const st = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.9, 5), mat(0xffffff)); st.position.y = 0.45; g.add(st);
+    for (const [x, y, rr, c] of [[0, 1.0, 0.4, 0xffc4e4], [-0.25, 0.85, 0.28, 0xd9c7ff], [0.25, 0.88, 0.3, 0xc4ecff], [0, 1.3, 0.26, 0xffe0f0]]) ball(g, c, [x, y, 0], [rr, rr, rr]);
+  } else {
+    const c = new T.Mesh(new T.BoxGeometry(0.8, 0.8, 0.8), mat(color, { emissive: color, emissiveIntensity: 0.15 })); c.position.y = 0.9; g.add(c);
+  }
+  return g;
+}
+
+// ゼリーに のせる かざり
+function buildTopping(t) {
+  const g = new T.Group();
+  if (t === 'cream') { ball(g, 0xffffff, [0, 0.14, 0], [0.26, 0.18, 0.26]); ball(g, 0xffffff, [0, 0.32, 0], [0.17, 0.13, 0.17]); ball(g, 0xffffff, [0, 0.45, 0], [0.08, 0.1, 0.08]); }
+  else if (t === 'ichigo') { const c = new T.Mesh(new T.ConeGeometry(0.2, 0.38, 12), mat(0xff4d6d)); c.rotation.x = Math.PI; c.position.y = 0.22; g.add(c); ball(g, 0x5bb34a, [0, 0.42, 0], [0.16, 0.04, 0.16]); }
+  else if (t === 'cherry') { ball(g, 0xe0264f, [0, 0.17, 0], [0.17, 0.17, 0.17]); const st = new T.Mesh(new T.CylinderGeometry(0.015, 0.015, 0.3, 4), basic(0x5b8a3a)); st.position.set(0.04, 0.44, 0); st.rotation.z = -0.3; g.add(st); }
+  else if (t === 'hoshi') { const m = starMesh(0.24); m.position.y = 0.26; g.add(m); }
+  else { const c = new T.Mesh(new T.BoxGeometry(0.3, 0.12, 0.3), mat(0x8a5a3c)); c.position.y = 0.1; c.rotation.y = 0.5; g.add(c); const c2 = new T.Mesh(new T.BoxGeometry(0.2, 0.1, 0.2), mat(0xa9744f)); c2.position.y = 0.21; c2.rotation.y = 0.5; g.add(c2); }
+  return g;
+}
+function starMesh(size = 0.55, color = 0xffd84a) {
+  const sh = new T.Shape();
+  for (let i = 0; i < 10; i++) { const rr = i % 2 ? size * 0.45 : size, a = (i / 10) * Math.PI * 2 + Math.PI / 2; i ? sh.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : sh.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  const m = new T.Mesh(new T.ExtrudeGeometry(sh, { depth: size * 0.3, bevelEnabled: false }), mat(color, { emissive: 0xffa800, emissiveIntensity: 0.45 }));
+  m.geometry.translate(0, 0, -size * 0.15);
+  return m;
 }
 
 function buildTree(t) {
   const g = new T.Group(), s = t.s;
-  const leafMat = mat(t.palm ? 0x7fd69a : 0x8fdc6e, { transparent: true });
-  const trunkMat = mat(0xc8915e, { transparent: true });
-  if (t.palm) {
+  const leafMat = mat(t.kind === 'palm' ? 0x7fd69a : t.kind === 'candy' ? t.c : t.kind === 'lamp' ? 0xfff2a0 : 0x8fdc6e, { transparent: true, ...(t.kind === 'lamp' ? { emissive: 0xffc94a, emissiveIntensity: 0.7 } : {}) });
+  const trunkMat = mat(t.kind === 'candy' ? 0xffffff : t.kind === 'lamp' ? 0x6a5ab0 : 0xc8915e, { transparent: true });
+  if (t.kind === 'palm') {
     const trunk = new T.Mesh(new T.CylinderGeometry(0.22 * s, 0.34 * s, 3.4 * s, 8), trunkMat); trunk.position.set(0.15 * s, 1.7 * s, 0); trunk.rotation.z = -0.1; g.add(trunk);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
@@ -191,6 +327,15 @@ function buildTree(t) {
       leaf.position.set(0.3 * s + Math.cos(a) * 1.1 * s, 3.35 * s, Math.sin(a) * 1.1 * s); leaf.rotation.y = -a; leaf.rotation.z = -0.35; g.add(leaf);
     }
     const nut = new T.Mesh(new T.SphereGeometry(0.24 * s, 10, 8), trunkMat); nut.position.set(0.3 * s, 3.15 * s, 0.25 * s); g.add(nut);
+  } else if (t.kind === 'candy') {
+    // ぼうつき キャンディ
+    const stick = new T.Mesh(new T.CylinderGeometry(0.14 * s, 0.14 * s, 2.8 * s, 6), trunkMat); stick.position.y = 1.4 * s; g.add(stick);
+    const top = new T.Mesh(new T.SphereGeometry(1.25 * s, 20, 14), leafMat); top.position.y = 3.4 * s; top.scale.z = 0.6; g.add(top);
+    const sw = new T.Mesh(new T.TorusGeometry(0.62 * s, 0.1 * s, 6, 20), trunkMat); sw.position.set(0, 3.4 * s, 0.72 * s); g.add(sw);
+  } else if (t.kind === 'lamp') {
+    // ほしの ランタン
+    const pole = new T.Mesh(new T.CylinderGeometry(0.09 * s, 0.12 * s, 2.4 * s, 6), trunkMat); pole.position.y = 1.2 * s; g.add(pole);
+    const lamp = new T.Mesh(new T.SphereGeometry(0.5 * s, 14, 10), leafMat); lamp.position.y = 2.7 * s; g.add(lamp);
   } else {
     const trunk = new T.Mesh(new T.CylinderGeometry(0.32 * s, 0.42 * s, 1.6 * s, 8), trunkMat); trunk.position.y = 0.8 * s; g.add(trunk);
     for (const [dx, dy, dz, r] of [[0, 2.4, 0, 1.5], [-0.9, 1.9, 0.2, 1.0], [0.9, 2.0, -0.2, 1.1]]) {
@@ -198,7 +343,7 @@ function buildTree(t) {
     }
   }
   g.position.set(t.x, 0, t.z);
-  return { grp: g, mats: [leafMat, trunkMat], x: t.x, z: t.z, s, fade: 1 };
+  return { grp: g, mats: [leafMat, trunkMat], x: t.x, z: t.z, s: t.kind === 'lamp' ? 0.6 : s, fade: 1 };
 }
 
 // カメラ：すこし ひくめから みて、キャラの かおが みえる ように（まえは y:19 で みおろし すぎた）
@@ -237,6 +382,17 @@ export class View {
       const proxy = new T.Mesh(new T.SphereGeometry(2.1, 10, 8), basic(0xffffff, { visible: false }));
       proxy.userData.pick = { kind: 'friend', id: f.id }; this.scene.add(proxy); this.pickables.push(proxy);
       this.friends[f.id] = { ...b, bubble, proxy, pos: { x: f.home.x, z: f.home.z }, rot: 0, joy: 0, moving: 0, placed: false };
+      this.scene.add(b.grp);
+    }
+    this.residents = {};
+    for (const r of RESIDENTS) {
+      const b = buildResident(r);
+      b.grp.position.set(r.home.x, 0, r.home.z);
+      const bubble = bubbleSprite('❗' + r.icon); bubble.visible = false; this.scene.add(bubble);
+      const proxy = new T.Mesh(new T.SphereGeometry(2.1, 10, 8), basic(0xffffff, { visible: false }));
+      proxy.position.set(r.home.x, 1.1, r.home.z); proxy.userData.pick = { kind: 'res', id: r.id }; this.scene.add(proxy); this.pickables.push(proxy);
+      const items = (r.spots || []).map((p) => { const it = buildItem(r.item, r.color); it.position.set(p.x, 0, p.z); it.visible = false; this.scene.add(it); return it; });
+      this.residents[r.id] = { ...b, bubble, proxy, items, joy: 0 };
       this.scene.add(b.grp);
     }
     this.buildThings();
@@ -279,18 +435,39 @@ export class View {
     this.foam = flat(new T.RingGeometry(0.955, 1, 64), basic(0xffffff, { transparent: true, opacity: 0.9 }), SEA.x, 0.06, SEA.z); S.add(this.foam);
     S.add(flat(new T.CircleGeometry(SEA.deep - 0.4, 48), mat(0x62c4ea, { emissive: 0x1f7fb0, emissiveIntensity: 0.25 }), SEA.x, 0.07, SEA.z));
 
-    // おかしの もり（じゅんびちゅう。もやが はれると みえる）
-    const ok = new T.Group(); this.okashi = ok; S.add(ok);
-    const okSide = new T.Mesh(new T.CylinderGeometry(okashi.r, okashi.r * 0.88, 3.4, 40), mat(0xffb7d5)); okSide.position.set(okashi.x, -1.75, okashi.z); ok.add(okSide);
-    ok.add(flat(new T.CircleGeometry(okashi.r, 40), mat(0xffe3f1), okashi.x, 0, okashi.z));
-    const okUnder = new T.Mesh(new T.ConeGeometry(okashi.r * 0.92, okashi.r * 0.42, 24), mat(0xc98f6a)); okUnder.rotation.x = Math.PI; okUnder.position.set(okashi.x, -3.4 - okashi.r * 0.21, okashi.z); ok.add(okUnder);
-    const cake = new T.Mesh(new T.CylinderGeometry(5, 5, 3.2, 28), mat(0xfff6e6)); cake.position.set(okashi.x, 1.6, okashi.z - 3); ok.add(cake);
-    const cake2 = new T.Mesh(new T.CylinderGeometry(3.3, 3.3, 2.4, 24), mat(0xffc9de)); cake2.position.set(okashi.x, 4.4, okashi.z - 3); ok.add(cake2);
-    const berry = sph(1, 0xff5d7e); berry.position.set(okashi.x, 6.4, okashi.z - 3); ok.add(berry);
-    for (const [dx, dz, c] of [[-10, 3, 0xff8fb5], [9, 5, 0xb79cff], [-6, 9, 0x8fd8ff], [11, -6, 0xffe066], [-12, -6, 0xb8f28a]]) {
-      const stick = new T.Mesh(new T.CylinderGeometry(0.16, 0.16, 3, 6), mat(0xffffff)); stick.position.set(okashi.x + dx, 1.5, okashi.z + dz); ok.add(stick);
-      const candy = sph(1.3, c); candy.position.set(okashi.x + dx, 3.6, okashi.z + dz); ok.add(candy);
-    }
+    // おかしの もり
+    const [, , , kumo, hoshi, moyaI] = ISLANDS;
+    island(okashi, 0xffb7d5, 0xffe3f1, 0xc98f6a);
+    const cake = new T.Mesh(new T.CylinderGeometry(CAKE.r, CAKE.r, 2.6, 28), mat(0xfff6e6)); cake.position.set(CAKE.x, 1.3, CAKE.z); S.add(cake);
+    const cream = new T.Mesh(new T.CylinderGeometry(CAKE.r + 0.15, CAKE.r + 0.15, 0.35, 28), mat(0xffc9de)); cream.position.set(CAKE.x, 2.7, CAKE.z); S.add(cream);
+    const cake2 = new T.Mesh(new T.CylinderGeometry(CAKE.r * 0.62, CAKE.r * 0.62, 1.9, 24), mat(0xfff6e6)); cake2.position.set(CAKE.x, 3.8, CAKE.z); S.add(cake2);
+    const berry = sph(0.8, 0xff5d7e); berry.position.set(CAKE.x, 5.4, CAKE.z); S.add(berry);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; const b2 = sph(0.34, i % 2 ? 0xff5d7e : 0xffffff); b2.position.set(CAKE.x + Math.cos(a) * (CAKE.r - 0.5), 3.05, CAKE.z + Math.sin(a) * (CAKE.r - 0.5)); S.add(b2); }
+    for (const [x, z, c] of [[-4, -46, 0xffc4e4], [6, -62, 0xd9c7ff], [-13, -59, 0xc4ecff], [3, -50, 0xfff2a0]]) S.add(flat(new T.CircleGeometry(1.6, 14), mat(c), x, 0.015, z));
+
+    // ふわふわ くものうえ：しろい じめん・にじ・ほしの だい
+    island(kumo, 0xd6e2fb, 0xf4f8ff, 0xc2d0ee);
+    for (let i = 0; i < 14; i++) { const a = rnd() * Math.PI * 2, r = 4 + rnd() * 12; S.add(flat(new T.CircleGeometry(1.2 + rnd() * 1.4, 14), mat(0xe2ecff), kumo.x + Math.cos(a) * r, 0.015, kumo.z + Math.sin(a) * r)); }
+    const bow = [0xff8fa3, 0xffb36b, 0xffe066, 0x9ee493, 0x7fd0f5, 0xa39bff];
+    bow.forEach((c, i) => { const arc = new T.Mesh(new T.TorusGeometry(7 - i * 0.42, 0.22, 8, 36, Math.PI), mat(c)); arc.position.set(kumo.x - 3, 0, kumo.z - 14); S.add(arc); });
+    const pad = new T.Mesh(new T.CylinderGeometry(PAD.r, PAD.r + 0.2, 0.5, 20), mat(0xb79cff)); pad.position.set(PAD.x, 0.25, PAD.z); S.add(pad);
+    const padTop = flat(new T.CircleGeometry(PAD.r - 0.15, 20), mat(0xfff2a0, { emissive: 0xffc94a, emissiveIntensity: 0.5 }), PAD.x, 0.52, PAD.z); S.add(padTop);
+    const padStar = starMesh(0.55); padStar.rotation.x = -Math.PI / 2; padStar.position.set(PAD.x, 0.6, PAD.z); S.add(padStar);
+
+    // ほしぞらの おか：よるいろの じめんに ひかる ほし
+    island(hoshi, 0x7d6cc9, 0x9d8fe6, 0x5d4fa3);
+    for (let i = 0; i < 26; i++) { const a = rnd() * Math.PI * 2, r = 2 + rnd() * 14; const st = starMesh(0.22 + rnd() * 0.22, i % 3 ? 0xfff2a0 : 0xffc4e4); st.rotation.x = -Math.PI / 2; st.rotation.z = rnd() * 3; st.position.set(hoshi.x + Math.cos(a) * r, 0.06, hoshi.z + Math.sin(a) * r); S.add(st); }
+    const moon = sph(2.2, 0xfff2a0, { emissive: 0xffe08a, emissiveIntensity: 0.6 }); moon.position.set(hoshi.x + 9, 13, hoshi.z - 18); S.add(moon);
+
+    // もやもやの おか：えがおで ピンクに かわる
+    this.moyaTop = mat(0xcfc8e0); this.moyaSide = mat(0xb9b2cc);
+    const mSide = new T.Mesh(new T.CylinderGeometry(moyaI.r, moyaI.r * 0.88, 3.4, 40), this.moyaSide); mSide.position.set(moyaI.x, -1.75, moyaI.z); S.add(mSide);
+    S.add(flat(new T.CircleGeometry(moyaI.r, 40), this.moyaTop, moyaI.x, 0, moyaI.z));
+    const mUnder = new T.Mesh(new T.ConeGeometry(moyaI.r * 0.92, moyaI.r * 0.42, 24), mat(0x9a92b5)); mUnder.rotation.x = Math.PI; mUnder.position.set(moyaI.x, -3.4 - moyaI.r * 0.21, moyaI.z); S.add(mUnder);
+    // エンディングの にじ
+    this.rainbow = new T.Group();
+    bow.forEach((c, i) => { const arc = new T.Mesh(new T.TorusGeometry(15 - i * 0.8, 0.42, 8, 48, Math.PI), mat(c, { emissive: c, emissiveIntensity: 0.25 })); this.rainbow.add(arc); });
+    this.rainbow.position.set(moyaI.x, 0, moyaI.z - 9); this.rainbow.scale.setScalar(0.001); this.rainbow.visible = false; S.add(this.rainbow);
 
     // はし（にじいろの いた）
     const plankColors = [0xff9fc0, 0xffd08a, 0xfff2a0, 0xb8f0b0, 0xa8dcff, 0xcdb4ff];
@@ -310,7 +487,10 @@ export class View {
 
     // き・いわ
     for (const t of TREES) { const tr = buildTree(t); S.add(tr.grp); this.trees.push(tr); }
-    for (const r of ROCKS) { const rock = new T.Mesh(new T.DodecahedronGeometry(r.r), mat(0xc9c2d6)); rock.position.set(r.x, r.r * 0.5, r.z); rock.rotation.y = r.x; S.add(rock); }
+    for (const r of ROCKS) {
+      if (r.kind === 'cloud') { for (const [dx, dy, k] of [[0, 0.5, 1], [-0.9, 0.35, 0.7], [0.9, 0.4, 0.75], [0.2, 1.1, 0.65]]) { const c = sph(r.r * k, 0xffffff); c.position.set(r.x + dx * r.r * 0.8, dy * r.r, r.z); S.add(c); } continue; }
+      const rock = new T.Mesh(new T.DodecahedronGeometry(r.r), mat(0xc9c2d6)); rock.position.set(r.x, r.r * 0.5, r.z); rock.rotation.y = r.x; S.add(rock);
+    }
 
     // くさ（のはら）と、ちいさな かざり
     for (let i = 0; i < 46; i++) {
@@ -327,7 +507,7 @@ export class View {
       const core = sph(0.09 * big, 0xfff2a0); core.position.set(0, 0.66, 0.02); g.add(core);
       g.position.set(x, 0, z); S.add(g); return g;
     };
-    const clearOf = (x, z) => Math.hypot(x - POND.x, z - POND.z) > POND.r + 1 && Math.hypot(x - SEA.x, z - SEA.z) > SEA.mid + SEA.amp + 1.5;
+    const clearOf = (x, z) => Math.hypot(x - POND.x, z - POND.z) > POND.r + 1 && Math.hypot(x - SEA.x, z - SEA.z) > SEA.mid + SEA.amp + 1.5 && Math.hypot(x - CAKE.x, z - CAKE.z) > CAKE.r + 0.6 && Math.hypot(x - PAD.x, z - PAD.z) > PAD.r + 1;
     for (let i = 0; i < 16; i++) {
       const a = rnd() * Math.PI * 2, r = 4 + rnd() * 16, x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (clearOf(x, z)) flower(x, z, flowerColors[i % 6]);
@@ -344,6 +524,10 @@ export class View {
     };
     bloomOn('chapu', nohara, 70);
     bloomOn('kani', umibe, 46);
+    bloomOn('jelly', okashi, 44);
+    bloomOn('kumokumo', kumo, 40);
+    bloomOn('kaze', hoshi, 40);
+    bloomOn('moya', moyaI, 46);
     // うみべの かざり（ひとで・パラソル）
     for (const [x, z, c] of [[45, -3, 0xff9fb8], [63, 3, 0xffd08a], [57, -13, 0xff9fb8]]) {
       const st = sph(0.5, c); st.scale.set(1, 0.3, 1); st.position.set(x, 0.12, z); S.add(st);
@@ -385,20 +569,18 @@ export class View {
       const m = mat(0xcfc4e6, { transparent: true, opacity: 0.94 });
       const puff = (x, y, z, r) => { const p = new T.Mesh(new T.SphereGeometry(r, 16, 12), m); p.position.set(x, y, z); p.userData.r = r; g.add(p); };
       const rnd = mulberry(7);
-      for (let i = 0; i < 9; i++) puff(f.x + (rnd() - 0.5) * 9, 1.5 + rnd() * 3, f.z + 5 - i * 1.6, 3 + rnd() * 2);
+      for (let i = 0; i < 9; i++) puff(f.x + (rnd() - 0.5) * 12, 1.5 + rnd() * 3, f.z + (rnd() - 0.5) * 12, 3 + rnd() * 2);
       if (isl) for (let i = 0; i < 26; i++) { const a = rnd() * Math.PI * 2, r = rnd() * isl.r; puff(isl.x + Math.cos(a) * r, 2 + rnd() * 6, isl.z + Math.sin(a) * r, 5 + rnd() * 4); }
       S.add(g); this.fogs[f.id] = { g, m, amt: 1, init: false };
     }
-    // じゅんびちゅうの かんばん
-    const soon = BRIDGES.find((b) => b.soon);
-    this.sign = canvasSprite(256, 192, (g) => {
-      g.fillStyle = '#c8915e'; g.fillRect(118, 110, 20, 82);
-      g.fillStyle = '#fffdf4'; g.strokeStyle = '#ff8fb3'; g.lineWidth = 8;
-      g.beginPath(); if (g.roundRect) g.roundRect(8, 8, 240, 112, 24); else g.rect(8, 8, 240, 112); g.fill(); g.stroke();
-      g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '44px serif'; g.fillText('🚧', 128, 44);
-      g.fillStyle = '#4a3520'; g.font = 'bold 30px sans-serif'; g.fillText('じゅんびちゅう', 128, 90);
-    }, 4.4, 3.3);
-    this.sign.position.set(soon.a.x + 3.2, 1.9, soon.a.z + 1.5); this.sign.visible = false; S.add(this.sign);
+    // ほし（くもくもさんの あそび）：しまに おちている → ぷにゅの まわりを まわる → そらへ とんで せいざに なる
+    const kumoI = ISLANDS.find((i) => i.id === 'kumo');
+    this.sky = [[-7, 13.5], [-3.2, 16.5], [0, 13], [3.2, 16.5], [7, 13.5]].map(([dx, y]) => new T.Vector3(kumoI.x + dx, y, kumoI.z - 20));
+    this.stars = Array.from({ length: STAR_NEED }, () => { const m = starMesh(0.7); m.visible = false; S.add(m); return { m, pos: new T.Vector3(), init: false }; });
+    this.starLine = new T.Line(new T.BufferGeometry().setFromPoints(this.sky), new T.LineBasicMaterial({ color: 0xfff2a0 })); this.starLine.visible = false; S.add(this.starLine);
+    this.ring = new T.Mesh(new T.TorusGeometry(1, 0.09, 8, 40), basic(0xffffff)); this.ring.rotation.x = Math.PI / 2; this.ring.position.set(PAD.x, 0.8, PAD.z); this.ring.visible = false; S.add(this.ring);
+    this.ringGoal = new T.Mesh(new T.TorusGeometry(2.6, 0.05, 6, 40), basic(0xffd84a)); this.ringGoal.rotation.x = Math.PI / 2; this.ringGoal.position.copy(this.ring.position); this.ringGoal.visible = false; S.add(this.ringGoal);
+    this.topKey = '';
     this.heartTex = emojiTexture('💗'); this.starTex = emojiTexture('✦', 64); this.flowerTex = emojiTexture('🌸');
   }
 
@@ -414,7 +596,23 @@ export class View {
   burstStars(x, z) { this.spawnParticles(this.starTex, x, 1.2, z, 8, [0xffe066, 0xffffff, 0xffb7d5]); }
   burstFlowers(x, z) { this.spawnParticles(this.flowerTex, x, 1.5, z, 14, [0xffffff], 6, 4); }
   // えがおに なった ときの よろこび（ジャンプ＋くるっと まわる）
-  celebrate(id) { const f = this.friends[id]; if (f) { f.joy = 1.6; this.burstHearts(f.pos.x, f.pos.z); } }
+  celebrate(id) {
+    const f = this.friends[id], r = this.residents[id];
+    if (f) { f.joy = 1.6; this.burstHearts(f.pos.x, f.pos.z); }
+    if (r) { r.joy = 1.6; this.burstHearts(r.grp.position.x, r.grp.position.z); }
+  }
+  // ともだちから あいてへ ハートが とぶ（えがおを とどける）
+  sendHeart(fromId, toId) {
+    const a = fromId === 'punyu' ? this.punyu.grp.position : this.friends[fromId].pos, b = this.friends[toId].pos;
+    const ax = a.x, az = a.z;
+    for (let i = 0; i < 5; i++) {
+      const sp = new T.Sprite(new T.SpriteMaterial({ map: this.heartTex, transparent: true, depthWrite: false })); sp.scale.setScalar(0.9);
+      sp.position.set(ax, 2, az); this.scene.add(sp);
+      const k = 1.1 + i * 0.12;
+      this.effects.push({ sp, vx: (b.x - ax) / k, vy: 3.2, vz: (b.z - az) / k, life: k, t: 0, grav: -2.4 });
+    }
+    if (fromId !== 'punyu') this.friends[fromId].joy = 0.9; else this.pJoy = 0.8;
+  }
   // じゃんけんの かけごえに あわせて ふたりが はねる
   beat() { this.beatT = 0.3; }
   cheer() { this.pJoy = 1.0; }
@@ -442,12 +640,13 @@ export class View {
     this.punyu.inner.position.y = bounce + beatHop - (inSea ? 0.22 : 0);
     // むき：あるく あいだは すすむ ほう。とまると カメラの ほう（てまえ）を むいて かおを みせる
     let want = s.facing;
-    const partner = s.janken ? this.friends[s.janken.friend].pos : opt.faceTo;
+    const stageId = s.janken ? s.janken.friend : s.deco ? 'jelly' : s.cheer ? 'moya' : null;
+    const partner = stageId ? this.friends[stageId].pos : s.stars?.phase === 'aim' ? PAD : opt.faceTo;
     if (partner) want = Math.atan2(partner.x - P.x, partner.z - P.z) * 0.55;
     else if (!moving && this.idle > 0.5) want = 0;
     turn(this.punyu.grp, want, moving ? 14 : 7);
-    const sq = moving ? bounce : 0;
-    this.punyu.inner.scale.set(1 + sq * 0.3, 1 - sq * 0.3, 1);
+    const squash = moving ? bounce : 0;
+    this.punyu.inner.scale.set(1 + squash * 0.3, 1 - squash * 0.3, 1);
     setFace(this.punyu.face, jk?.result === 'win' || this.pJoy > 0 || (smilesOf(s) > 0 && !moving && !s.janken) ? 'happy' : 'normal', t);
     if (inSea && moving && Math.random() < dt * 9) this.spawnParticles(this.starTex, P.x, 0.3, P.z, 1, [0xffffff, 0xbfefff], 1.6, 2.2, -6);
 
@@ -457,43 +656,57 @@ export class View {
       const b = this.friends[id];
       if (!b.placed) { b.pos.x = target.x - Math.sin(s.facing) * gap; b.pos.z = target.z - Math.cos(s.facing) * gap; b.placed = true; }
       const dx = target.x - b.pos.x, dz = target.z - b.pos.z, d = Math.hypot(dx, dz);
+      if (d > 30) { b.pos.x = target.x; b.pos.z = target.z - 1; return; }   // とおくへ とんだ ときは すぐ そばへ
       const go = d > gap + 0.05;
       b.moving = ease(b.moving, go ? 1 : 0, dt, 8);
       if (d > gap) { const k = (d - gap) / d * Math.min(1, dt * 9); b.pos.x += dx * k; b.pos.z += dz * k; }
       b.rot = go ? Math.atan2(dx, dz) : 0;
     };
+    // あそびの あいて（その ばに いる こ）
+    const partnerId = s.janken ? s.janken.friend : s.deco ? 'jelly' : s.cheer ? 'moya' : null;
+    const staged = !!partnerId || s.stars?.phase === 'aim';
     let row = 0;
     for (const id of s.party) {
-      if (!this.friends[id] || s.janken?.friend === id) continue;
-      // じゃんけん ちゅうは、うしろに ならんで おうえん する（しょうぶの じゃまを しない）
-      if (s.janken) { row += 1; place(id, { x: P.x - 1.2 - row * 2.5, z: P.z - 2.6 }, 0.1); this.friends[id].rot = 0.5; }
+      if (!this.friends[id] || id === partnerId || (id === 'kaze' && s.chase)) continue;
+      // あそび ちゅうは、うしろに ならんで おうえん する（じゃまを しない）
+      if (staged) { row += 1; const side = row % 2 ? -1 : 1, n = Math.ceil(row / 2); place(id, { x: P.x + (s.cheer ? side * (1.6 + n * 2.3) : -1.2 - row * 2.4), z: P.z - (s.cheer ? -1.2 : 2.6) }, 0.1); this.friends[id].rot = s.cheer ? Math.PI : 0.5; }
       else { place(id, lead, FOLLOW_GAP); lead = this.friends[id].pos; }
     }
     for (const f of FRIENDS) {
       const b = this.friends[f.id], st = s.friends[f.id].state;
-      const playing = s.janken?.friend === f.id;
-      if (!s.party.includes(f.id) || playing) {
+      const playing = partnerId === f.id;
+      const chased = f.id === 'kaze' && s.chase;
+      if (chased) {
+        const dx = s.chase.x - b.pos.x, dz = s.chase.z - b.pos.z, d = Math.hypot(dx, dz);
+        if (d > 0.02) { b.rot = Math.atan2(dx, dz); if (Math.random() < dt * 14) this.spawnParticles(this.starTex, b.pos.x, 0.9, b.pos.z, 1, [0xe6dcff, 0xffffff], 1.2, 1.2, -1); }
+        else b.rot = Math.atan2(P.x - b.pos.x, P.z - b.pos.z);
+        b.pos.x = s.chase.x; b.pos.z = s.chase.z; b.placed = true; b.moving = d > 0.02 ? 1 : 0;
+      } else if (!s.party.includes(f.id) || playing) {
         b.pos.x = f.home.x; b.pos.z = f.home.z; b.placed = true; b.moving = 0;
         const near = Math.hypot(P.x - f.home.x, P.z - f.home.z) < 9;
         b.rot = near ? Math.atan2(P.x - f.home.x, P.z - f.home.z) * 0.55 : 0;
       }
       b.joy = Math.max(0, b.joy - dt);
-      const lost = playing && jk?.result === 'win', won = playing && jk?.result === 'lose';
+      const lost = s.janken && playing && jk?.result === 'win', won = s.janken && playing && jk?.result === 'lose';
       const hop = b.joy > 0 ? Math.abs(Math.sin(b.joy * 7)) * 1.1
         : won ? Math.abs(Math.sin(t * 9)) * 0.5
         : b.moving * Math.abs(Math.sin(t * 10 + f.home.x)) * 0.22 + (st === 'happy' ? Math.abs(Math.sin(t * 3 + f.home.x)) * 0.07 : 0) + (playing ? beatHop : 0);
       b.grp.position.set(b.pos.x, 0, b.pos.z);
-      b.inner.position.y = hop;
+      b.inner.position.y = hop + (b.float ? b.float + Math.sin(t * 2 + f.home.x) * 0.12 : 0);
       turn(b.grp, b.rot, 8);
       if (b.joy > 0.6) b.grp.rotation.y += dt * 11;
-      const sad = st === 'sad';
-      b.inner.scale.set(1, sad ? 0.94 + Math.sin(t * 1.6) * 0.015 : 1, 1);
+      // いたずらかぜは なかない（にやにや している）
+      const sad = st === 'sad' && f.id !== 'kaze';
+      const wob = f.id === 'jelly' ? 1 + Math.sin(t * 9) * 0.04 * (opt.wobble ? 3 : 0.4) : 1;
+      b.inner.scale.set(wob, (sad ? 0.94 + Math.sin(t * 1.6) * 0.015 : 1) * (2 - wob), wob);
       b.inner.rotation.z = lost ? 0.3 + Math.sin(t * 14) * 0.05 : sad ? Math.sin(t * 1.3) * 0.04 : 0;
       setFace(b.face, sad || lost ? 'sad' : st === 'happy' || won ? 'happy' : 'normal', t + f.home.x);
-      b.bubble.visible = sad && !opt.talking;
-      b.bubble.position.set(b.pos.x, 4.1 + Math.sin(t * 3) * 0.12, b.pos.z);
-      b.proxy.position.set(b.pos.x, 1.1, b.pos.z); b.proxy.visible = sad;
+      if (b.bigMouth) b.face.mouth.scale.multiplyScalar(b.bigMouth), b.face.open.scale.set(b.bigMouth, 1.05 * b.bigMouth, 0.45);
+      b.bubble.visible = st === 'sad' && !opt.talking;
+      b.bubble.position.set(b.pos.x, (f.id === 'moya' ? 6.4 : 4.1 + (b.float || 0)) + Math.sin(t * 3) * 0.12, b.pos.z);
+      b.proxy.position.set(b.pos.x, 1.1, b.pos.z); b.proxy.visible = st === 'sad';
       if (b.shell) b.shell.visible = st === 'happy';
+      if (b.ring) b.ring.rotation.z = t * 2.5;
       if (b.claws) {
         for (const c of b.claws) {
           const sx = c.userData.sx;
@@ -505,7 +718,86 @@ export class View {
         const grow = playing ? 1 + Math.min(6, s.janken.rounds) * 0.06 : 1;
         b.grp.scale.setScalar(ease(b.grp.scale.x, grow, dt, 5));
       }
+      if (b.top) {
+        // ゼリーの あたまの かざり（のせた じゅんに、まんなか → まわり）
+        const list = s.deco ? s.deco.put : s.friends.jelly.deco || [], key = list.join(',');
+        if (key !== this.topKey) {
+          const grew = key.length > this.topKey.length; this.topKey = key;
+          b.top.clear();
+          list.slice(0, DECO_MAX).forEach((tp, i) => {
+            const m = buildTopping(tp), a = ((i - 1) / 5) * Math.PI * 2;
+            if (i > 0) m.position.set(Math.cos(a) * 0.62, -0.3, Math.sin(a) * 0.62 + 0.1); else m.scale.setScalar(1.25);
+            m.userData.by = m.position.y;
+            if (grew && i === list.length - 1) m.userData.drop = 1;
+            b.top.add(m);
+          });
+        }
+        for (const m of b.top.children) if (m.userData.drop > 0) { m.userData.drop = Math.max(0, m.userData.drop - dt * 3); m.position.y = m.userData.by + m.userData.drop * m.userData.drop * 2.2; }
+      }
+      if (b.skin) {
+        // でかもやもや：えがおを もらう たびに ピンクに ちかづく
+        const k = st === 'happy' ? 1 : s.cheer ? s.cheer.n / CHEER_NEED : 0;
+        this.moyaK = ease(this.moyaK || 0, k, dt, 2.5);
+        b.skin.color.setHex(0xb4adc8).lerp(PINK, this.moyaK);
+        this.moyaTop.color.setHex(0xcfc8e0).lerp(PINK2, this.moyaK); this.moyaSide.color.setHex(0xb9b2cc).lerp(PINK3, this.moyaK);
+      }
     }
+    // にじ（エンディング）
+    this.rainbow.visible = s.ending;
+    if (s.ending) this.rainbow.scale.setScalar(ease(this.rainbow.scale.x, 1, dt, 1.2));
+
+    // すんでいる こ
+    for (const r of RESIDENTS) {
+      const b = this.residents[r.id], st = s.res[r.id].state;
+      const near = Math.hypot(P.x - r.home.x, P.z - r.home.z) < 9;
+      turn(b.grp, near ? Math.atan2(P.x - r.home.x, P.z - r.home.z) * 0.55 : 0, 6);
+      b.joy = Math.max(0, b.joy - dt);
+      b.inner.position.y = b.joy > 0 ? Math.abs(Math.sin(b.joy * 7)) * 0.9 : st === 'happy' ? Math.abs(Math.sin(t * 3 + r.home.x)) * 0.1 : 0;
+      setFace(b.face, st === 'sad' ? 'sad' : st === 'happy' ? 'happy' : 'normal', t + r.home.z);
+      if (b.bigMouth) b.face.mouth.scale.multiplyScalar(b.bigMouth), b.face.open.scale.set(b.bigMouth, 1.05 * b.bigMouth, 0.45);
+      b.bubble.visible = st === 'sad' && !opt.talking;
+      b.proxy.visible = st === 'sad';
+      if (b.cubes) {
+        // かずうさ：ブロックの かずだけ せが のびる
+        const n = blocksOf(s, r.id);
+        if (n !== b.shown) { if (b.shown >= 0 && n > b.shown) { b.joy = 0.9; this.burstStars(r.home.x, r.home.z); } b.shown = n; }
+        b.cubes.forEach((c, i) => { c.visible = i < n; });
+        b.head.position.y = 0.45 + (n - 1) * 0.92;
+        b.bubble.position.set(r.home.x, n * 0.92 + 2.6 + Math.sin(t * 3) * 0.12, r.home.z);
+      } else b.bubble.position.set(r.home.x, 3.7 + Math.sin(t * 3) * 0.12, r.home.z);
+      b.items.forEach((it, i) => {
+        it.visible = st === 'play' && !s.res[r.id].got.includes(i);
+        if (!it.visible) return;
+        it.rotation.y = t * 1.6 + i; it.position.y = Math.sin(t * 2.6 + i * 2) * 0.15;
+        if (Math.random() < dt * 2.2) this.spawnParticles(this.starTex, it.position.x, 1.4, it.position.z, 1, [0xffffff, 0xfff2a0], 1.4, 2.2, -1);
+      });
+    }
+
+    // ほし：おちている → ついてくる → そらへ
+    const sq = s.stars, kumoHappy = s.friends.kumokumo.state === 'happy';
+    this.stars.forEach((o, i) => {
+      let tgt = null, quick = 6;
+      if (sq) {
+        if (i < sq.shot) tgt = this.sky[i];
+        else if (sq.got.includes(i)) { const k = sq.got.indexOf(i), a = t * 2 + k * 1.26; tgt = TMP.set(P.x + Math.cos(a) * 1.5, 2.3 + Math.sin(t * 3 + k) * 0.2, P.z + Math.sin(a) * 1.5); quick = 8; }
+        else { tgt = TMP.set(sq.spots[i].x, 0.9 + Math.sin(t * 3 + i) * 0.15, sq.spots[i].z); quick = 5; }
+      } else if (kumoHappy) tgt = this.sky[i];
+      o.m.visible = !!tgt;
+      if (!tgt) { o.init = false; return; }
+      if (!o.init) { o.pos.copy(tgt); o.init = true; }
+      o.pos.lerp(tgt, 1 - Math.exp(-dt * quick));
+      o.m.position.copy(o.pos); o.m.rotation.y = t * 1.6 + i;
+      o.m.scale.setScalar(tgt === this.sky[i] ? 1.9 : 1);
+    });
+    this.starLine.visible = !sq && kumoHappy;
+    const aiming = sq?.phase === 'aim';
+    this.ring.visible = this.ringGoal.visible = aiming;
+    if (aiming) {
+      const k = ringSize(opt.aimT || 0), good = ringGood(opt.aimT || 0);
+      this.ring.scale.setScalar(0.6 + k * 2.4); this.ring.material.color.setHex(good ? 0xffd84a : 0xffffff);
+      this.ringGoal.rotation.z = t;
+    }
+
     // じゃんけんの て
     for (const who of ['kani', 'punyu']) {
       const h = this.handSp[who], kind = jk ? (who === 'kani' ? jk.crab : jk.punyu) : null;
@@ -545,17 +837,13 @@ export class View {
     this.shardGrps.forEach((g, i) => { g.visible = !s.shards.includes(i); g.rotation.y = t * 2 + i; g.position.y = 0.9 + Math.sin(t * 2.6 + i * 1.3) * 0.14; });
 
     // もや・かんばん
-    let anyFog = false;
     for (const id of Object.keys(this.fogs)) {
       const f = this.fogs[id], gone = s.cleared.includes(id);
       if (!f.init) { f.init = true; f.amt = gone ? 0 : 1; }
       f.amt = Math.min(1, Math.max(0, f.amt + (gone ? -dt * 0.45 : dt)));
       f.g.visible = f.amt > 0.01; f.m.opacity = 0.94 * f.amt;
       f.g.children.forEach((p, i) => { p.scale.setScalar(0.4 + 0.6 * f.amt + Math.sin(t * 0.8 + i) * 0.05); p.position.y += Math.sin(t * 0.7 + i * 1.7) * 0.003; });
-      if (f.amt > 0.5) anyFog = true;
     }
-    this.okashi.visible = true;
-    this.sign.visible = !anyFog;
 
     // ちょうちょ：めざす ばしょの ほうへ、ぷにゅの すこし まえを とぶ
     const g = opt.guide;
@@ -569,7 +857,7 @@ export class View {
     this.butterfly.position.copy(this.bfPos);
     this.butterfly.rotation.x = -0.9;
     for (const w of this.wings) w.pivot.rotation.y = w.sx * (0.2 + Math.abs(Math.sin(t * 13)) * 1.1);
-    this.butterfly.visible = !s.janken && !opt.talking;
+    this.butterfly.visible = !staged && !aiming && !opt.talking;
 
     // き：ぷにゅの てまえに くると すける
     for (const tr of this.trees) {
@@ -581,6 +869,9 @@ export class View {
     // カメラ（正面少し斜め上から。遠くから狭い画角で撮り、パースを弱める）
     let fx = P.x, fz = P.z, zoom = 1, quick = false;
     if (s.janken) { const k = this.friends[s.janken.friend].pos; fx = (P.x + k.x) / 2; fz = (P.z + k.z) / 2 + 2.4; zoom = 0.52; quick = true; }
+    else if (s.deco) { const k = this.friends.jelly.pos; fx = k.x - 0.6; fz = k.z + 2.2; zoom = 0.4; quick = true; }
+    else if (s.cheer) { const k = this.friends.moya.pos; fx = k.x; fz = (P.z + k.z) / 2 + 2.5; zoom = 0.78; quick = true; }
+    else if (s.stars?.phase === 'aim') { fx = PAD.x - 3; fz = PAD.z - 4; zoom = 1.12; quick = true; }
     else if (opt.faceTo) { fx = (P.x + opt.faceTo.x) / 2; fz = (P.z + opt.faceTo.z) / 2 + 2.6; zoom = 0.55; quick = true; }
     if (opt.look) { fx = opt.look.x; fz = opt.look.z; zoom = opt.look.zoom || 1.25; }
     if (!this.focus) this.focus = { x: fx, z: fz };
@@ -623,3 +914,4 @@ export class View {
 }
 
 const smilesOf = (s) => FRIENDS.filter((f) => s.friends[f.id].state === 'happy').length;
+const PINK = new T.Color(0xffc4e0), PINK2 = new T.Color(0xffe3f1), PINK3 = new T.Color(0xffb7d5), TMP = new T.Vector3();
