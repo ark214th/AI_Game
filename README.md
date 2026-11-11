@@ -8,6 +8,7 @@ AIで制作したブラウザゲームをまとめるリポジトリです。
 - `games/sky-turbo-racers/` — スカイターボ・レーサーズ
 - `games/survivor/` — 月影サバイバー
 - `games/starfall-waltz/` — STARFALL WALTZ（ボス戦中心の弾幕シューティング）
+- `games/starfall-waltz-2/` — STARFALL WALTZ II（前作の続編。4面・自機2人・共鳴ゲージ・全12曲の音楽室つき弾幕シューティング）
 - `games/punyu-kirakira/` — ぷにゅの きらきらランド（小学1年生向けの横スクロールアクション）
 - `games/fushigi-pet-hotel/` — ふしぎな ペットホテル（小学1年生向けのお世話・かざりつけゲーム）
 - `games/shopcraft/` — SHOPCRAFT（小学3年生向けのマイクラ風・店づくりゲーム。建てた店にお客さんが買いに来る）
