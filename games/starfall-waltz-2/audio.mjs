@@ -133,7 +133,7 @@ export class Sound {
       if (tr.dly) { const dl = c.createGain(); dl.gain.value = tr.dly; g.connect(dl); dl.connect(this.dlyIn); }
       outs[name] = g;
     }
-    const dr = c.createGain(); dr.gain.value = .8; dr.connect(bus);
+    const dr = c.createGain(); dr.gain.value = .66; dr.connect(bus);
     const drv = c.createGain(); drv.gain.value = .1; dr.connect(drv); drv.connect(this.revIn);
     const spb = 60 / song.bpm;
     this.dlyL.delayTime.setValueAtTime(spb * .75, now); this.dlyR.delayTime.setValueAtTime(spb * .75, now);
@@ -206,14 +206,14 @@ export class Sound {
     if (scoop) for (const o of os) { const d = o.detune.value; o.detune.setValueAtTime(d - scoop, t); o.detune.linearRampToValueAtTime(d, t + .04); }
     if (vib && dur > vibDelay + .08) this.vibrato(t, end, vibRate, vib, vibDelay, ...os);
   }
-  i_trumpet(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {wave: this.waves.brass, det: 5, att: .014, rel: .04, cut: Math.min(7500, 1300 + f * 2.4), cutEnv: 2600, q: 1.5, vib: 10, vibDelay: .17, scoop: 38, vol: .2}); }
-  i_violin(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {det: 8, att: .06, rel: .1, cut: Math.min(6500, 1700 + f * 2), q: .8, vib: 15, vibDelay: .1, vibRate: 5.4, vol: .17, sus: .92}); }
-  i_flute(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {wave: this.waves.flute, det: 0, att: .045, rel: .07, cut: 6000, vib: 9, vibDelay: .12, vibRate: 5, vol: .42, sus: .9}); }
-  i_organ(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {wave: this.waves.organ, det: 4, att: .02, rel: .07, cut: 5200, vib: 0, vol: .15, sus: 1}); }
+  i_trumpet(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {wave: this.waves.brass, det: 5, att: .014, rel: .04, cut: Math.min(7500, 1300 + f * 2.4), cutEnv: 2600, q: 1.5, vib: 10, vibDelay: .17, scoop: 38, vol: .42}); }
+  i_violin(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {det: 8, att: .06, rel: .1, cut: Math.min(6500, 1700 + f * 2), q: .8, vib: 15, vibDelay: .1, vibRate: 5.4, vol: .36, sus: .92}); }
+  i_flute(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {wave: this.waves.flute, det: 0, att: .045, rel: .07, cut: 6000, vib: 9, vibDelay: .12, vibRate: 5, vol: .52, sus: .9}); }
+  i_organ(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {wave: this.waves.organ, det: 4, att: .02, rel: .07, cut: 5200, vib: 0, vol: .2, sus: 1}); }
   i_strings(f, t, dur, vel, out) { this.sustained(f, t, dur, vel, out, {det: 10, att: .2, rel: .28, cut: 1300 + f * 1.2, vib: 0, vol: .15, sus: 1}); }
   i_choir(f, t, dur, vel, out) {
     // 「アー」の母音：声の高さとは別に、決まった帯域（フォルマント）だけを通す
-    const c = this.ctx, end = t + dur + 1.6, g = this.amp(t, .24, .2 * vel, out);
+    const c = this.ctx, end = t + dur + 1.6, g = this.amp(t, .24, .3 * vel, out);
     g.gain.setTargetAtTime(0, t + dur, .3);
     const mix = c.createGain(); mix.gain.value = 1;
     for (const d of [-11, 11]) this.osc('sawtooth', f, t, end, d).connect(mix);
@@ -231,10 +231,10 @@ export class Sound {
     this.osc(wave, f, t, end, -det).connect(dst);
     if (det) this.osc(wave, f, t, end, det).connect(dst);
   }
-  i_piano(f, t, dur, vel, out, m) { this.struck(f, t, Math.max(dur, .12), vel, out, {wave: this.waves.piano, tau: Math.max(.22, 1.5 - (m - 36) * .022), vol: .34, cut: Math.min(9000, f * 9 * (.6 + .6 * vel)), cutTo: f * 2.2, det: 2.5}); }
+  i_piano(f, t, dur, vel, out, m) { this.struck(f, t, Math.max(dur, .12), vel, out, {wave: this.waves.piano, tau: Math.max(.22, 1.5 - (m - 36) * .022), vol: .27, cut: Math.min(9000, f * 9 * (.6 + .6 * vel)), cutTo: f * 2.2, det: 2.5}); }
   i_harp(f, t, dur, vel, out, m) { this.struck(f, t, Math.max(dur, .5), vel, out, {wave: this.waves.harp, tau: Math.max(.25, .9 - (m - 48) * .012), vol: .4, rel: .2}); }
-  i_harpsi(f, t, dur, vel, out) { this.struck(f, t, dur, vel, out, {wave: this.waves.harpsi, tau: .34, vol: .16, rel: .03, cut: 9000, cutTo: 2600}); }
-  i_pizz(f, t, dur, vel, out) { this.struck(f, t, Math.max(dur, .3), vel, out, {wave: 'triangle', tau: .26, vol: .62, rel: .12}); this.struck(f * 2, t, .2, vel, out, {wave: 'sine', tau: .07, vol: .14}); }
+  i_harpsi(f, t, dur, vel, out) { this.struck(f, t, dur, vel, out, {wave: this.waves.harpsi, tau: .34, vol: .22, rel: .03, cut: 9000, cutTo: 2600}); }
+  i_pizz(f, t, dur, vel, out) { this.struck(f, t, Math.max(dur, .3), vel, out, {wave: 'triangle', tau: .26, vol: .5, rel: .12}); this.struck(f * 2, t, .2, vel, out, {wave: 'sine', tau: .07, vol: .14}); }
   i_marimba(f, t, dur, vel, out) { this.struck(f, t, .6, vel, out, {wave: 'sine', tau: .22, vol: .5, rel: .2}); this.struck(f * 4, t, .1, vel, out, {wave: 'sine', tau: .03, vol: .12}); }
   i_musicbox(f, t, dur, vel, out) {
     this.struck(f * 2, t, Math.max(dur, 1), vel, out, {wave: 'sine', tau: .7, vol: .32, rel: .4});
@@ -248,9 +248,9 @@ export class Sound {
     mod.connect(mg); mg.connect(car.frequency); car.connect(g);
   }
   i_bass(f, t, dur, vel, out) {
-    const end = t + dur + .2, flt = this.lowpass(260 + f * 5, 2.2), g = this.amp(t, .006, .5 * vel, out);
+    const end = t + dur + .2, flt = this.lowpass(260 + f * 5, 2.2), g = this.amp(t, .006, .32 * vel, out);
     flt.frequency.setTargetAtTime(160 + f * 2, t, .1);
-    g.gain.setTargetAtTime(.38 * vel, t + .01, .09); g.gain.setTargetAtTime(0, t + dur, .03);
+    g.gain.setTargetAtTime(.24 * vel, t + .01, .09); g.gain.setTargetAtTime(0, t + dur, .03);
     flt.connect(g); this.osc('sawtooth', f, t, end).connect(flt);
     const sub = this.osc('sine', f, t, end), sg = this.ctx.createGain(); sg.gain.value = .9; sub.connect(sg); sg.connect(g);
   }
