@@ -312,3 +312,58 @@ test('最後の攻撃を倒した瞬間にボス撃破になる。終曲は体�
   g.boss.hp = g.boss.maxHp * .2; run(g, 2);
   assert.equal(g.atk.ph, 2);
 });
+
+// ---------- 楽曲 ----------
+import {SONGS, TRACK_ORDER} from './songs.mjs';
+import {compileSong, parseMML, parseChord, noteName} from './music.mjs';
+
+test('MML：長さ・付点・タイ・和音・くり返し・小節線の検査', () => {
+  const p = parseMML('o4 l8 c4 d e4. f4 | [g a]2 (ceg)4^4 |', 4);
+  assert.equal(p.len, 8); assert.deepEqual(p.barErrors, []);
+  assert.deepEqual(p.notes.slice(0, 4).map(n => [n.t, n.full, noteName(n.m)]), [[0, 1, 'C4'], [1, .5, 'D4'], [1.5, 1.5, 'E4'], [3, 1, 'F4']]);
+  assert.equal(p.notes.filter(n => n.t === 6).length, 3, '和音は同時に鳴る'); assert.equal(p.notes.at(-1).full, 2, '^ でのびる');
+  assert.equal(parseMML('c4 d4 | e4', 4).barErrors.length, 1, '拍の合わない小節線を見つける');
+  assert.equal(noteName(parseMML('o5 c >c <b- f+', 4).notes[2].m), 'Bb5');
+  assert.deepEqual(parseChord('F#m7').tones, [0, 3, 7, 10]); assert.equal(parseChord('C/E').bass, 4);
+  assert.throws(() => parseChord('Xyz'));
+});
+
+test('全12曲：各パートの長さが小節数と合い、小節線がずれず、音域に収まる', () => {
+  assert.equal(TRACK_ORDER.length, 12); assert.deepEqual([...TRACK_ORDER].sort(), Object.keys(SONGS).sort());
+  for (const id of TRACK_ORDER) {
+    const song = SONGS[id], d = compileSong(song);
+    assert.deepEqual(d.errors, [], `${id} の譜面`);
+    assert.ok(song.title && song.en && song.comment.length > 30, `${id} の曲名と解説`);
+    assert.ok(d.length / d.bar >= 24, `${id} は24小節以上`);
+    assert.ok(d.loopStart < d.length);
+    assert.ok(d.tracks.lead.length > 60, `${id} の主旋律`);
+    for (const [name, list] of Object.entries(d.tracks)) for (const n of list) {
+      assert.ok(n.m >= 28 && n.m <= 98, `${id}/${name} の音域 ${noteName(n.m)}`);
+      assert.ok(n.t >= 0 && n.t < d.length && n.d > 0);
+    }
+    for (const sec of Object.values(song.sections)) for (const tr of Object.keys(sec.inst || {})) assert.ok(song.tracks[tr], `${id} の楽器指定 ${tr}`);
+  }
+});
+
+test('主旋律は拍の頭でコードと半音でぶつからない（短い経過音を除く）', () => {
+  for (const id of TRACK_ORDER) {
+    const d = compileSong(SONGS[id]);
+    for (const mk of d.marks) {
+      if (SONGS[id].sections[mk.name].tr) continue; // 移調する区間はコードも一緒に動く
+      const end = mk.t + SONGS[id].sections[mk.name].bars * d.bar;
+      for (const n of d.tracks.lead) {
+        if (n.t < mk.t - 1e-9 || n.t >= end - 1e-9 || n.d < 1.2 || Math.abs(n.t - Math.round(n.t)) > 1e-6) continue;
+        const seg = [...mk.segs].reverse().find(s => s.t <= n.t + 1e-9), pcs = seg.tones.map(o => (seg.root + o) % 12), p = ((n.m % 12) + 12) % 12;
+        assert.ok(pcs.includes(p) || !pcs.includes((p + 11) % 12), `${id}/${mk.name} ${noteName(n.m)} が ${seg.name} の上で濁る`);
+      }
+    }
+  }
+});
+
+test('ゲームが要求する曲はすべて存在する', () => {
+  const need = new Set(['title', 'ending']);
+  for (const s of STAGES) { need.add(s.music); if (s.mid.music) need.add(s.mid.music); }
+  for (const b of BOSSES) need.add(b.music);
+  for (const a of Object.values(ATTACKS)) if (a.music) need.add(a.music);
+  for (const id of need) assert.ok(SONGS[id], `曲 ${id}`);
+});

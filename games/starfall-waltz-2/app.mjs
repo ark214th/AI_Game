@@ -120,7 +120,7 @@ function buildPractice() {
 function buildMusic() {
   const list = $('musicList'); list.innerHTML = '';
   TRACK_ORDER.forEach((id, i) => {
-    const s = SONGS[id], heard = !!save.heard[id], btn = document.createElement('button');
+    const s = SONGS[id], heard = true, btn = document.createElement('button');
     btn.disabled = !heard; if (id === roomTrack) btn.setAttribute('aria-current', 'true');
     btn.innerHTML = `<span class="no">${String(i + 1).padStart(2, '0')}</span><span class="nm">${heard ? s.title : '？？？？？？'}<small>${heard ? s.en : 'ゲーム本編で聴くと加わります'}</small></span><span class="hs">${id === roomTrack ? '♪' : ''}</span>`;
     btn.addEventListener('click', () => { roomTrack = id; sound.play(id); buildMusic(); });
@@ -346,7 +346,7 @@ $('musicVol').addEventListener('input', e => { save.music = Number(e.target.valu
 $('sfxVol').addEventListener('input', e => { save.sfx = Number(e.target.value); sound.setSfx(save.sfx); persist(); sound.sfx('item'); });
 $('sens').addEventListener('input', e => { save.sens = Number(e.target.value); persist(); $('sensOut').textContent = save.sens.toFixed(1); });
 $('resetData').addEventListener('click', () => {
-  if (!confirm('ハイスコア・スペルアリアの記録・音楽室の曲を消去しますか？')) return;
+  if (!confirm('ハイスコアとスペルアリアの記録を消去しますか？')) return;
   const keep = {sound: save.sound, music: save.music, sfx: save.sfx, sens: save.sens, diff: save.diff, char: save.char, fx: save.fx};
   save = {...fresh(), ...keep}; persist(); refreshTitle(); sound.sfx('cancel');
 });

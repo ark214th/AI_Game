@@ -258,7 +258,7 @@ export class Renderer {
         this.flash = .5; this.flashColor = '#ffffff'; this.shake = 8;
         for (let i = 0; i < 3; i++) this.ring(e.x, e.y, i % 2 ? '#ffe28a' : '#ffffff', 6, 80 + i * 60, 30 + i * 8, 3);
         this.spark(e.x, e.y, '#ffe28a', 50, 7, 50, 2);
-        this.notice('RESONANCE GUARD', '共鳴が身代わりになった', '#fff4c9', 110, 262); break;
+        this.notices = this.notices.filter(n => n.y !== 240); this.notice('RESONANCE GUARD', '共鳴が身代わりになった', '#fff4c9', 110, 240); break;
       case 'spell': {
         const def = ATTACKS[e.id];
         this.cutin = {t: 0, boss: e.boss, def};
@@ -420,7 +420,7 @@ export class Renderer {
     }
     const moving = b.mt < b.md ? (b.tx - b.sx) / Math.max(1, b.md) : 0;
     drawCharacter(c, b.def.id, b.x, b.y - 12 + Math.sin(t * .05) * 2.5, .44, {t, lean: Math.max(-.2, Math.min(.2, moving * .08)), expr: g.atk?.spell ? 'angry' : 'normal'});
-    if (b.flash) { c.save(); c.translate(b.x, b.y); c.globalCompositeOperation = 'lighter'; fastGlow(c, 30, '#ffffff', .35); c.restore(); }
+    if (b.flash) { c.save(); c.translate(b.x, b.y + 4); c.globalCompositeOperation = 'lighter'; fastGlow(c, 22, '#ffffff', .13); c.restore(); }
     if (g.phase === 'attack' && !g.atk.def.survival) {
       c.save(); c.translate(b.x, b.y);
       c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 3.5; c.beginPath(); c.arc(0, 0, 50, 0, TAU); c.stroke();
@@ -802,11 +802,10 @@ export class Renderer {
     const bx = 12, by = H - 100, bw = W - 24, bh = 84, col = mine ? me.color : boss.color;
     c.fillStyle = 'rgba(8,8,28,.9)'; c.beginPath(); c.roundRect(bx, by, bw, bh, 8); c.fill();
     c.strokeStyle = rgba(col, .8); c.lineWidth = 1.2; c.stroke();
-    const name = mine ? `${me.name}　${me.ja}` : `${boss.name}　${boss.ja}`;
+    const name = mine ? `${me.ja}　${me.title}` : `${boss.ja}　${boss.title}`;
     c.font = `800 8.5px ${SANS}`; const nw = Math.max(120, c.measureText(name).width + 22);
     c.fillStyle = col; c.beginPath(); c.roundRect(mine ? bx + 10 : bx + bw - 10 - nw, by - 9, nw, 17, 8); c.fill();
     this.text(name, mine ? bx + 10 + nw / 2 : bx + bw - 10 - nw / 2, by + 3, {size: 8.5, align: 'center', color: '#1a1030', font: SANS, weight: '800', shadow: false});
-    if (!mine) this.text(boss.title, bx + 14, by + 3.5, {size: 7.5, color: rgba(col, .9), font: SANS, weight: '700'});
     const lines = this.wrap(g.lineText(line), bw - 28, 11.5);
     lines.forEach((ln, i) => this.text(ln, bx + 14, by + 28 + i * 17, {size: 11.5, color: '#f7f4ff', font: SANS, weight: '600'}));
     if (Math.floor(t / 20) % 2) this.text('▼', bx + bw - 14, by + bh - 8, {size: 8, align: 'right', color: '#ffe8a8', font: SANS});
