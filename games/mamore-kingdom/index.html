@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#2f4a8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="キングダム">
+  <meta name="description" content="タワーや ヒーローを そだてて、まものの ぐんだんから おしろを 守る タワーディフェンス。">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>まもれ！キングダム</title>
+</head>
+<body>
+<main id="app">
+
+  <section id="title" class="screen">
+    <a class="back" href="../../">← ゲームいちらん</a>
+    <div class="logo"><span class="logo-sub">おしろを 守る タワーディフェンス</span><h1>まもれ！<b>キングダム</b></h1></div>
+    <div id="titleArt"></div>
+    <button id="playBtn" class="big-btn">▶ あそぶ</button>
+    <p class="note">よこむきで あそんでね</p>
+  </section>
+
+  <section id="town" class="screen" hidden>
+    <header class="top">
+      <h2>🏰 王国の まち</h2>
+      <div class="pill gem">💎<b id="gems">0</b></div>
+      <button id="setBtn" class="chip" aria-label="せってい">⚙️</button>
+    </header>
+    <div class="town-body">
+      <div class="town-left">
+        <div id="castleArt"></div>
+        <p id="castleMsg"></p>
+        <button id="goBtn" class="big-btn">⚔️ しゅつげき！</button>
+      </div>
+      <div class="town-right">
+        <nav class="tabs" id="shopTabs">
+          <button data-cat="tower" aria-pressed="true">タワー</button>
+          <button data-cat="hero" aria-pressed="false">ヒーロー</button>
+          <button data-cat="castle" aria-pressed="false">おしろ</button>
+        </nav>
+        <div id="shop" class="shop"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="stages" class="screen" hidden>
+    <header class="top">
+      <button id="stagesBack" class="chip">← まちへ</button>
+      <h2>どこを 守る？</h2>
+      <div class="pill gem">💎<b id="gems2">0</b></div>
+    </header>
+    <div id="stageList" class="stage-list"></div>
+    <div class="hero-pick"><span>つれていく ヒーロー</span><div id="heroPick"></div></div>
+  </section>
+
+  <section id="battle" class="screen" hidden>
+    <div id="fieldWrap">
+      <canvas id="field" aria-label="ゲームがめん"></canvas>
+      <div id="hud">
+        <div class="pill gold">💰<b id="gold">0</b></div>
+        <div class="pill life">❤️<b id="lives">0</b></div>
+        <div class="pill">🚩<b id="waveNo">0</b></div>
+        <span class="grow"></span>
+        <button id="autoBtn" class="chip" aria-pressed="false">自動</button>
+        <button id="speedBtn" class="chip">▶ ×1</button>
+        <button id="pauseBtn" class="chip" aria-label="ポーズ">⏸</button>
+      </div>
+      <div id="banner" hidden></div>
+      <div id="hint" hidden></div>
+      <div id="corner">
+        <div id="nextInfo"></div>
+        <button id="skillBtn" class="skill"><i id="skillCd"></i><span id="skillIcon">⭐</span><small id="skillName"></small></button>
+        <button id="waveBtn" class="wave-btn">▶ スタート</button>
+      </div>
+    </div>
+    <div id="bar"></div>
+  </section>
+
+  <div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
+  <div id="toast" aria-live="polite"></div>
+</main>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>
