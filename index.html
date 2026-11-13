@@ -8,14 +8,32 @@
   <style>
     :root { color-scheme: dark; }
     * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; padding:calc(34px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left)); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; color:#f5f6ff; background:radial-gradient(circle at 50% 0,#31356d 0,#171a3b 38%,#0b0e23 100%); }
-    main { width:min(960px,100%); margin:0 auto; }
-    header { margin-bottom:30px; }
-    h1 { margin:0 0 8px; font-size:clamp(34px,7vw,62px); letter-spacing:.02em; }
+    html { scroll-padding-top:80px; }
+    body { margin:0; min-height:100vh; padding:calc(30px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left)); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; color:#f5f6ff; background:#0b0e23 radial-gradient(circle at 50% 0,#31356d 0,#171a3b 38%,#0b0e23 100%) no-repeat; }
+    main { width:min(1040px,100%); margin:0 auto; }
+    header { margin-bottom:18px; }
+    h1 { margin:0 0 6px; font-size:clamp(30px,6vw,54px); letter-spacing:.02em; }
     header p { margin:0; color:#bec7ef; line-height:1.7; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; }
-    .card { display:block; color:inherit; text-decoration:none; padding:22px; border-radius:22px; background:linear-gradient(150deg,rgba(90,91,174,.55),rgba(24,26,65,.9)); border:1px solid rgba(225,229,255,.2); box-shadow:0 18px 50px rgba(0,0,0,.25); transition:transform .15s ease,border-color .15s ease; }
+    /* たな（あそぶ ひと べつ）の きりかえ タブ */
+    .tabs { position:sticky; top:0; z-index:5; display:flex; gap:8px; margin:0 -20px 8px; padding:calc(10px + env(safe-area-inset-top)) 20px 10px; overflow-x:auto; scrollbar-width:none; background:linear-gradient(#0f1230f2 75%,#0f123000); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+    .tabs::-webkit-scrollbar { display:none; }
+    .tabs button { flex:0 0 auto; display:flex; align-items:center; gap:6px; min-height:46px; padding:8px 16px; border-radius:999px; border:1px solid rgba(225,229,255,.25); background:rgba(255,255,255,.07); color:#dfe4ff; font:inherit; font-size:16px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .tabs button .n { font-size:12px; font-weight:400; opacity:.7; }
+    .tabs button[aria-pressed="true"] { background:#fff1b5; border-color:#fff1b5; color:#1b1d44; }
+    .tabs button span.e { font-size:20px; }
+    body[data-tab="g1"] .shelf:not([data-shelf="g1"]),
+    body[data-tab="g3"] .shelf:not([data-shelf="g3"]),
+    body[data-tab="ch"] .shelf:not([data-shelf="ch"]) { display:none; }
+    .shelf { margin-top:22px; }
+    .shelf-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:0 0 12px; font-size:24px; color:#fff1b5; }
+    .shelf-title small { font-size:13px; font-weight:400; color:#aeb8e6; }
+    .shelf-icon { font-size:28px; }
+    .genre { margin:18px 0 10px; font-size:14px; letter-spacing:.06em; color:#aeb8e6; }
+    .genre::before { content:""; display:inline-block; width:14px; height:2px; margin-right:8px; vertical-align:middle; background:currentColor; opacity:.6; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+    .card { position:relative; display:flex; gap:14px; align-items:flex-start; color:inherit; text-decoration:none; padding:16px 18px; border-radius:20px; background:linear-gradient(150deg,rgba(90,91,174,.55),rgba(24,26,65,.9)); border:1px solid rgba(225,229,255,.2); box-shadow:0 14px 40px rgba(0,0,0,.25); transition:transform .15s ease,border-color .15s ease; }
     .card:hover { transform:translateY(-3px); border-color:rgba(255,236,166,.5); }
+    .card:active { transform:scale(.98); }
     .card.blackhole { background:radial-gradient(circle at 12% 8%,rgba(80,232,255,.34),transparent 38%),linear-gradient(145deg,rgba(88,61,190,.82),rgba(7,10,27,.98)); border-color:rgba(102,236,255,.66); }
     .card.racer { background:radial-gradient(circle at 85% 12%,rgba(255,227,76,.42),transparent 35%),linear-gradient(145deg,rgba(29,154,221,.83),rgba(88,45,165,.8) 58%,rgba(18,22,65,.97)); border-color:rgba(103,239,255,.78); }
     .card.coaster { background:linear-gradient(145deg,rgba(25,157,179,.56),rgba(126,33,120,.62) 55%,rgba(24,26,65,.93)); border-color:rgba(112,246,255,.38); }
@@ -23,69 +41,135 @@
     .card.speed { background:linear-gradient(145deg,rgba(28,183,239,.76),rgba(255,94,61,.58) 56%,rgba(27,35,83,.94)); border-color:rgba(255,226,95,.72); }
     .card.deepsea { background:linear-gradient(145deg,rgba(0,164,204,.78),rgba(4,63,108,.82) 55%,rgba(3,13,35,.97)); border-color:rgba(87,232,255,.72); }
     .card.firework { background:radial-gradient(circle at 80% 0,rgba(255,168,69,.36),transparent 35%),linear-gradient(145deg,rgba(44,38,109,.86),rgba(7,8,27,.98)); border-color:rgba(255,191,99,.62); }
-    .icon { font-size:54px; }
-    h2 { margin:12px 0 7px; font-size:24px; color:#fff1b5; }
-    .card p { margin:0 0 16px; color:#d5dbf8; line-height:1.65; }
-    .tags { display:flex; gap:7px; flex-wrap:wrap; }
-    .tags span { padding:5px 9px; border-radius:999px; font-size:11px; background:rgba(255,255,255,.09); color:#cbd3ff; }
+    .icon { flex:0 0 auto; display:grid; place-items:center; width:84px; height:76px; border-radius:18px; background:rgba(8,10,30,.35); font-size:30px; line-height:1; white-space:nowrap; letter-spacing:-.08em; }
+    .body { min-width:0; flex:1; }
+    .card h3 { margin:2px 0 5px; font-size:19px; line-height:1.35; color:#fff1b5; text-shadow:0 1px 6px rgba(0,0,0,.35); }
+    .card p { margin:0 0 10px; color:#e3e7fb; font-size:13.5px; line-height:1.6; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-shadow:0 1px 4px rgba(0,0,0,.35); }
+    .tags { display:flex; gap:6px; flex-wrap:wrap; }
+    .tags span { padding:4px 8px; border-radius:999px; font-size:11px; background:rgba(10,12,40,.35); color:#dbe0ff; }
+    .new { position:absolute; top:-8px; left:-6px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:800; background:#ff5f8f; color:#fff; box-shadow:0 4px 12px rgba(255,95,143,.45); }
     footer { margin-top:32px; color:#8f99c2; font-size:12px; }
+    @media (max-width:420px) { .icon { width:66px; height:60px; font-size:24px; } }
+    @media (max-height:520px) { body { padding-top:calc(14px + env(safe-area-inset-top)); } header { margin-bottom:8px; } h1 { font-size:30px; } header p { display:none; } .shelf { margin-top:14px; } }
     /* 開発者モード（タイトルを5回すばやくタップで切りかえ。?dev=1 / ?dev=0 でも可） */
     h1 { -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; cursor:default; }
     .dev-badge { display:none; margin-left:.4em; padding:.15em .5em; border-radius:999px; font-size:.3em; vertical-align:middle; background:#ff9f43; color:#1b1230; letter-spacing:.05em; }
     #dev { display:none; margin-top:38px; padding-top:26px; border-top:2px dashed rgba(255,159,67,.45); }
-    #dev h2.section { margin:0 0 6px; font-size:20px; color:#ffb870; }
+    #dev .shelf-title { color:#ffb870; font-size:20px; }
     #dev > p { margin:0 0 16px; color:#bec7ef; font-size:13px; }
-    body.dev #dev, body.dev .dev-badge { display:block; }
+    body.dev #dev { display:block; }
     body.dev .dev-badge { display:inline-block; }
     .card.wip { border-style:dashed; border-color:rgba(255,159,67,.7); }
-    .wip-label { display:inline-block; margin-bottom:6px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; background:#ff9f43; color:#1b1230; }
+    .wip-label { display:inline-block; margin-bottom:4px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; background:#ff9f43; color:#1b1230; }
     .wip-label.hidden-label { background:#9aa6d8; }
     #devToast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px); opacity:0; padding:10px 18px; border-radius:999px; background:#ff9f43; color:#1b1230; font-weight:700; font-size:14px; transition:opacity .2s, transform .2s; pointer-events:none; }
     #devToast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   </style>
 </head>
-<body>
+<body data-tab="all">
   <main>
     <header><h1 id="title">AI Game Library<span class="dev-badge">DEV</span></h1><p>AIと一緒に制作した、ブラウザですぐ遊べるゲーム置き場です。</p></header>
-    <section class="grid" aria-label="ゲーム一覧">
-      <a class="card" style="background:radial-gradient(circle at 78% 12%,#ff9c8a66,transparent 30%),radial-gradient(circle at 78% 12%,#07040f 0 11%,transparent 12%),radial-gradient(circle at 15% 90%,#5ef08f33,transparent 45%),linear-gradient(150deg,#3a1640,#0b0a1f);border-color:#ff9ec9" href="./games/starfall-waltz-2/"><div class="icon">🌘🎼</div><h2>STARFALL WALTZ II — 月蝕の夜想曲</h2><p>月が欠けた夜、音が消えていく。極光の遊歩道から蝕の玉座へ、4面・スペルアリア15枚の弾幕シューティング第二夜。自機は2人、かすりで溜まる共鳴ゲージ、全12曲の音楽室つき。</p><div class="tags"><span>PC・iPad・iPhone</span><span>弾幕STG</span><span>自機2人</span><span>音楽室</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 82% 12%,#fff3a855,transparent 40%),linear-gradient(150deg,#e2669f,#9a7ee0 60%,#5aa3dc);border-color:#ffd6ea" href="./games/punyu-hachamecha/"><div class="icon">🐹🌈</div><h2>ぷにゅと はちゃめちゃ おたすけ大冒険</h2><p>3Dの島々をぷにゅが歩いて、こまっている友だちと遊んで笑顔にする。6つの島をめぐったあとも、毎日の暮らしと着せ替え・島のかざりで遊び続けられる。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>小学1年生向け</span><span>島めぐり</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 80% 12%,#ffcf6b55,transparent 40%),linear-gradient(150deg,#5a3a24,#2d1a10 60%,#1b120d);border-color:#d9b25a" href="./games/obake-yashiki/"><div class="icon">👻📚</div><h2>オバケやしきの おかたづけ</h2><p>目の高さで歩ける 3D の図書室。山積みの本を、マークと名前を手がかりに本棚へ戻す。段がそろうと魔法を覚える。</p><div class="tags"><span>iPad横持ち</span><span>小学3年生向け</span><span>片付け</span></div></a>
-      <a class="card" style="background:linear-gradient(180deg,#3fa9e8 0%,#3fa9e8 35%,#5cb85c 35%,#a8703f 40%,#4a2e1a 100%)" href="./games/horihori-rocket/"><div class="icon">⛏️🚀</div><h2>ほりほり ロケット工場</h2><p>地面を掘って鉱石を集め、ベルトコンベアでホッパーへ運んで売る。お金で機材と基地を増やし、ロケットを完成させよう。</p><div class="tags"><span>iPad横持ち</span><span>小学3年生向け</span><span>採掘</span><span>工場づくり</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 85% 10%,#fff3a855,transparent 40%),linear-gradient(150deg,#ff9cc6,#c7a8ff 60%,#8fd2ff);border-color:#ffd6ea" href="./games/yumeiro-sweets/"><div class="icon">🍰🪄</div><h2>ゆめいろ おかしやさん</h2><p>まほうのパティシエに変身して、お客さんの注文どおりにケーキやドーナツを飾る。作ったおかしはアルバムとお店の棚に残るよ。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>小学1年生向け</span><span>おかし作り</span><span>きせかえ</span></div></a>
-        <a class="card" style="background:radial-gradient(circle at 85% 10%,#ffd84a55,transparent 40%),linear-gradient(150deg,#4f9a2e,#6b4a2b 60%,#2b2218);border-color:#ffd84a" href="./games/shopcraft/"><div class="icon">🧱🏪</div><h2>SHOPCRAFT</h2><p>ブロックで自分の店を建てると、町のお客さんが本当に買いに来る。品物を仕入れ、店を飾って★5の店を目指そう。</p><div class="tags"><span>iPad横持ち</span><span>小学3年生向け</span><span>ブロック建築</span><span>お店</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 85% 10%,#fff3a855,transparent 40%),linear-gradient(150deg,#3f76a8,#a8467a 60%,#4b2f78);border-color:#ffd6ea" href="./games/fushigi-pet-hotel/"><div class="icon">🏨🐑</div><h2>ふしぎな ペットホテル</h2><p>ふしぎな どうぶつたちが泊まりに来るホテル。ごはん・おふろ・おしゃれでお世話して、部屋をかわいく飾ろう。お客さんからおてがみも届くよ。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>小学1年生向け</span><span>お世話</span><span>かざりつけ</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 82% 8%,#fff3a855,transparent 40%),radial-gradient(circle at 12% 92%,#ff8fc055,transparent 45%),linear-gradient(150deg,#3d6fc4,#7148b8 58%,#b8467f);border-color:#ffd6ea" href="./games/punyu-kirakira/"><div class="icon">🐹⭐</div><h2>ぷにゅの きらきらランド</h2><p>まるくてぷにぷにの「ぷにゅ」と、ほしのかけらを集める横スクロールアクション。5つのせかいと、こわくないボス。きせかえとシールあつめも。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>小学1年生向け</span><span>15ステージ</span><span>きせかえ</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 80% 8%,#f3d58c55,transparent 42%),radial-gradient(circle at 15% 90%,#ff79d833,transparent 45%),linear-gradient(150deg,#2d2466,#0b0a1f);border-color:#f3d58c" href="./games/starfall-waltz/"><div class="icon">🌟🎻</div><h2>STARFALL WALTZ</h2><p>歯車の庭、薔薇窓の聖堂、大天球儀。3人のボスが放つ美しい弾幕を、小さな当たり判定ですり抜ける。被弾直後のボムでまだ間に合う、ボス戦中心の弾幕シューティング。</p><div class="tags"><span>PC・iPad・iPhone</span><span>弾幕STG</span><span>ボス戦</span><span>スペル練習</span></div></a>
-      <a class="card" style="background:radial-gradient(circle at 85% 5%,#eafa8870,transparent 45%),linear-gradient(145deg,#409eaa,#1d536b);border-color:#e9fc83" href="./games/coast-rush/"><div class="icon">🏃🌴</div><h2>COAST RUSH</h2><p>潮風を、追い越せ。ジャンプ、スライド、軽やかな切り返し。海辺の街でコインをつなぎ、無敵のラッシュで駆け抜けよう。</p><div class="tags"><span>iPad・iPhone</span><span>3Dラン</span><span>スワイプ操作</span><span>ベスト記録</span></div></a>
-      <a class="card" style="background:linear-gradient(145deg,#2e8b85,#233f42);border-color:#ffd16d" href="./games/hillhop-garage-2/"><div class="icon">🚙↗️</div><h2>HILLHOP GARAGE 2</h2><p>助走、ジャンプ、下りへの着地。空中の燃料を狙い、速い走りをつないで遠くへ。旧版とは別セーブで遊べます。</p><div class="tags"><span>iPad横持ち</span><span>ジャンプアクション</span><span>車の強化</span><span>新しい走り</span></div></a>
-      <a class="card" style="background:linear-gradient(145deg,#477f73,#273f43);border-color:#e5c77b" href="./games/hillhop-garage/"><div class="icon">🚙⛰️</div><h2>HILLHOP GARAGE</h2><p>下りの勢いを、次のジャンプへ。愛車を育てて草原・峡谷・高原を旅する、坂道ドライブゲーム。</p><div class="tags"><span>iPad横持ち</span><span>横スクロール</span><span>車の強化</span><span>セーブ対応</span></div></a>
-      <a class="card racer" href="./games/sky-turbo-racers/"><div class="icon">🏎️⚡</div><h2>SKY TURBO RACERS</h2><p>2つの3Dコースを6台で競う高速レース。ブレーキと横滑りドリフトでカーブを抜け、ターボで追い抜こう。</p><div class="tags"><span>iPad横持ち</span><span>3Dレース</span><span>タッチ操作</span><span>1人用</span></div></a>
-      <a class="card blackhole" href="./games/black-hole-city/"><div class="icon">⚫🏙️</div><h2>BLACK HOLE CITY</h2><p>落とし穴を動かして街を丸ごと飲み込もう。小物から車、建物へと巨大化し、ライバルと競う3Dアクションです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>タッチ操作</span><span>約90秒</span></div></a>
-      <a class="card firework" href="./games/firework-flight/"><div class="icon">🎆✨</div><h2>FIREWORK FLIGHT</h2><p>色と形を選んで夜空に花火を打ち上げよう。光のあいだを駆け抜ける、迫力の3D花火ショーです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>花火</span><span>飛翔カメラ</span></div></a>
-      <a class="card deepsea" href="./games/deep-sea-craft/"><div class="icon">🛥️🐋</div><h2>深海クラフト</h2><p>海底基地を復旧し、潜水艇を改造して未知の深海へ。資源を集めながら、最深部の救難信号を目指す探索アドベンチャーです。</p><div class="tags"><span>iPad対応</span><span>海中探索</span><span>改造</span><span>1人用</span></div></a>
-      <a class="card speed" href="./games/speed-hero/"><div class="icon">🏃‍♂️💨</div><h2>爆走！スピードヒーロー</h2><p>器具を選んで脚力とスタミナを鍛え、8人のライバルを追い抜こう。3種類のトレーニングで成長するランナーゲームです。</p><div class="tags"><span>iPad対応</span><span>8歳くらいから</span><span>8ステージ</span><span>セーブ対応</span></div></a>
-      <a class="card bunny" href="./games/rainbow-bunny/"><div class="icon">🐰🌈</div><h2>ミミの にじいろ大冒険</h2><p>かわいいウサギのミミと5つの世界を巡る横スクロールアクション。ステージごとに少しずつ難しくなります。</p><div class="tags"><span>iPad対応</span><span>小学1年生向け</span><span>5ステージ</span><span>1人用</span></div></a>
-      <a class="card coaster" href="./games/skyline-coaster/"><div class="icon">🎢</div><h2>SKYLINE VELOCITY</h2><p>夕焼けの山岳地帯からネオンの高層都市へ。3Dの一人称視点で駆け抜ける天空ジェットコースターです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>一人称視点</span><span>約90秒</span></div></a>
-      <a class="card" href="./games/convenience/"><div class="icon">🏪</div><h2>まちかどコンビニ日記</h2><p>棚を置き、商品を仕入れ、お客さんに愛されるコンビニへ育てる店舗経営シミュレーションです。</p><div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>経営</span><span>セーブ対応</span></div></a>
-      <a class="card" href="./games/survivor/"><div class="icon">🌙</div><h2>月影サバイバー</h2><p>左下のスティックで移動し、押し寄せる魔物から5分間生き残る自動攻撃アクションです。</p><div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>1人用</span><span>約5分</span></div></a>
+    <nav class="tabs" aria-label="あそぶ ひと で えらぶ">
+      <button type="button" data-tab="all" aria-pressed="true">ぜんぶ</button>
+      <button type="button" data-tab="g1" aria-pressed="false"><span class="e">🐣</span>1ねんせい</button>
+      <button type="button" data-tab="g3" aria-pressed="false"><span class="e">📘</span>3ねんせい</button>
+      <button type="button" data-tab="ch" aria-pressed="false"><span class="e">🎮</span>チャレンジ</button>
+    </nav>
+    <section class="shelf" data-shelf="g1" aria-labelledby="h-g1">
+      <h2 class="shelf-title" id="h-g1"><span class="shelf-icon">🐣</span>1ねんせい むけ<small>こわくない・しっぱい しても だいじょうぶ</small></h2>
+      <div class="grid">
+        <a class="card" style="background:radial-gradient(circle at 82% 12%,#fff3a855,transparent 40%),linear-gradient(150deg,#e2669f,#9a7ee0 60%,#5aa3dc);border-color:#ffd6ea" data-added="2026-11-08" href="./games/punyu-hachamecha/"><div class="icon">🐹🌈</div><div class="body"><h3>ぷにゅと はちゃめちゃ おたすけ大冒険</h3><p>3Dの島々をぷにゅが歩いて、こまっている友だちと遊んで笑顔にする。6つの島をめぐったあとも、毎日の暮らしと着せ替え・島のかざりで遊び続けられる。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>島めぐり</span></div></div></a>
+        <a class="card" style="background:radial-gradient(circle at 85% 10%,#fff3a855,transparent 40%),linear-gradient(150deg,#ff9cc6,#c7a8ff 60%,#8fd2ff);border-color:#ffd6ea" data-added="2026-10-16" href="./games/yumeiro-sweets/"><div class="icon">🍰🪄</div><div class="body"><h3>ゆめいろ おかしやさん</h3><p>まほうのパティシエに変身して、お客さんの注文どおりにケーキやドーナツを飾る。作ったおかしはアルバムとお店の棚に残るよ。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>おかし作り</span><span>きせかえ</span></div></div></a>
+        <a class="card" style="background:radial-gradient(circle at 85% 10%,#fff3a855,transparent 40%),linear-gradient(150deg,#3f76a8,#a8467a 60%,#4b2f78);border-color:#ffd6ea" data-added="2026-10-02" href="./games/fushigi-pet-hotel/"><div class="icon">🏨🐑</div><div class="body"><h3>ふしぎな ペットホテル</h3><p>ふしぎな どうぶつたちが泊まりに来るホテル。ごはん・おふろ・おしゃれでお世話して、部屋をかわいく飾ろう。お客さんからおてがみも届くよ。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>お世話</span><span>かざりつけ</span></div></div></a>
+        <a class="card" style="background:radial-gradient(circle at 82% 8%,#fff3a855,transparent 40%),radial-gradient(circle at 12% 92%,#ff8fc055,transparent 45%),linear-gradient(150deg,#3d6fc4,#7148b8 58%,#b8467f);border-color:#ffd6ea" data-added="2026-10-02" href="./games/punyu-kirakira/"><div class="icon">🐹⭐</div><div class="body"><h3>ぷにゅの きらきらランド</h3><p>まるくてぷにぷにの「ぷにゅ」と、ほしのかけらを集める横スクロールアクション。5つのせかいと、こわくないボス。きせかえとシールあつめも。</p><div class="tags"><span>iPad・iPhone横持ち</span><span>15ステージ</span><span>きせかえ</span></div></div></a>
+        <a class="card bunny" data-added="2026-10-02" href="./games/rainbow-bunny/"><div class="icon">🐰🌈</div><div class="body"><h3>ミミの にじいろ大冒険</h3><p>かわいいウサギのミミと5つの世界を巡る横スクロールアクション。ステージごとに少しずつ難しくなります。</p><div class="tags"><span>iPad対応</span><span>5ステージ</span><span>1人用</span></div></div></a>
+      </div>
+    </section>
+    <section class="shelf" data-shelf="g3" aria-labelledby="h-g3">
+      <h2 class="shelf-title" id="h-g3"><span class="shelf-icon">📘</span>3ねんせい むけ<small>つくる・あつめる・そだてる</small></h2>
+      <div class="grid">
+        <a class="card" style="background:radial-gradient(circle at 80% 12%,#ffcf6b55,transparent 40%),linear-gradient(150deg,#5a3a24,#2d1a10 60%,#1b120d);border-color:#d9b25a" data-added="2026-10-29" href="./games/obake-yashiki/"><div class="icon">👻📚</div><div class="body"><h3>オバケやしきの おかたづけ</h3><p>目の高さで歩ける 3D の図書室。山積みの本を、マークと名前を手がかりに本棚へ戻す。段がそろうと魔法を覚える。</p><div class="tags"><span>iPad横持ち</span><span>片付け</span></div></div></a>
+        <a class="card" style="background:linear-gradient(180deg,#3fa9e8 0%,#3fa9e8 35%,#5cb85c 35%,#a8703f 40%,#4a2e1a 100%)" data-added="2026-10-25" href="./games/horihori-rocket/"><div class="icon">⛏️🚀</div><div class="body"><h3>ほりほり ロケット工場</h3><p>地面を掘って鉱石を集め、ベルトコンベアでホッパーへ運んで売る。お金で機材と基地を増やし、ロケットを完成させよう。</p><div class="tags"><span>iPad横持ち</span><span>採掘</span><span>工場づくり</span></div></div></a>
+        <a class="card" style="background:radial-gradient(circle at 85% 10%,#ffd84a55,transparent 40%),linear-gradient(150deg,#4f9a2e,#6b4a2b 60%,#2b2218);border-color:#ffd84a" data-added="2026-10-03" href="./games/shopcraft/"><div class="icon">🧱🏪</div><div class="body"><h3>SHOPCRAFT</h3><p>ブロックで自分の店を建てると、町のお客さんが本当に買いに来る。品物を仕入れ、店を飾って★5の店を目指そう。</p><div class="tags"><span>iPad横持ち</span><span>ブロック建築</span><span>お店</span></div></div></a>
+        <a class="card speed" data-added="2026-10-02" href="./games/speed-hero/"><div class="icon">🏃‍♂️💨</div><div class="body"><h3>爆走！スピードヒーロー</h3><p>器具を選んで脚力とスタミナを鍛え、8人のライバルを追い抜こう。3種類のトレーニングで成長するランナーゲームです。</p><div class="tags"><span>iPad対応</span><span>8ステージ</span><span>セーブ対応</span></div></div></a>
+      </div>
+    </section>
+    <section class="shelf" data-shelf="ch" aria-labelledby="h-ch">
+      <h2 class="shelf-title" id="h-ch"><span class="shelf-icon">🎮</span>チャレンジ<small>大きい子・大人向け。腕前が試されるゲーム</small></h2>
+      <h3 class="genre">弾幕シューティング</h3>
+      <div class="grid">
+        <a class="card" style="background:radial-gradient(circle at 78% 12%,#ff9c8a66,transparent 30%),radial-gradient(circle at 78% 12%,#07040f 0 11%,transparent 12%),radial-gradient(circle at 15% 90%,#5ef08f33,transparent 45%),linear-gradient(150deg,#3a1640,#0b0a1f);border-color:#ff9ec9" data-added="2026-11-11" href="./games/starfall-waltz-2/"><div class="icon">🌘🎼</div><div class="body"><h3>STARFALL WALTZ II — 月蝕の夜想曲</h3><p>月が欠けた夜、音が消えていく。極光の遊歩道から蝕の玉座へ、4面・スペルアリア15枚の弾幕シューティング第二夜。自機は2人、かすりで溜まる共鳴ゲージ、全12曲の音楽室つき。</p><div class="tags"><span>PC・iPad・iPhone</span><span>弾幕STG</span><span>自機2人</span></div></div></a>
+        <a class="card" style="background:radial-gradient(circle at 80% 8%,#f3d58c55,transparent 42%),radial-gradient(circle at 15% 90%,#ff79d833,transparent 45%),linear-gradient(150deg,#2d2466,#0b0a1f);border-color:#f3d58c" data-added="2026-10-02" href="./games/starfall-waltz/"><div class="icon">🌟🎻</div><div class="body"><h3>STARFALL WALTZ</h3><p>歯車の庭、薔薇窓の聖堂、大天球儀。3人のボスが放つ美しい弾幕を、小さな当たり判定ですり抜ける。被弾直後のボムでまだ間に合う、ボス戦中心の弾幕シューティング。</p><div class="tags"><span>前作</span><span>PC・iPad・iPhone</span><span>弾幕STG</span><span>ボス戦</span></div></div></a>
+      </div>
+      <h3 class="genre">ドライブ・レース</h3>
+      <div class="grid">
+        <a class="card" style="background:linear-gradient(145deg,#2e8b85,#233f42);border-color:#ffd16d" data-added="2026-10-02" href="./games/hillhop-garage-2/"><div class="icon">🚙↗️</div><div class="body"><h3>HILLHOP GARAGE 2</h3><p>助走、ジャンプ、下りへの着地。空中の燃料を狙い、速い走りをつないで遠くへ。旧版とは別セーブで遊べます。</p><div class="tags"><span>iPad横持ち</span><span>ジャンプアクション</span><span>車の強化</span></div></div></a>
+        <a class="card" style="background:linear-gradient(145deg,#477f73,#273f43);border-color:#e5c77b" data-added="2026-10-02" href="./games/hillhop-garage/"><div class="icon">🚙⛰️</div><div class="body"><h3>HILLHOP GARAGE</h3><p>下りの勢いを、次のジャンプへ。愛車を育てて草原・峡谷・高原を旅する、坂道ドライブゲーム。</p><div class="tags"><span>前作</span><span>iPad横持ち</span><span>横スクロール</span><span>車の強化</span></div></div></a>
+        <a class="card racer" data-added="2026-10-02" href="./games/sky-turbo-racers/"><div class="icon">🏎️⚡</div><div class="body"><h3>SKY TURBO RACERS</h3><p>2つの3Dコースを6台で競う高速レース。ブレーキと横滑りドリフトでカーブを抜け、ターボで追い抜こう。</p><div class="tags"><span>iPad横持ち</span><span>3Dレース</span><span>タッチ操作</span></div></div></a>
+        <a class="card coaster" data-added="2026-10-02" href="./games/skyline-coaster/"><div class="icon">🎢</div><div class="body"><h3>SKYLINE VELOCITY</h3><p>夕焼けの山岳地帯からネオンの高層都市へ。3Dの一人称視点で駆け抜ける天空ジェットコースターです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>一人称視点</span></div></div></a>
+      </div>
+      <h3 class="genre">アクション</h3>
+      <div class="grid">
+        <a class="card" style="background:radial-gradient(circle at 85% 5%,#eafa8870,transparent 45%),linear-gradient(145deg,#409eaa,#1d536b);border-color:#e9fc83" data-added="2026-10-02" href="./games/coast-rush/"><div class="icon">🏃🌴</div><div class="body"><h3>COAST RUSH</h3><p>潮風を、追い越せ。ジャンプ、スライド、軽やかな切り返し。海辺の街でコインをつなぎ、無敵のラッシュで駆け抜けよう。</p><div class="tags"><span>iPad・iPhone</span><span>3Dラン</span><span>スワイプ操作</span></div></div></a>
+        <a class="card blackhole" data-added="2026-10-02" href="./games/black-hole-city/"><div class="icon">⚫🏙️</div><div class="body"><h3>BLACK HOLE CITY</h3><p>落とし穴を動かして街を丸ごと飲み込もう。小物から車、建物へと巨大化し、ライバルと競う3Dアクションです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>タッチ操作</span></div></div></a>
+        <a class="card" data-added="2026-10-02" href="./games/survivor/"><div class="icon">🌙</div><div class="body"><h3>月影サバイバー</h3><p>左下のスティックで移動し、押し寄せる魔物から5分間生き残る自動攻撃アクションです。</p><div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>1人用</span></div></div></a>
+        <a class="card firework" data-added="2026-10-02" href="./games/firework-flight/"><div class="icon">🎆✨</div><div class="body"><h3>FIREWORK FLIGHT</h3><p>色と形を選んで夜空に花火を打ち上げよう。光のあいだを駆け抜ける、迫力の3D花火ショーです。</p><div class="tags"><span>iPad対応</span><span>3D</span><span>花火</span></div></div></a>
+      </div>
+      <h3 class="genre">じっくり探検・経営</h3>
+      <div class="grid">
+        <a class="card deepsea" data-added="2026-10-02" href="./games/deep-sea-craft/"><div class="icon">🛥️🐋</div><div class="body"><h3>深海クラフト</h3><p>海底基地を復旧し、潜水艇を改造して未知の深海へ。資源を集めながら、最深部の救難信号を目指す探索アドベンチャーです。</p><div class="tags"><span>iPad対応</span><span>海中探索</span><span>改造</span></div></div></a>
+        <a class="card" data-added="2026-10-02" href="./games/convenience/"><div class="icon">🏪</div><div class="body"><h3>まちかどコンビニ日記</h3><p>棚を置き、商品を仕入れ、お客さんに愛されるコンビニへ育てる店舗経営シミュレーションです。</p><div class="tags"><span>iPad対応</span><span>タッチ操作</span><span>経営</span></div></div></a>
+      </div>
     </section>
     <section id="dev" aria-label="開発中・非掲載のゲーム">
-      <h2 class="section">開発中・非掲載</h2>
+      <h2 class="shelf-title">開発中・非掲載</h2>
       <p>開発者モードでだけ表示されます。タイトルを5回すばやくタップするとオフに戻ります。</p>
-      <div class="grid">
-        <a class="card wip" style="background:linear-gradient(150deg,#4a3a6e,#1a1430)" href="./games/mnemo-manor/"><span class="wip-label">開発中</span><div class="icon">🏚️🕯️</div><h2>記憶の館</h2><p>依頼の品を記憶の館に置いて覚え、暗闇の迷宮をランタンの光で進むローグライト。</p><div class="tags"><span>記憶ゲーム</span><span>ローグライト</span></div></a>
-        <a class="card wip" style="background:linear-gradient(150deg,#b8863b,#3a2a52)" href="./games/aurelia/"><span class="wip-label hidden-label">非掲載</span><div class="icon">🏛️🌅</div><h2>AURELIA — 暁の遺跡</h2><p>直接URLで公開している縦持ち向けの3Dランゲーム。</p><div class="tags"><span>スマホ・iPad縦持ち</span><span>3Dラン</span></div></a>
-      </div>
+        <div class="grid">
+          <a class="card wip" style="background:linear-gradient(150deg,#4a3a6e,#1a1430)" data-added="2026-10-02" href="./games/mnemo-manor/"><div class="icon">🏚️🕯️</div><div class="body"><span class="wip-label">開発中</span><h3>記憶の館</h3><p>依頼の品を記憶の館に置いて覚え、暗闇の迷宮をランタンの光で進むローグライト。</p><div class="tags"><span>記憶ゲーム</span><span>ローグライト</span></div></div></a>
+          <a class="card wip" style="background:linear-gradient(150deg,#b8863b,#3a2a52)" data-added="2026-10-02" href="./games/aurelia/"><div class="icon">🏛️🌅</div><div class="body"><span class="wip-label hidden-label">非掲載</span><h3>AURELIA — 暁の遺跡</h3><p>直接URLで公開している縦持ち向けの3Dランゲーム。</p><div class="tags"><span>スマホ・iPad縦持ち</span><span>3Dラン</span></div></div></a>
+        </div>
     </section>
     <footer>© AI Game Library</footer>
   </main>
   <div id="devToast" aria-live="polite"></div>
   <script>
   (() => {
+    const store = {
+      get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+      set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+    };
+
+    // あそぶ ひと べつの タブ（えらんだ タブは その たんまつに おぼえておく）
+    const TAB_KEY = 'aigl-tab';
+    const tabs = [...document.querySelectorAll('.tabs button')];
+    const setTab = (id, remember) => {
+      if (!tabs.some(b => b.dataset.tab === id)) id = 'all';
+      document.body.dataset.tab = id;
+      tabs.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === id)));
+      if (remember) store.set(TAB_KEY, id === 'all' ? null : id);
+    };
+    tabs.forEach(b => b.addEventListener('click', () => {
+      setTab(b.dataset.tab, true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+    setTab(store.get(TAB_KEY) || 'all', false);
+    tabs.forEach(b => {
+      const shelf = document.querySelector(`.shelf[data-shelf="${b.dataset.tab}"]`);
+      const n = (shelf || document).querySelectorAll(shelf ? '.card' : '.shelf .card').length;
+      b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`);
+    });
+
+    // ついか して 21にち いないの ゲームに「あたらしい」を つける
+    const NEW_DAYS = 21;
+    document.querySelectorAll('.shelf .card[data-added]').forEach(c => {
+      const days = (Date.now() - new Date(c.dataset.added + 'T00:00:00')) / 864e5;
+      if (days >= 0 && days < NEW_DAYS) c.insertAdjacentHTML('afterbegin', '<span class="new">あたらしい</span>');
+    });
+
+    // 開発者モード
     const KEY = 'aigl-dev-mode';
-    const read = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
-    const write = on => { try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
+    const read = () => store.get(KEY) === '1';
+    const write = on => store.set(KEY, on ? '1' : null);
     const apply = on => document.body.classList.toggle('dev', on);
     const toast = msg => {
       const t = document.getElementById('devToast');
