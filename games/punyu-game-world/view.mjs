@@ -1,6 +1,6 @@
 // がめんを かく：3しゅるいの あそび と、タイトル・ひろば・けっか
-import { W, H, WORLDS, FINAL } from './data.mjs';
-import { TS, RH, DM, rhythmRatio, finalUnlocked } from './core.mjs';
+import { W, H, WORLDS, FINAL, FRIENDS } from './data.mjs';
+import { TS, RH, DM, rhythmRatio, finalUnlocked, friendsOf, nextFriend, totalStars, racePlace } from './core.mjs';
 import * as D from './draw.mjs';
 import { worldBg } from './cutscene.mjs';
 
@@ -9,8 +9,8 @@ export const LANE_X = [200, 480, 760], HIT_Y = 430;
 export const PAUSE_BTN = { x: W - 62, y: 6, w: 54, h: 40 };
 export const BACK_BTN = { x: 14, y: 12, w: 130, h: 46 };
 export const SKIP_BTN = { x: W - 158, y: 12, w: 144, h: 46 };
-export const HUB_CARDS = [...WORLDS, FINAL].map((w, i) => ({ world: w, x: 28 + i * 230, y: 150, w: 214, h: 250 }));
-export const HUB_BTNS = { story: { x: 560, y: 462, w: 180, h: 54 }, sound: { x: 756, y: 462, w: 180, h: 54 } };
+export const HUB_CARDS = [...WORLDS, FINAL].map((w, i) => ({ world: w, x: 20 + i * 186, y: 92, w: 176, h: 222 }));
+export const HUB_BTNS = { mix: { x: 640, y: 388, w: 300, h: 64 }, story: { x: 640, y: 474, w: 144, h: 48 }, sound: { x: 796, y: 474, w: 144, h: 48 } };
 export const PAUSE_ITEMS = ['つづける', 'さいしょから', 'ゲームきに もどる', 'おと'].map((label, i) => ({ label, x: W / 2 - 180, y: 150 + i * 76, w: 360, h: 62 }));
 export const inRect = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 
@@ -218,6 +218,60 @@ export function drawRhythm(c, s, ui) {
   if (st < first - 0.2) D.text(c, cnt > 4 ? 'よーい…' : String(cnt), W / 2, 340, cnt > 4 ? 40 : 70, '#fff', { stroke: '#ff5fae' });
 }
 
+// ===================== レース =====================
+const RACE_H = 200, RACE_Y = 462;
+const rk = z => 1 / (1 + Math.max(-60, z) / 260);
+const rproj = (lane, z) => { const k = rk(z); return { x: W / 2 + (lane - 1) * 200 * k, y: RACE_H + (RACE_Y - RACE_H) * k, k }; };
+export const raceX = lane => W / 2 + (lane - 1) * 200;
+export function drawRace(c, s, ui) {
+  const t = ui.t, theme = s.def.theme, glitch = theme === 'glitch';
+  D.bgRace(c, t, theme, RACE_H);
+  // みち
+  const kb = (H - RACE_H) / (RACE_Y - RACE_H);
+  c.fillStyle = glitch ? '#2d1457' : '#5a5470'; c.beginPath(); c.moveTo(W / 2, RACE_H); c.lineTo(W / 2 + 330 * kb, H); c.lineTo(W / 2 - 330 * kb, H); c.fill();
+  for (let i = -1; i < 16; i++) {
+    const z = i * 130 - (s.dist % 130), a = rproj(0, z + 55), b = rproj(0, z);
+    if (z < -55) continue;
+    for (const lf of [0.5, 1.5]) { c.fillStyle = glitch ? '#58f0a0' : '#fff'; c.beginPath(); const ax = W / 2 + (lf - 1) * 200 * a.k, bx = W / 2 + (lf - 1) * 200 * b.k; c.moveTo(ax - 3 * a.k, a.y); c.lineTo(ax + 3 * a.k, a.y); c.lineTo(bx + 4 * b.k, b.y); c.lineTo(bx - 4 * b.k, b.y); c.fill(); }
+    for (const side of [-1, 1]) { c.fillStyle = i % 2 ? '#e8483f' : '#fff'; if (glitch) c.fillStyle = i % 2 ? '#b98bff' : '#58f0a0'; c.beginPath(); c.moveTo(W / 2 + side * 320 * a.k, a.y); c.lineTo(W / 2 + side * 340 * a.k, a.y); c.lineTo(W / 2 + side * 344 * b.k, b.y); c.lineTo(W / 2 + side * 320 * b.k, b.y); c.fill(); }
+  }
+  // みちばた の き・はた
+  for (let i = 12; i >= 0; i--) {
+    const z = i * 240 - (s.dist % 240);
+    for (const side of [-1, 1]) { const p = rproj(1 + side * 2.3, z); if (z < -40) continue; if (glitch) { c.fillStyle = (i + (side > 0)) % 2 ? '#58f0a0' : '#b98bff'; c.fillRect(p.x - 14 * p.k, p.y - 70 * p.k, 28 * p.k, 70 * p.k); } else if (theme === 'sea') { c.fillStyle = '#8a5a2b'; c.fillRect(p.x - 4 * p.k, p.y - 70 * p.k, 8 * p.k, 70 * p.k); c.fillStyle = '#3fae4a'; c.beginPath(); c.ellipse(p.x, p.y - 74 * p.k, 34 * p.k, 12 * p.k, 0, 0, D.TAU); c.fill(); } else { c.fillStyle = '#6b4526'; c.fillRect(p.x - 5 * p.k, p.y - 30 * p.k, 10 * p.k, 30 * p.k); c.fillStyle = '#2f9a45'; c.beginPath(); c.arc(p.x, p.y - 52 * p.k, 30 * p.k, 0, D.TAU); c.fill(); } }
+  }
+  // ゴールの はた
+  const gz = s.def.len - s.dist;
+  if (gz < 1500 && gz > -50) { const p = rproj(1, gz); for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) { c.fillStyle = (i + j) % 2 ? '#fff' : '#2a2238'; c.fillRect(p.x + (i - 6) * 56 * p.k, p.y - (150 - j * 22) * p.k, 56 * p.k, 22 * p.k); } c.fillStyle = '#fff'; c.fillRect(p.x - 340 * p.k, p.y - 150 * p.k, 8 * p.k, 150 * p.k); c.fillRect(p.x + 332 * p.k, p.y - 150 * p.k, 8 * p.k, 150 * p.k); }
+  // もの と ライバル（とおい じゅんに）
+  const list = [];
+  for (const o of s.objs) { const z = o.z - s.dist; if (!o.hit && z > -50 && z < 1500) list.push({ z, o }); }
+  for (const r of s.rivals) { const z = r.dist - s.dist; if (z > -55 && z < 1500) list.push({ z, r }); }
+  list.sort((a, b) => b.z - a.z);
+  for (const it of list) {
+    if (it.r) { const p = rproj(it.r.lane, it.z); D.drawKart(c, p.x, p.y - 12 * p.k, p.k * 1.35, D.KART_COL[it.r.kind], k => D.drawRider(k, it.r.kind, t)); continue; }
+    const o = it.o, p = rproj(o.lane, it.z), k = p.k;
+    if (o.type === 'coin') { c.fillStyle = D.COL.gold; D.star(c, p.x, p.y - 26 * k, 22 * k, t * 3); c.fill(); }
+    else if (o.type === 'boost') { c.fillStyle = '#ffd84a'; for (let i = 0; i < 2; i++) { const y = p.y - i * 22 * k; c.beginPath(); c.moveTo(p.x - 44 * k, y); c.lineTo(p.x, y - 26 * k); c.lineTo(p.x + 44 * k, y); c.lineTo(p.x + 44 * k, y + 12 * k); c.lineTo(p.x, y - 14 * k); c.lineTo(p.x - 44 * k, y + 12 * k); c.fill(); } }
+    else if (glitch) { c.fillStyle = '#58f0a0'; c.fillRect(p.x - 34 * k, p.y - 60 * k, 68 * k, 60 * k); c.fillStyle = '#1a0b33'; c.fillRect(p.x - 20 * k, p.y - 44 * k, 12 * k, 14 * k); c.fillRect(p.x + 8 * k, p.y - 44 * k, 12 * k, 14 * k); }
+    else { c.fillStyle = '#ff8a3f'; c.beginPath(); c.moveTo(p.x - 30 * k, p.y); c.lineTo(p.x, p.y - 66 * k); c.lineTo(p.x + 30 * k, p.y); c.fill(); c.fillStyle = '#fff'; c.fillRect(p.x - 17 * k, p.y - 32 * k, 34 * k, 10 * k); c.fillStyle = '#ff8a3f'; c.fillRect(p.x - 38 * k, p.y - 4 * k, 76 * k, 10 * k); }
+  }
+  // ぷにゅ
+  const px = raceX(s.x), spin = s.spin > 0 ? (1 - s.spin) * D.TAU * 2 : 0;
+  if (s.boost > 0) { c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 4; for (let i = 0; i < 10; i++) { const a = Math.floor(t * 30) * 7 + i, x = (a * 97) % W, y = RACE_H + ((a * 53) % 300); c.beginPath(); c.moveTo(x, y); c.lineTo(x + (x - W / 2) * 0.15, y + 50); c.stroke(); } }
+  D.drawKart(c, px, RACE_Y - 14 + Math.sin(t * 30) * 1.5, 1.7, '#ff7fc4', k => D.drawRider(k, { eyes: s.spin > 0 ? 'dizzy' : s.goalT > 0 ? 'happy' : 'open', mouth: s.spin > 0 ? 'o' : 'smile', dir: s.lane - s.x }, t), { rot: spin, boost: s.boost > 0, t });
+  drawFx(c, ui.fx);
+  hud(c, s);
+  // すすみぐあい
+  c.fillStyle = 'rgba(0,0,0,.35)'; D.rr(c, 250, 20, 400, 12, 6); c.fill();
+  for (const r of s.rivals) { c.fillStyle = D.KART_COL[r.kind]; c.beginPath(); c.arc(250 + 400 * Math.min(1, r.dist / s.def.len), 26, 8, 0, D.TAU); c.fill(); }
+  c.fillStyle = '#ff7fc4'; c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(250 + 400 * Math.min(1, s.dist / s.def.len), 26, 11, 0, D.TAU); c.fill(); c.stroke();
+  const place = s.place || racePlace(s);
+  D.text(c, `${place}ばん`, 760, 27, 26, place === 1 ? '#ffd84a' : '#fff', { stroke: 'rgba(0,0,0,.5)' });
+  if (s.goalT > 0) D.text(c, 'ゴール！', W / 2, 150, 80, '#ffd84a', { stroke: '#e8483f', sw: 16 });
+  else if (ui.touch) { for (const side of [-1, 1]) { c.fillStyle = 'rgba(255,255,255,.28)'; c.beginPath(); c.arc(W / 2 + side * 400, 440, 54, 0, D.TAU); c.fill(); D.text(c, side < 0 ? '◀' : '▶', W / 2 + side * 400, 442, 44, 'rgba(255,255,255,.9)'); } }
+}
+
 // ===================== タイトル・ひろば・けっか =====================
 const blink = t => Math.sin(t * 4) > -0.3;
 
@@ -235,30 +289,50 @@ export function drawBoot(c, t) {
   if (blink(t)) D.text(c, 'タッチ して はじめる', 300, 440, 30, '#fff', { stroke: '#5a3fd0' });
 }
 
-export function drawHub(c, t, save) {
+function drawFriend(c, id, x, y, r, t) {
+  if (id === 'starkid') D.drawStarKid(c, x, y, r * 0.8, t);
+  else if (id === 'slime') D.drawSlime(c, x, y, r * 0.9, { t });
+  else if (id === 'comet') D.drawComet(c, x, y, r * 0.85, t);
+  else if (id === 'luna') D.drawLuna(c, x, y - r * 0.4, r * 0.7, { t, mood: 'happy' });
+  else if (id === 'king') D.drawSlime(c, x, y, r, { t, color: '#7fe08a', crown: true });
+  else D.drawBug(c, x, y, r * 0.9, { t, mood: 'happy', glitch: 0 });
+}
+export function drawHub(c, t, save, news) {
   D.bgTunnel(c, t * 0.25, '#6b5fd0', '#1a1240');
-  D.text(c, 'どの ゲームに はいる？', W / 2, 62, 40, '#fff', { stroke: '#5a3fd0' });
+  if (!news) D.text(c, 'どの ゲームに はいる？', W / 2, 46, 34, '#fff', { stroke: '#5a3fd0' });
   const unlocked = finalUnlocked(save, WORLDS.map(w => w.id));
   for (const card of HUB_CARDS) {
     const w = card.world, isFinal = w.id === 'bug', locked = isFinal && !unlocked, rec = save.worlds[w.id];
-    const cx = card.x + card.w / 2, cy = card.y + card.h / 2 + Math.sin(t * 2 + card.x) * 5;
+    const dy = Math.sin(t * 2 + card.x) * 4, cx = card.x + card.w / 2, cy = card.y + card.h / 2 + dy;
     D.drawCart(c, cx, cy, card.w, card.h, w, { locked, t });
-    if (locked) { D.text(c, '？？？', cx, cy - 40, 40, '#9aa0b8'); D.text(c, 'みっつ クリアで', cx, cy + 22, 18, '#c9cedd'); D.text(c, 'ひらくよ', cx, cy + 46, 18, '#c9cedd'); }
+    if (locked) { D.text(c, '？？？', cx, cy - 40, 34, '#9aa0b8'); D.text(c, 'ほかを ぜんぶ', cx, cy + 14, 16, '#c9cedd'); D.text(c, 'クリアで ひらくよ', cx, cy + 36, 16, '#c9cedd'); }
     else {
-      if (w.id === 'star') D.drawPunyu(c, cx, cy - 38, 30, { t, costume: 'star' });
-      else if (w.id === 'hero') D.drawPunyu(c, cx, cy - 38, 30, { t, costume: 'hero' });
-      else if (w.id === 'idol') D.drawPunyu(c, cx, cy - 38, 30, { t, costume: 'idol' });
-      else D.drawBug(c, cx, cy - 34, 34, { t });
-      D.text(c, w.title[0], cx, cy + 22, w.title[0].length > 6 ? 19 : 23, '#fff', { stroke: 'rgba(0,0,0,.45)' });
-      D.text(c, w.title[1], cx, cy + 50, w.title[1].length > 6 ? 19 : 23, '#fff', { stroke: 'rgba(0,0,0,.45)' });
-      for (let i = 0; i < 3; i++) { c.fillStyle = rec?.clear && i < rec.stars ? D.COL.gold : 'rgba(90,90,120,.35)'; D.star(c, cx - 34 + i * 34, cy + card.h / 2 - 17, 12); c.fill(); }
-      if (rec?.clear) { c.fillStyle = '#ff5fae'; D.rr(c, card.x + card.w - 78, card.y - 6 + (cy - card.y - card.h / 2), 84, 30, 15); c.fill(); D.text(c, 'クリア', card.x + card.w - 36, card.y + 10 + (cy - card.y - card.h / 2), 17, '#fff'); }
+      if (isFinal) D.drawBug(c, cx, cy - 44, 30, { t }); else D.drawPunyu(c, cx, cy - 44, 27, { t, costume: w.costume });
+      w.title.forEach((ln, i) => D.text(c, ln.replace('☆', ''), cx, cy + 10 + i * 24, ln.length > 6 ? 15 : 19, '#fff', { stroke: 'rgba(0,0,0,.45)' }));
+      for (let i = 0; i < 3; i++) { c.fillStyle = rec?.clear && i < rec.stars ? D.COL.gold : 'rgba(90,90,120,.35)'; D.star(c, cx - 30 + i * 30, cy + card.h / 2 - 17, 11); c.fill(); }
+      if (rec?.clear) { c.fillStyle = '#ff5fae'; D.rr(c, card.x + card.w - 70, card.y - 8 + dy, 76, 28, 14); c.fill(); D.text(c, 'クリア', card.x + card.w - 32, card.y + 7 + dy, 16, '#fff'); }
     }
   }
-  D.drawPunyu(c, 90, 470 - Math.abs(Math.sin(t * 3)) * 8, 44, { t, eyes: save.ending ? 'happy' : 'open' });
-  D.text(c, save.ending ? 'ぜんぶ クリア！ おめでとう！' : unlocked ? 'さいごの ゲームが ひらいたよ！' : 'カセットを タッチ してね', 150, 478, 22, '#fff', { align: 'left', stroke: 'rgba(0,0,0,.4)' });
-  button(c, HUB_BTNS.story, 'おはなし', { size: 21 });
-  button(c, HUB_BTNS.sound, save.sound ? 'おと：オン' : 'おと：オフ', { size: 21 });
+  // ともだち あつめ
+  const have = new Set(friendsOf(save).map(f => f.id)), next = nextFriend(save), total = totalStars(save);
+  c.fillStyle = 'rgba(15,10,40,.5)'; D.rr(c, 16, 346, 600, 184, 24); c.fill();
+  c.fillStyle = D.COL.gold; D.star(c, 44, 372, 13); c.fill();
+  D.text(c, `${total}`, 64, 373, 22, '#fff', { align: 'left' });
+  D.text(c, next ? `あと ★${next.need - total}こで ともだちが くるよ` : have.size === FRIENDS.length ? 'みんな あそびに きたよ！' : 'バグバグは どこかな？', 110, 373, 19, '#fff', { align: 'left' });
+  D.drawPunyu(c, 70, 462 - Math.abs(Math.sin(t * 3)) * 8, 38, { t, eyes: save.ending ? 'happy' : 'open' });
+  FRIENDS.forEach((f, i) => {
+    const x = 160 + i * 80, y = 468;
+    if (have.has(f.id)) drawFriend(c, f.id, x, y - Math.abs(Math.sin(t * 3 + i * 1.3)) * 8, 28, t + i);
+    else { c.fillStyle = 'rgba(255,255,255,.14)'; c.beginPath(); c.arc(x, y, 26, 0, D.TAU); c.fill(); D.text(c, '？', x, y + 1, 26, 'rgba(255,255,255,.5)'); }
+  });
+  // まぜこぜ モード
+  const m = HUB_BTNS.mix;
+  if (save.ending) {
+    button(c, m, 'まぜこぜ モード', { size: 26, bg: '#ffd84a', fg: '#a8400a' });
+    if (save.mix?.best) D.text(c, `いちばん ★${save.mix.best}`, m.x + m.w / 2, m.y - 16, 17, '#ffe9a8', { stroke: 'rgba(0,0,0,.4)' });
+  } else { c.fillStyle = 'rgba(255,255,255,.14)'; D.rr(c, m.x, m.y, m.w, m.h, m.h / 2); c.fill(); D.text(c, '？？？ モード', m.x + m.w / 2, m.y + m.h / 2, 22, 'rgba(255,255,255,.55)'); }
+  button(c, HUB_BTNS.story, 'おはなし', { size: 19 });
+  button(c, HUB_BTNS.sound, save.sound ? 'おと：オン' : 'おと：オフ', { size: 19 });
 }
 
 function logo(c, lines, x, y, size, fill, stroke, t, o = {}) {
@@ -284,6 +358,14 @@ export function drawWorldTitle(c, world, t, save) {
     c.beginPath(); c.moveTo(-13, 120); c.lineTo(-13, -330); c.lineTo(0, -362); c.lineTo(13, -330); c.lineTo(13, 120); c.closePath(); c.stroke(); c.fill();
     c.fillStyle = D.COL.gold; c.fillRect(-44, 120, 88, 18); c.strokeRect(-44, 120, 88, 18); c.fillStyle = '#b5651d'; c.fillRect(-10, 138, 20, 50); c.strokeRect(-10, 138, 20, 50); c.restore();
     logo(c, world.title, 500, 150, 70, '#ffd84a', '#5a2a10', t, { shadow: 'rgba(40,20,0,.5)' });
+  } else if (id === 'race') {
+    D.bgRace(c, t, 'field', 250);
+    c.fillStyle = '#5a5470'; c.beginPath(); c.moveTo(W / 2, 250); c.lineTo(W + 120, H); c.lineTo(-120, H); c.fill();
+    c.fillStyle = '#fff'; for (let i = 0; i < 5; i++) { const k = ((i + t * 2) % 5) / 5, y = 250 + k * k * 290; c.fillRect(W / 2 - 4 - k * 6, y, 8 + k * 12, 10 + k * 26); }
+    for (let i = 0; i < 24; i++) for (let j = 0; j < 2; j++) { c.fillStyle = (i + j) % 2 ? '#fff' : '#2a2238'; c.fillRect(i * 40, j * 22, 40, 22); }
+    c.save(); c.transform(1, 0, -0.18, 1, 30, 0); logo(c, world.title, W / 2, 130, 78, '#fff', '#e8483f', t, { shadow: 'rgba(90,10,10,.5)' }); c.restore();
+    D.drawKart(c, 800, 420, 1.3, D.KART_COL.slime, k => D.drawRider(k, 'slime', t)); D.drawKart(c, 700, 470, 1.5, D.KART_COL.starkid, k => D.drawRider(k, 'starkid', t));
+    D.drawKart(c, 170, 440 + Math.sin(t * 20) * 2, 2.5, '#ff7fc4', k => D.drawRider(k, { eyes: 'happy', mouth: 'open' }, t));
   } else if (id === 'idol') {
     D.bgStage(c, t);
     for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#fff' : '#ffd0e8'; D.heart(c, 80 + i * 115, 60 + Math.sin(t * 2 + i) * 10, 16); c.fill(); }
@@ -296,7 +378,7 @@ export function drawWorldTitle(c, world, t, save) {
     const j = Math.floor(t * 8) % 5 === 0 ? 6 : 0;
     logo(c, world.title, W / 2 - 4 - j, 150, 76, '#58f0a0', 'rgba(0,0,0,0)', t); logo(c, world.title, W / 2 + 4 + j, 150, 76, '#ff7fc4', 'rgba(0,0,0,0)', t);
     logo(c, world.title, W / 2, 150, 76, '#fff', '#1a0b33', t);
-    D.drawBug(c, 760, 400 + Math.sin(t * 5) * 8, 76, { t }); D.drawPunyu(c, 190, 410, 66, { t, costume: ['star', 'hero', 'idol'][Math.floor(t * 1.2) % 3], dir: 1 });
+    D.drawBug(c, 760, 400 + Math.sin(t * 5) * 8, 76, { t }); D.drawPunyu(c, 190, 410, 66, { t, costume: ['star', 'hero', 'idol', 'racer'][Math.floor(t * 1.2) % 4], dir: 1 });
   }
   c.fillStyle = 'rgba(20,12,50,.7)'; D.rr(c, W / 2 - 170, 318, 340, 40, 20); c.fill();
   D.text(c, world.sub, W / 2, 339, 21, '#fff');
@@ -314,7 +396,7 @@ export function drawStageCard(c, run, t) {
   c.save(); c.translate(W / 2, H / 2); c.scale(0.8 + k * 0.2, 0.8 + k * 0.2);
   c.fillStyle = '#fff'; D.rr(c, -330, -120, 660, 240, 30); c.fill();
   c.fillStyle = run.world.color; D.rr(c, -330, -120, 660, 62, 30); c.fill(); c.fillRect(-330, -90, 660, 32);
-  D.text(c, `ステージ ${run.i + 1}`, 0, -88, 26, '#fff');
+  D.text(c, run.def.mix ? `${run.i + 1}ばんめ` : `ステージ ${run.i + 1}`, 0, -88, 26, '#fff');
   D.drawPunyu(c, -235, 30, 52, { t, costume: run.def.costume, eyes: 'happy' });
   D.text(c, run.def.name, 60, -8, run.def.name.length > 10 ? 30 : 36, '#3b2aa8');
   const lines = D.wrap(c, run.def.hint, 420, 20);
@@ -324,13 +406,24 @@ export function drawStageCard(c, run, t) {
 export function drawStageClear(c, run, t) {
   const k = Math.min(1, t / 0.35), s = 1.4 - k * 0.4;
   c.save(); c.translate(W / 2, 250); c.scale(s, s); c.rotate(-0.05);
-  D.text(c, 'ステージ クリア！', 0, 0, 68, '#ffd84a', { stroke: '#fff', sw: 18 }); D.text(c, 'ステージ クリア！', 0, 0, 68, '#ff5fae', { stroke: '#5a2d8a', sw: 8 });
+  const msg = run.def.mix ? 'ナイス！' : 'ステージ クリア！';
+  D.text(c, msg, 0, 0, 68, '#ffd84a', { stroke: '#fff', sw: 18 }); D.text(c, msg, 0, 0, 68, '#ff5fae', { stroke: '#5a2d8a', sw: 8 });
   c.restore();
 }
 
-export function drawResult(c, world, stars, t) {
+export function drawResult(c, world, stars, t, mix) {
   worldBg(c, world.id, t);
   c.fillStyle = 'rgba(15,10,40,.45)'; c.fillRect(0, 0, W, H);
+  if (mix) {
+    D.text(c, 'まぜこぜ おしまい！', W / 2, 84, 58, '#ffd84a', { stroke: '#5a2d8a', sw: 14 });
+    const n = Math.round(mix.score * Math.min(1, t / 1.2));
+    c.fillStyle = D.COL.gold; D.star(c, W / 2 - 96, 196, 40, t); c.fill();
+    D.text(c, String(n), W / 2 + 30, 200, 84, '#fff', { stroke: '#5a2d8a', sw: 14 });
+    if (t > 1.3) D.text(c, mix.isBest ? 'いちばんの きろく！' : `いちばんは ★${mix.best}`, W / 2, 278, 28, mix.isBest ? '#ffd84a' : '#fff', { stroke: '#5a2d8a' });
+    D.drawPunyu(c, W / 2, 392 - Math.abs(Math.sin(t * 5)) * 16, 62, { t, eyes: 'happy', mouth: 'open' });
+    if (t > 2 && blink(t)) D.text(c, 'タッチ して もどる', W / 2, 496, 28, '#fff', { stroke: '#5a3fd0' });
+    return;
+  }
   D.text(c, world.id === 'bug' ? 'ぜんぶ クリア！' : 'ゲーム クリア！', W / 2, 90, 64, '#ffd84a', { stroke: '#5a2d8a', sw: 14 });
   for (let i = 0; i < 3; i++) {
     const k = Math.max(0, Math.min(1, (t - 0.5 - i * 0.45) / 0.3)), on = i < stars;

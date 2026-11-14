@@ -4,7 +4,12 @@ import * as D from './draw.mjs';
 
 const ease = k => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const bob = (t, sp = 3, amp = 6) => Math.sin(t * sp) * amp;
-export const worldBg = (c, id, t) => (id === 'star' ? D.bgSky(c, t) : id === 'hero' ? D.bgField(c, t) : id === 'idol' ? D.bgStage(c, t) : D.bgGlitch(c, t));
+function raceScene(c, t, theme = 'field') {
+  D.bgRace(c, t, theme, 250);
+  c.fillStyle = '#5a5470'; c.beginPath(); c.moveTo(W / 2, 250); c.lineTo(W + 80, H); c.lineTo(-80, H); c.fill();
+  c.fillStyle = '#fff'; for (let i = 0; i < 5; i++) { const k = ((i + t * 2) % 5) / 5, y = 250 + k * k * 290; c.fillRect(W / 2 - 4 - k * 6, y, 8 + k * 12, 10 + k * 26); }
+}
+export const worldBg = (c, id, t) => (id === 'star' ? D.bgSky(c, t) : id === 'hero' ? D.bgField(c, t) : id === 'idol' ? D.bgStage(c, t) : id === 'race' ? raceScene(c, t) : id === 'mix' ? D.bgTunnel(c, t * 0.4, '#ffd84a', '#3a2466') : D.bgGlitch(c, t));
 
 function flash(c, t, dur = 0.5) { if (t < dur) { c.fillStyle = `rgba(255,255,255,${1 - t / dur})`; c.fillRect(0, 0, W, H); } }
 function sparkles(c, x, y, t, n = 10, rad = 120) {
@@ -29,10 +34,10 @@ export const SCENES = {
 
   enter: ({ world }) => {
     const name = world.title.join(' ').replace('☆', '');
-    const line = { star: 'ほしの まほうつかいに へんしん！', hero: 'ゆうしゃに へんしん！', idol: 'アイドルに へんしん！', bug: 'ぜんぶの ふくで たたかうよ！' }[world.id];
+    const line = { star: 'ほしの まほうつかいに へんしん！', hero: 'ゆうしゃに へんしん！', idol: 'アイドルに へんしん！', race: 'レーサーに へんしん！', bug: 'ぜんぶの ふくで たたかうよ！' }[world.id];
     return [
       { text: `「${name}」の せかいへ…`, sfx: 'warp', draw(c, t) { D.bgTunnel(c, t, world.color2, '#140a2e'); D.drawPunyu(c, W / 2 + Math.cos(t * 4) * 90, 230 + Math.sin(t * 4) * 50, 60, { t, mouth: 'open' }); } },
-      { text: line, sfx: 'henshin', draw(c, t) { worldBg(c, world.id, t); sparkles(c, W / 2, 250, t); const k = ease(t / 0.5); D.drawPunyu(c, W / 2, 260 - Math.abs(bob(t, 5, 12)), 60 + k * 30, { t, costume: world.id === 'bug' ? ['star', 'hero', 'idol'][Math.floor(t * 1.5) % 3] : world.costume, eyes: 'happy', mouth: 'open' }); flash(c, t); } },
+      { text: line, sfx: 'henshin', draw(c, t) { worldBg(c, world.id, t); sparkles(c, W / 2, 250, t); const k = ease(t / 0.5); D.drawPunyu(c, W / 2, 260 - Math.abs(bob(t, 5, 12)), 60 + k * 30, { t, costume: world.id === 'bug' ? ['star', 'hero', 'idol', 'racer'][Math.floor(t * 1.5) % 4] : world.costume, eyes: 'happy', mouth: 'open' }); flash(c, t); } },
     ];
   },
 
@@ -49,14 +54,20 @@ export const SCENES = {
     { text: 'うたと ダンスで ノイズを ふきとばそう！', draw(c, t) { D.bgStage(c, t); sparkles(c, W / 2, 300, t, 8, 150); D.drawPunyu(c, W / 2, 320 - Math.abs(bob(t, 6, 18)), 76, { t, costume: 'idol', eyes: 'happy', mouth: 'open' }); } },
   ],
 
+  bossRace: () => [
+    { text: 'さいごの レースに バグバグが とびこんで きた！', sfx: 'glitch', draw(c, t) { raceScene(c, t, 'glitch'); D.drawKart(c, 640, 300 + bob(t, 9, 4), 1.9, D.KART_COL.bug, k => D.drawRider(k, 'bug', t)); D.drawKart(c, 280, 350, 1.6, '#ff7fc4', k => D.drawRider(k, { mouth: 'o' }, t)); } },
+    { text: 'じゃまな ブロックを よけて、 １ばんを めざそう！', draw(c, t) { raceScene(c, t, 'glitch'); D.drawKart(c, W / 2 + bob(t, 3, 60), 320, 2.1, '#ff7fc4', k => D.drawRider(k, { mouth: 'open', eyes: 'happy' }, t), { boost: true, t }); } },
+  ],
+
   clear: ({ world }) => {
-    const line = { star: '「ありがとう、 ぷにゅ。 また いっしょに おどりましょう」', hero: '「まいった〜。 たからものは きみの ものだ」', idol: 'ライブは だいせいこう！ みんな にこにこ だよ。' }[world.id];
+    const line = { star: '「ありがとう、 ぷにゅ。 また いっしょに おどりましょう」', hero: '「まいった〜。 たからものは きみの ものだ」', idol: 'ライブは だいせいこう！ みんな にこにこ だよ。', race: '「いい はしり だったね！ また きょうそう しよう」' }[world.id];
     return [
       { text: line, sfx: 'cheer', draw(c, t) {
         worldBg(c, world.id, t);
         if (world.id === 'star') D.drawLuna(c, 620, 220 + bob(t, 2), 66, { t, mood: 'happy' });
         if (world.id === 'hero') D.drawSlime(c, 640, 340, 90, { t, color: '#7fe08a', crown: true });
         if (world.id === 'idol') sparkles(c, W / 2, 280, t, 12, 220);
+        if (world.id === 'race') { D.drawKart(c, 600, 330, 1.5, D.KART_COL.slime, k => D.drawRider(k, 'slime', t)); D.drawKart(c, 760, 300, 1.2, D.KART_COL.comet, k => D.drawRider(k, 'comet', t)); }
         D.drawPunyu(c, world.id === 'idol' ? W / 2 : 300, 350 - Math.abs(bob(t, 6, 16)), 72, { t, costume: world.costume, eyes: 'happy', mouth: 'open', dir: 1 });
       } },
       { text: 'ゲームの カセットが もとに もどったよ！', sfx: 'clear', draw(c, t) { D.bgTunnel(c, t * 0.4, world.color2, '#140a2e'); sparkles(c, W / 2, 230, t, 12, 170); c.save(); c.translate(W / 2, 230 + bob(t, 2, 8)); c.rotate(Math.sin(t * 2) * 0.08); D.drawCart(c, 0, 0, 220, 170, world); D.text(c, world.title[0], 0, -30, 24, '#fff', { stroke: 'rgba(0,0,0,.4)' }); D.text(c, world.title[1], 0, 2, 24, '#fff', { stroke: 'rgba(0,0,0,.4)' }); c.restore(); flash(c, t); } },
@@ -64,7 +75,7 @@ export const SCENES = {
   },
 
   finalIntro: () => [
-    { text: 'みっつの せかいが もとに もどった。 のこるは バグバグ だけ！', draw(c, t) { D.bgTunnel(c, t); D.drawPunyu(c, 300, 300, 70, { t, dir: 1 }); D.drawBug(c, 680, 230 + bob(t, 4, 10), 80, { t }); } },
+    { text: 'ぜんぶの せかいが もとに もどった。 のこるは バグバグ だけ！', draw(c, t) { D.bgTunnel(c, t); D.drawPunyu(c, 300, 300, 70, { t, dir: 1 }); D.drawBug(c, 680, 230 + bob(t, 4, 10), 80, { t }); } },
     { text: '「むむむ… こうなったら ぜんぶ まぜこぜ だ！」', sfx: 'glitch', draw(c, t) { D.bgGlitch(c, t); D.drawBug(c, W / 2, 240 + bob(t, 14, 5), 120, { t }); } },
   ],
 

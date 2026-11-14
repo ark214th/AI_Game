@@ -36,6 +36,11 @@ const LOOPS = {
     line('c3 c3 e3 g3 | c3 c3 e3 g3 | f3 f3 a3 c4 | g3 g3 b3 d4 | f3 f3 a3 c4 | c3 c3 e3 g3 | g3 g3 b3 d4 | c3 g3 c3:2', { vol: 0.15, gate: 0.6 }),
     drum(32, 'k.s.k.s.', 0.5),
   ] },
+  race: { bpm: 152, beats: 32, parts: [
+    line('g5 g5 e5 g5 | c6:2 g5:2 | a5 a5 f5 a5 | g5:4 | g5 g5 e5 g5 | c6:2 e6:2 | d6 c6 b5 d6 | c6:4', { vol: 0.1, type: 'square' }),
+    line('c3 g3 c3 g3 | c3 g3 c3 g3 | f3 c4 f3 c4 | g3 d4 g3 d4 | c3 g3 c3 g3 | a2 e3 a2 e3 | g3 d4 g3 d4 | c3 g3 c3:2', { vol: 0.16, gate: 0.5 }),
+    drum(32, 'k.hsk.hs', 0.5),
+  ] },
   bug: { bpm: 144, beats: 16, parts: [
     line('e5 -:.5 e5:.5 g5 e5 | bb5:2 a5:2 | e5 -:.5 e5:.5 g5 e5 | d5:2 eb5:2', { vol: 0.08, type: 'square' }),
     line('e2 e3 e2 e3 | e2 e3 e2 e3 | e2 e3 e2 e3 | d2 d3 eb2 eb3', { vol: 0.16, type: 'sawtooth', gate: 0.5 }),
@@ -105,6 +110,8 @@ export class Sound {
     if (!this.ctx || !this.on) return;
     switch (name) {
       case 'tap': this.tone(700, 0.07, { vol: 0.14 }); break;
+      case 'lane': this.tone(520, 0.08, { type: 'triangle', vol: 0.12, slide: 1.5 }); break;
+      case 'boost': this.tone(300, 0.5, { type: 'sawtooth', vol: 0.08, slide: 4 }); this.arp([784, 1047, 1568], 0.06, 0.14, { vol: 0.12 }); break;
       case 'page': this.tone(880, 0.06, { vol: 0.1 }); this.tone(1175, 0.08, { vol: 0.08, at: 0.05 }); break;
       case 'ok': this.arp([659, 880, 1319], 0.07, 0.16); break;
       case 'star': { const n = [1319, 1568, 1760, 2093][Math.floor(Math.random() * 4)]; this.tone(n, 0.14, { vol: 0.1 }); break; }

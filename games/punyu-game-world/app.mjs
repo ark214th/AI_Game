@@ -1,5 +1,5 @@
 // すすめかた・そうさ・がめんの きりかえ
-import { W, H, WORLDS, FINAL, worldById } from './data.mjs';
+import { W, H, WORLDS, FINAL, MIX, worldById } from './data.mjs';
 import * as C from './core.mjs';
 import * as V from './view.mjs';
 import * as D from './draw.mjs';
@@ -14,7 +14,7 @@ const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save))
 const sound = new Sound(save.sound);
 
 const G = { scr: 'boot', st: 0, t: 0, cut: null, run: null, world: null, result: null, paused: false, fx: [], taps: [], shake: 0, touch: true, toast: null };
-const inp = { ptr: new Map(), stick: null, dx: 0, dy: 0, act: false, keys: new Set(), dragId: null };
+const inp = { ptr: new Map(), stick: null, dx: 0, dy: 0, act: false, turn: 0, keys: new Set(), dragId: null };
 
 // ---------- がめんの おおきさ ----------
 function resize() {
@@ -57,6 +57,8 @@ addEventListener('keydown', e => {
     const r = G.run;
     if (r.kind === 'rhythm' && e.key in LANE_KEYS && r.intro <= 0) hitLane(LANE_KEYS[e.key]);
     if (r.kind === 'adventure' && (e.key === ' ' || e.key === 'z' || e.key === 'Enter')) inp.act = true;
+    if (r.kind === 'race' && (e.key === 'ArrowLeft' || e.key === 'a')) inp.turn = -1;
+    if (r.kind === 'race' && (e.key === 'ArrowRight' || e.key === 'd')) inp.turn = 1;
   } else if (e.key === ' ' || e.key === 'Enter') G.taps.push({ x: W / 2, y: H / 2, key: true });
   if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault();
 });
@@ -68,14 +70,25 @@ const keyAxis = () => ({ x: (inp.keys.has('ArrowRight') || inp.keys.has('d') ? 1
 function burst(x, y, n, col, o = {}) {
   for (let i = 0; i < n; i++) { const a = Math.random() * D.TAU, v = (o.v || 160) * (0.4 + Math.random()); G.fx.push({ kind: o.kind || 'star', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - (o.up || 0), life: o.life || 0.6, max: o.life || 0.6, c: Array.isArray(col) ? col[i % col.length] : col, size: o.size || 9 }); }
 }
-const say = (x, y, text, o = {}) => G.fx.push({ kind: 'text', x, y, vx: 0, vy: -40, life: o.life || 0.9, max: o.life || 0.9, text, size: o.size || 30, c: o.c, stroke: o.stroke });
+const say = (x, y, text, o = {}) => G.fx.push({ kind: 'text', x, y, vx: 0, vy: o.vy ?? -40, life: o.life || 0.9, max: o.life || 0.9, text, size: o.size || 30, c: o.c, stroke: o.stroke });
 const ring = (x, y, col, size = 70) => G.fx.push({ kind: 'ring', x, y, vx: 0, vy: 0, life: 0.4, max: 0.4, c: col, size });
 function stepFx(dt) { for (const p of G.fx) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; } G.fx = G.fx.filter(p => p.life > 0); if (G.fx.length > 260) G.fx.splice(0, G.fx.length - 260); }
 
 // ---------- がめんの きりかえ ----------
 function go(scr) { G.scr = scr; G.st = 0; G.fx = []; G.paused = false; inp.stick = null; }
 function toBoot() { go('boot'); sound.loop('hub'); }
-function toHub() { go('hub'); G.run = null; sound.loop('hub'); }
+function toHub() {
+  go('hub'); G.run = null; sound.loop('hub');
+  // あたらしく きた ともだちを しらせる
+  const seen = new Set(save.friendsSeen || []), fresh = C.friendsOf(save).filter(f => !seen.has(f.id));
+  if (fresh.length) {
+    say(W / 2, 46, `${fresh.map(f => f.name).join('と ')}が あそびに きたよ！`, { c: '#ffd84a', size: 30, life: 4, vy: 0 });
+    G.hubNews = 4;
+    burst(W / 2, 360, 30, [D.COL.gold, '#fff', D.COL.pink], { v: 300, life: 1.2 }); sound.play('cheer');
+    save.friendsSeen = C.friendsOf(save).map(f => f.id); store();
+  }
+}
+function startMix() { startStage({ ...MIX, stages: C.buildMix(C.rng32(Date.now() >>> 0)) }, 0, []); }
 function playCut(id, ctx, then, music = 'hub') {
   go('cut'); G.cut = { pages: SCENES[id](ctx || {}), i: 0, t: 0, then };
   sound.loop(music); if (G.cut.pages[0].sfx) sound.play(G.cut.pages[0].sfx);
@@ -85,8 +98,8 @@ function nextPage() {
   if (q.i >= q.pages.length) { const f = q.then; G.cut = null; f(); return; }
   sound.play('page'); if (q.pages[q.i].sfx) sound.play(q.pages[q.i].sfx);
 }
-const musicOf = (world, def) => (world.id === 'bug' ? 'bug' : def.kind === 'danmaku' ? 'star' : def.kind === 'adventure' ? 'hero' : null);
-function toWorldTitle(world) { go('wtitle'); G.world = world; sound.loop(world.id === 'bug' ? 'bug' : world.id === 'idol' ? 'hub' : world.id); }
+const musicOf = (world, def) => (world.id === 'bug' ? 'bug' : def.kind === 'danmaku' ? 'star' : def.kind === 'adventure' ? 'hero' : def.kind === 'race' ? 'race' : null);
+function toWorldTitle(world) { if (world.id === 'mix') { toHub(); return; } go('wtitle'); G.world = world; sound.loop(world.id === 'bug' ? 'bug' : world.id === 'idol' ? 'hub' : world.id); }
 function enterWorld(world) {
   const enter = () => playCut('enter', { world }, () => toWorldTitle(world), world.id === 'bug' ? 'bug' : 'hub');
   if (world.id === 'bug' && !save.worlds.bug) playCut('finalIntro', {}, enter, 'bug'); else enter();
@@ -95,17 +108,22 @@ function enterWorld(world) {
 function startStage(world, i, ratings = [], skipCut = false) {
   const def = world.stages[i];
   if (def.bossIntro && !skipCut) { playCut(def.bossIntro, {}, () => startStage(world, i, ratings, true), musicOf(world, def) || 'hub'); return; }
-  const sim = def.kind === 'danmaku' ? C.newDanmaku(def, 7 + i) : def.kind === 'adventure' ? C.newAdventure(def, 11 + i) : C.newRhythm(def);
+  const sim = def.kind === 'danmaku' ? C.newDanmaku(def, 7 + i) : def.kind === 'adventure' ? C.newAdventure(def, 11 + i) : def.kind === 'race' ? C.newRace(def, 5 + i) : C.newRhythm(def);
+  const introMax = def.mix ? 1.7 : 2.6;
   go('play');
-  G.run = { world, i, def, sim, kind: def.kind, intro: 2.6, outro: 0, ratings, spell: null, laneFlash: [0, 0, 0], jump: 0, songStart: null };
-  inp.dx = inp.dy = 0; inp.act = false;
+  G.run = { world, i, def, sim, kind: def.kind, intro: introMax, introMax, playT: 0, outro: 0, ratings, spell: null, laneFlash: [0, 0, 0], jump: 0, songStart: null };
+  inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0;
   const m = musicOf(world, def);
-  if (m) sound.loop(m, i === 2 && world.id !== 'bug' ? 1.1 : 1); else sound.stop();
-  sound.play(world.id === 'bug' && i > 0 ? 'henshin' : 'ok');
+  if (m) sound.loop(m, i === 2 && !['bug', 'mix'].includes(world.id) ? 1.1 : 1); else sound.stop();
+  sound.play((world.id === 'bug' || world.id === 'mix') && i > 0 ? 'henshin' : 'ok');
 }
 function finishStage() {
   const r = G.run;
   if (r.i + 1 < r.world.stages.length) { startStage(r.world, r.i + 1, r.ratings); return; }
+  if (r.world.id === 'mix') {
+    const score = r.ratings.reduce((a, b) => a + b, 0), isBest = C.recordMix(save, score); store();
+    go('result'); G.result = { world: r.world, stars: 0, mix: { score, isBest, best: save.mix.best } }; sound.loop('hub'); sound.play('clear'); return;
+  }
   const stars = C.avgStars(r.ratings), world = r.world;
   C.recordClear(save, world.id, stars);
   const toResult = () => { go('result'); G.result = { world, stars }; sound.loop('hub'); sound.play('clear'); };
@@ -130,6 +148,7 @@ let starSfx = 0;
 function handleEvents(r) {
   const s = r.sim;
   for (const e of s.ev) {
+    if (r.kind === 'race') { e.x = V.raceX(e.lane ?? s.x); e.y = 420; }
     switch (e.t) {
       case 'hit': sound.play('hit'); say(e.x, e.y - 40, 'ぽよん', { c: '#fff', stroke: '#ff5fae' }); burst(e.x, e.y, 10, ['#fff', '#ff9fd0']); G.shake = 0.25; break;
       case 'star': if (G.t - starSfx > 0.05) { starSfx = G.t; sound.play('star'); } burst(e.x, e.y, 2, D.COL.gold, { v: 60, life: 0.35, size: 6 }); break;
@@ -153,6 +172,8 @@ function handleEvents(r) {
         burst(x, V.HIT_Y, e.t === 'perfect' ? 10 : 5, [D.COL.gold, '#fff', D.COL.pink], { v: 220 }); if (e.t === 'perfect') r.jump = 0.35; break;
       }
       case 'tap': sound.play('tap'); break;
+      case 'boost': sound.play('boost'); say(e.x, e.y - 60, 'ダッシュ！', { c: '#ffd84a', stroke: '#e8483f' }); break;
+      case 'goal': sound.play('cheer'); burst(W / 2, 200, 40, [D.COL.gold, '#fff', D.COL.pink], { v: 420, life: 1.2 }); break;
       case 'miss': break;
       default: sound.play(e.t);   // push, switch, chest, chestAppear, clang, call
     }
@@ -165,13 +186,14 @@ function updatePlay(dt) {
   // ひとやすみ ボタン
   for (const p of G.taps) if (!p.key && V.inRect(p, V.PAUSE_BTN)) { setPause(true); sound.play('tap'); return; }
   if (r.intro > 0) {
-    r.intro -= dt; if (G.taps.length && r.intro < 2.0) r.intro = 0;
+    r.intro -= dt; if (G.taps.length && r.intro < r.introMax - 0.6) r.intro = 0;
     if (r.intro <= 0 && r.kind === 'rhythm') r.songStart = sound.song(r.def);
-    inp.dx = inp.dy = 0; inp.act = false; return;
+    inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0; return;
   }
   if (r.outro > 0) { r.outro -= dt; if (r.outro <= 0) finishStage(); return; }
-  const k = keyAxis();
-  if (r.kind === 'danmaku') { C.stepDanmaku(s, dt, { dx: inp.dx, dy: inp.dy, kx: k.x, ky: k.y }); if (r.spell) r.spell.t += dt; }
+  const k = keyAxis(); r.playT += dt;
+  if (r.kind === 'race') { for (const p of G.taps) if (!p.key && p.y > 60) inp.turn = p.x < W / 2 ? -1 : 1; C.stepRace(s, dt, { turn: inp.turn }); }
+  else if (r.kind === 'danmaku') { C.stepDanmaku(s, dt, { dx: inp.dx, dy: inp.dy, kx: k.x, ky: k.y }); if (r.spell) r.spell.t += dt; }
   else if (r.kind === 'adventure') {
     const st = inp.stick;
     C.stepAdventure(s, dt, { mx: (st ? st.vx : 0) + k.x, my: (st ? st.vy : 0) + k.y, act: inp.act });
@@ -182,11 +204,13 @@ function updatePlay(dt) {
     for (let i = 0; i < 3; i++) r.laneFlash[i] = Math.max(0, r.laneFlash[i] - dt);
     r.jump = Math.max(0, r.jump - dt);
   }
-  inp.dx = inp.dy = 0; inp.act = false;
+  inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0;
   handleEvents(r);
+  const mix = r.world.id === 'mix';
+  if (mix && r.playT > 30) s.done = true;   // まぜこぜは ながびいても つぎへ
   if (s.done) {
-    r.outro = 2.2; r.ratings.push(C.rating(s));
-    C.recordStage(save, r.world.id, r.i, r.world.stages.length); store();
+    r.outro = mix ? 1.1 : 2.2; r.outroMax = r.outro; r.ratings.push(mix ? s.stars : C.rating(s));
+    if (!mix) { C.recordStage(save, r.world.id, r.i, r.world.stages.length); store(); }
     sound.play('clear'); burst(W / 2, 250, 40, [D.COL.gold, '#fff', D.COL.pink], { v: 420, life: 1.2 });
     if (r.kind === 'rhythm') sound.play('cheer');
   }
@@ -207,6 +231,7 @@ function updatePause() {
 
 function update(dt) {
   G.t += dt; G.st += dt; if (G.shake > 0) G.shake -= dt;
+  if (G.hubNews > 0) G.hubNews -= dt;
   stepFx(dt);
   const tap = G.taps[0];
   if (G.scr === 'boot') {
@@ -223,6 +248,8 @@ function update(dt) {
       if (card) {
         if (card.world.id === 'bug' && !C.finalUnlocked(save, WORLDS.map(w => w.id))) { sound.play('locked'); say(card.x + card.w / 2, card.y - 10, 'まだ ひらかないよ', { size: 24 }); }
         else { sound.play('ok'); enterWorld(card.world); }
+      } else if (V.inRect(tap, V.HUB_BTNS.mix)) {
+        if (save.ending) { sound.play('ok'); startMix(); } else { sound.play('locked'); say(V.HUB_BTNS.mix.x + 150, V.HUB_BTNS.mix.y - 20, 'ぜんぶ クリアで ひらくよ', { size: 22 }); }
       } else if (V.inRect(tap, V.HUB_BTNS.story)) { sound.play('tap'); playCut('opening', {}, toHub); }
       else if (V.inRect(tap, V.HUB_BTNS.sound)) { save.sound = !save.sound; sound.setOn(save.sound); store(); sound.play('tap'); }
     }
@@ -249,15 +276,15 @@ function draw() {
   else if (G.scr === 'cut') {
     const q = G.cut; q.typing = drawPage(c, q.pages[q.i], q.t, q.i, q.pages.length);
     V.button(c, V.SKIP_BTN, 'とばす ▶▶', { size: 20, bg: 'rgba(255,255,255,.85)' });
-  } else if (G.scr === 'hub') { V.drawHub(c, t, save); V.drawFx(c, G.fx); }
+  } else if (G.scr === 'hub') { V.drawHub(c, t, save, G.hubNews > 0); V.drawFx(c, G.fx); }
   else if (G.scr === 'wtitle') V.drawWorldTitle(c, G.world, t, save);
   else if (G.scr === 'play') {
     const r = G.run, ui = { t, fx: G.fx, world: r.world, spell: r.spell, stick: inp.stick, touch: G.touch, laneFlash: r.laneFlash, jump: r.jump };
-    if (r.kind === 'danmaku') V.drawDanmaku(c, r.sim, ui); else if (r.kind === 'adventure') V.drawAdventure(c, r.sim, ui); else V.drawRhythm(c, r.sim, ui);
-    if (r.intro > 0) V.drawStageCard(c, r, 2.6 - r.intro);
-    if (r.outro > 0) V.drawStageClear(c, r, 2.2 - r.outro);
+    if (r.kind === 'danmaku') V.drawDanmaku(c, r.sim, ui); else if (r.kind === 'adventure') V.drawAdventure(c, r.sim, ui); else if (r.kind === 'race') V.drawRace(c, r.sim, ui); else V.drawRhythm(c, r.sim, ui);
+    if (r.intro > 0) V.drawStageCard(c, r, r.introMax - r.intro);
+    if (r.outro > 0) V.drawStageClear(c, r, r.outroMax - r.outro);
     if (G.paused) V.drawPause(c, save);
-  } else if (G.scr === 'result') { V.drawResult(c, G.result.world, G.result.stars, G.st); V.drawFx(c, G.fx); }
+  } else if (G.scr === 'result') { V.drawResult(c, G.result.world, G.result.stars, G.st, G.result.mix); V.drawFx(c, G.fx); }
 }
 
 let last = performance.now();
@@ -270,4 +297,4 @@ toBoot();
 requestAnimationFrame(frame);
 
 // かくにんよう（開発者が コンソールから つかう）
-window.__punyu = { G, save, sound, startStage: (id, i) => startStage(worldById(id), i, [], true), cut: (id, wid) => playCut(id, { world: worldById(wid || 'star') }, toHub), title: id => toWorldTitle(worldById(id)), hub: toHub, result: (id, n) => { go('result'); G.result = { world: worldById(id), stars: n }; }, FINAL };
+window.__punyu = { G, save, sound, startStage: (id, i) => startStage(worldById(id), i, [], true), cut: (id, wid) => playCut(id, { world: worldById(wid || 'star') }, toHub), title: id => toWorldTitle(worldById(id)), hub: toHub, mix: startMix, store, result: (id, n) => { go('result'); G.result = { world: worldById(id), stars: n }; }, FINAL };

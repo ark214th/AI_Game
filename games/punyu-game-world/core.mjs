@@ -1,5 +1,5 @@
 // ゲームの中身（描画・音・入力に依存しない。node --test で確かめられる）
-import { W, H } from './data.mjs';
+import { W, H, FRIENDS, MIX } from './data.mjs';
 
 export const TAU = Math.PI * 2;
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -23,12 +23,13 @@ export const DM = { PR: 7, GRAZE: 38, SPEED: 330, INV: 1.6 };
 export function newDanmaku(def, seed = 7) {
   return {
     kind: 'danmaku', def, rand: rng32(seed), t: 0, px: W / 2, py: H - 90, inv: 0, hits: 0, stars: 0, graze: 0,
-    bullets: [], shots: [], items: [], enemies: [], boss: null, pi: -1, pt: 0, gap: 1.6, pa: {}, spawn: null,
+    bullets: [], shots: [], items: [], enemies: [], boss: null, pi: -1, pt: 0, gap: def.mix ? 0.4 : 1.6, pa: {}, spawn: null,
     shotT: 0, done: false, ending: false, ev: [],
   };
 }
 
 function fire(s, x, y, ang, speed, o = {}) {
+  speed *= s.def.speed || 1;
   s.bullets.push({ x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, r: o.r || 8, c: o.c || 'pink', shape: o.shape || 'orb', g: false, t: 0 });
 }
 function every(s, key, period, dt) {
@@ -82,7 +83,7 @@ function toItem(s, b, mag) { s.items.push({ x: b.x, y: b.y, vy: -40, mag }); }
 function startPhase(s) {
   s.pi++; s.pt = 0; s.pa = {};
   const ph = s.def.phases[s.pi];
-  if (!ph) { s.ending = true; s.gap = 1.8; return; }
+  if (!ph) { s.ending = true; s.gap = s.def.mix ? 0.6 : 1.8; return; }
   if (ph.type === 'wave') { s.spawn = { left: ph.n, next: 0.2, side: ph.side, k: 0 }; }
   else {
     if (!s.boss || s.boss.kind !== ph.boss) { s.boss = { kind: ph.boss, x: W / 2, y: -70, bt: 0, r: 40 }; s.ev.push({ t: 'bossIn', boss: ph.boss }); }
@@ -99,7 +100,7 @@ function endPhase(s) {
   const next = s.def.phases[s.pi + 1];
   if (s.boss && (!next || next.type !== 'boss' || next.boss !== s.boss.kind)) { s.ev.push({ t: 'bossDown', x: s.boss.x, y: s.boss.y, boss: s.boss.kind }); s.boss = null; }
   s.ev.push({ t: 'phaseClear' });
-  s.gap = 1.5; s.pt = -1;
+  s.gap = s.def.mix ? 0.5 : 1.5; s.pt = -1;
 }
 
 export function stepDanmaku(s, dt, inp = {}) {
@@ -228,11 +229,16 @@ function hurt(s, fx, fy) {
   if (s.inv > 0) return;
   s.hits++; s.inv = 1.2; s.ev.push({ t: 'hit', x: s.px, y: s.py });
 }
+function placeChest(s) {
+  const [cx0, cy] = s.def.chestAt;
+  const cx = [cx0, cx0 + 3, cx0 - 3].find(x => Math.abs(s.px - (x * TS + 30)) > 50 || Math.abs(s.py - (cy * TS + 30)) > 50);
+  s.grid[cy][cx] = 'C'; s.chestPlaced = true; s.ev.push({ t: 'chestAppear' });
+}
 export const switchesDown = s => s.switches.length > 0 && s.switches.every(w => blockAt(s, w.x, w.y));
 
 function openChest(s) {
   if (s.chest !== 'closed') return;
-  s.chest = 'open'; s.doneT = 3.2; s.dir = [0, 1]; s.ev.push({ t: 'chest' });
+  s.chest = 'open'; s.doneT = s.def.quick ? 1.5 : 3.2; s.dir = [0, 1]; s.ev.push({ t: 'chest' });
 }
 
 export function stepAdventure(s, dt, inp = {}) {
@@ -290,6 +296,7 @@ export function stepAdventure(s, dt, inp = {}) {
     const hx = s.px + s.dir[0] * 36, hy = s.py + s.dir[1] * 36;
     for (const e of s.enemies) if (Math.hypot(e.x - hx, e.y - hy) < 56) { e.dead = true; s.stars += 2; s.ev.push({ t: 'pop', x: e.x, y: e.y }); }
     s.enemies = s.enemies.filter(e => !e.dead);
+    if (s.def.goal === 'slimes' && !s.enemies.length && !s.chestPlaced) placeChest(s);
     const b = s.boss;
     if (b && b.hp > 0 && b.z < 8 && Math.hypot(b.px - hx, b.py - hy) < b.r + 46) {
       if (b.state === 'dizzy' && b.hitCool <= 0) {
@@ -298,9 +305,7 @@ export function stepAdventure(s, dt, inp = {}) {
           s.ev.push({ t: 'bossDown', x: b.px, y: b.py, boss: b.kind });
           for (const e of s.enemies) s.ev.push({ t: 'pop', x: e.x, y: e.y });
           s.enemies = [];
-          const [cx0, cy] = s.def.chestAt;
-          const cx = [cx0, cx0 + 3, cx0 - 3].find(x => Math.abs(s.px - (x * TS + 30)) > 50 || Math.abs(s.py - (cy * TS + 30)) > 50);
-          s.grid[cy][cx] = 'C'; s.ev.push({ t: 'chestAppear' });
+          placeChest(s);
         }
       } else if (b.state !== 'dizzy') s.ev.push({ t: 'clang' });
     }
@@ -382,16 +387,83 @@ export function tapLane(s, lane, t) {
 export const rhythmRatio = s => (s.perfect + s.good) / Math.max(1, s.notes.length);
 
 // ===================================================================
+// レース（3レーン。ひだり・みぎで よける。ぶつかっても くるっと まわる だけ）
+// ===================================================================
+export const RC = { SPEED: 300 };
+
+export function newRace(def, seed = 5) {
+  const rand = rng32(seed), objs = [];
+  for (let z = 700; z < def.len - 400; z += (260 + rand() * 220) / def.density) {
+    const r = rand(), lane = Math.floor(rand() * 3);
+    if (r < 0.45) { objs.push({ z, lane, type: 'cone' }); if (r < 0.14 * def.density) objs.push({ z, lane: (lane + 1) % 3, type: 'cone' }); }
+    else if (r < 0.85) for (let i = 0; i < 3; i++) objs.push({ z: z + i * 70, lane, type: 'coin' });
+    else objs.push({ z, lane, type: 'boost' });
+  }
+  const base = RC.SPEED * (def.speed || 1);
+  const rivals = def.rivals.map((kind, i) => ({ kind, dist: 150 * (i + 1), lane: (i * 2) % 3, v: base * (kind === 'bug' ? 0.95 : 0.86 + i * 0.03) }));
+  return { kind: 'race', def, t: 0, dist: 0, lane: 1, x: 1, speed: 0, boost: 0, spin: 0, hits: 0, stars: 0, objs, rivals, done: false, goalT: 0, place: 0, ev: [] };
+}
+export const racePlace = s => 1 + s.rivals.filter(r => r.dist > s.dist).length;
+
+export function stepRace(s, dt, inp = {}) {
+  if (s.done) return;
+  s.t += dt;
+  for (const r of s.rivals) r.dist += r.v * dt;
+  if (s.goalT > 0) { s.dist += s.speed * dt; s.speed *= Math.max(0, 1 - dt * 1.2); if ((s.goalT -= dt) <= 0) s.done = true; return; }
+  if (inp.turn) { const nl = clamp(s.lane + inp.turn, 0, 2); if (nl !== s.lane) { s.lane = nl; s.ev.push({ t: 'lane' }); } }
+  s.x += (s.lane - s.x) * Math.min(1, dt * 12);
+  const base = RC.SPEED * (s.def.speed || 1), target = s.spin > 0 ? base * 0.35 : s.boost > 0 ? base * 1.5 : base;
+  s.speed += (target - s.speed) * Math.min(1, dt * 3);
+  if (s.spin > 0) s.spin -= dt;
+  if (s.boost > 0) s.boost -= dt;
+  const prev = s.dist; s.dist += s.speed * dt;
+  for (const o of s.objs) {
+    if (o.hit || o.z < prev - 10 || o.z > s.dist + 10 || Math.abs(o.lane - s.x) >= 0.5) continue;
+    if (o.type === 'coin') { o.hit = true; s.stars++; s.ev.push({ t: 'star', lane: s.x }); }
+    else if (o.type === 'boost') { o.hit = true; s.boost = 1.6; s.ev.push({ t: 'boost', lane: s.x }); }
+    else if (s.spin <= 0) { o.hit = true; s.spin = 1.0; s.hits++; s.ev.push({ t: 'hit', lane: s.x }); }
+  }
+  if (s.dist >= s.def.len) { s.place = racePlace(s); s.goalT = 2.2; s.ev.push({ t: 'goal', place: s.place }); }
+}
+
+// ===================================================================
+// まぜこぜ モード：みじかい あそびが つぎつぎ くる。すこしずつ はやく なる
+// ===================================================================
+const RH_POOL = ['1...2...', '3...2...', '1.2.3...', '3.2.1...', '2...2...', '1...3...', '1.2.3.2.', '2.2.3...', '3.3.1...'];
+export function buildMix(rand, rounds = MIX.rounds) {
+  const kinds = ['danmaku', 'adventure', 'rhythm', 'race'], pick = list => list[Math.floor(rand() * list.length)], out = [];
+  let last = null;
+  for (let i = 0; i < rounds; i++) {
+    let k; do k = pick(kinds); while (k === last);
+    last = k;
+    const sp = 1 + i * 0.06;
+    if (k === 'danmaku') out.push({ kind: k, costume: 'star', mix: true, name: 'たまよけ', hint: 'たまを よけて ほしを あつめよう', speed: sp,
+      phases: [{ type: 'boss', boss: pick(['comet', 'luna', 'bug']), hp: 99999, dur: 12, pattern: pick(['ring', 'waltz', 'rain', 'curtain', 'spiral', 'glitch']) }] });
+    else if (k === 'adventure') {
+      const map = ['################', ...Array.from({ length: 7 }, () => '#..............#'), '################'].map(r => [...r]);
+      map[4][2] = 'P';
+      for (let n = 0; n < 2 + Math.floor(i / 3);) { const x = 5 + Math.floor(rand() * 9), y = 2 + Math.floor(rand() * 5); if (map[y][x] === '.') { map[y][x] = 'e'; n++; } }
+      out.push({ kind: k, costume: 'hero', mix: true, name: 'スライム たいじ', hint: 'スライムを ぜんぶ やっつけて たからばこを あけよう', theme: pick(['field', 'cave', 'castle']),
+        goal: 'slimes', quick: true, door: 'none', item: 'heart', itemName: 'ハート', chestAt: [8, 1], map: map.map(r => r.join('')) });
+    } else if (k === 'rhythm') out.push({ kind: k, costume: 'idol', mix: true, name: 'リズム', hint: 'わっかに かさなったら タッチ！', bpm: Math.round(100 + i * 5), key: pick([60, 62, 65]), chords: [0, 7, 9, 5],
+      bars: ['........', pick(RH_POOL), pick(RH_POOL), pick(RH_POOL), '2.......'] });
+    else out.push({ kind: k, costume: 'racer', mix: true, name: 'レース', hint: 'ひだりと みぎで よけて はしろう', theme: pick(['field', 'sea']), len: 3600, density: 1 + i * 0.08, speed: sp, rivals: ['slime', 'starkid', 'comet'] });
+  }
+  return out;
+}
+
+// ===================================================================
 // けっか・セーブ
 // ===================================================================
 export function rating(s) {
   if (s.kind === 'rhythm') { const r = rhythmRatio(s); return r >= 0.8 ? 3 : r >= 0.5 ? 2 : 1; }
   if (s.kind === 'danmaku') return s.hits <= 2 ? 3 : s.hits <= 6 ? 2 : 1;
+  if (s.kind === 'race') return s.place <= 1 ? 3 : s.place === 2 ? 2 : 1;
   return s.hits <= 1 ? 3 : s.hits <= 4 ? 2 : 1;
 }
 export const avgStars = list => clamp(Math.round(list.reduce((a, b) => a + b, 0) / Math.max(1, list.length)), 1, 3);
 
-export const newSave = () => ({ v: 1, opening: false, worlds: {}, ending: false, sound: true });
+export const newSave = () => ({ v: 1, opening: false, worlds: {}, ending: false, sound: true, mix: { best: 0, plays: 0 }, friendsSeen: [] });
 export function loadSave(text) {
   try { const o = JSON.parse(text); if (o && o.v === 1 && typeof o.worlds === 'object') return { ...newSave(), ...o }; } catch { /* こわれていたら あたらしく */ }
   return newSave();
@@ -399,4 +471,9 @@ export function loadSave(text) {
 const slot = (save, id) => (save.worlds[id] ||= { clear: false, stars: 0, reached: 0 });
 export function recordStage(save, id, stageIdx, total) { const w = slot(save, id); w.reached = stageIdx + 1 >= total ? 0 : stageIdx + 1; return save; }
 export function recordClear(save, id, stars) { const w = slot(save, id); w.clear = true; w.reached = 0; w.stars = Math.max(w.stars, stars); return save; }
+// ともだち：あつめた ★の かずで ふえる。バグバグは エンディングの あと
+export const totalStars = save => Object.values(save.worlds).reduce((a, w) => a + (w.clear ? w.stars : 0), 0);
+export const friendsOf = save => { const n = totalStars(save); return FRIENDS.filter(f => (f.ending ? save.ending : n >= f.need)); };
+export const nextFriend = save => { const n = totalStars(save); return FRIENDS.find(f => !f.ending && n < f.need) || null; };
+export function recordMix(save, score) { const m = (save.mix ||= { best: 0, plays: 0 }); m.plays++; const isBest = score > m.best; m.best = Math.max(m.best, score); return isBest; }
 export const finalUnlocked = (save, ids) => ids.every(id => save.worlds[id]?.clear);

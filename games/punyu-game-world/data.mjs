@@ -88,10 +88,18 @@ const IDOL_STAGES = [
       '3.2.1.2.', '3...1...', '2...2...', '2.......'] },
 ];
 
+// ---- レース（びゅんびゅん サーキット）----
+const RACE_STAGES = [
+  { kind: 'race', costume: 'racer', name: 'はじめての コース', hint: 'ひだりと みぎを タッチ して よけよう', theme: 'field', len: 8400, density: 1, rivals: ['slime', 'starkid', 'comet'] },
+  { kind: 'race', costume: 'racer', name: 'うみべの コース', hint: 'やじるしに のると スピード アップ！', theme: 'sea', len: 9600, density: 1.3, rivals: ['comet', 'slime', 'starkid'] },
+  { kind: 'race', costume: 'racer', name: 'バグバグ グランプリ', hint: 'ブロックを よけて バグバグを おいぬこう', theme: 'glitch', len: 10800, density: 1.6, rivals: ['bug', 'slime', 'comet'], bossIntro: 'bossRace' },
+];
+
 export const WORLDS = [
   { id: 'star', title: ['ほしふる', 'ワルツ'], sub: 'たまよけ シューティング', costume: 'star', color: '#6b4de0', color2: '#ff8fd0', stages: STAR_STAGES },
   { id: 'hero', title: ['けんと たからの', 'だいぼうけん'], sub: 'ぼうけん アクション', costume: 'hero', color: '#3fa34d', color2: '#ffd84a', stages: HERO_STAGES },
   { id: 'idol', title: ['きらめき☆', 'アイドル ステージ'], sub: 'リズム ゲーム', costume: 'idol', color: '#ff6fb0', color2: '#7fe0ff', stages: IDOL_STAGES },
+  { id: 'race', title: ['びゅんびゅん', 'サーキット'], sub: 'レース ゲーム', costume: 'racer', color: '#e8483f', color2: '#ffb347', stages: RACE_STAGES },
 ];
 
 // ---- さいご（バグバグの まぜこぜ ゲーム）----
@@ -123,6 +131,19 @@ export const FINAL = {
         '1.2.3.2.', '1.2.3.2.', '3...1...', '2.......'] },
   ],
 };
+
+// ---- まぜこぜ モード（エンディングの あとに ひらく）----
+export const MIX = { id: 'mix', title: ['まぜこぜ', 'モード'], sub: 'つぎつぎ ゲーム', costume: 'none', color: '#ff8a3f', color2: '#ffd84a', rounds: 8 };
+
+// ---- ともだち あつめ：★が ふえると ひろばに あそびに くる ----
+export const FRIENDS = [
+  { id: 'starkid', name: 'ほしっこ', need: 2 },
+  { id: 'slime', name: 'スライム', need: 4 },
+  { id: 'comet', name: 'ポポ', need: 6 },
+  { id: 'luna', name: 'ルナリア', need: 9 },
+  { id: 'king', name: 'スライム キング', need: 12 },
+  { id: 'bug', name: 'バグバグ', ending: true },
+];
 
 export const ALL_WORLDS = [...WORLDS, FINAL];
 export const worldById = id => ALL_WORLDS.find(w => w.id === id);

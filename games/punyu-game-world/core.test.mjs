@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { WORLDS, FINAL, ALL_WORLDS, W, H } from './data.mjs';
+import { WORLDS, FINAL, ALL_WORLDS, FRIENDS, MIX, W, H } from './data.mjs';
 import * as C from './core.mjs';
 
 const dir = new URL('.', import.meta.url);
@@ -15,8 +15,8 @@ test('がめんに でる もじに かんじが ない', () => {
   }
 });
 
-test('せかいは 3つ＋さいご、それぞれ 3ステージ', () => {
-  assert.equal(WORLDS.length, 3);
+test('せかいは 4つ＋さいご、それぞれ 3ステージ', () => {
+  assert.equal(WORLDS.length, 4);
   for (const w of ALL_WORLDS) { assert.equal(w.stages.length, 3); assert.ok(w.title.length === 2 && w.sub); }
   assert.deepEqual(FINAL.stages.map(s => s.kind), ['danmaku', 'adventure', 'rhythm']);
 });
@@ -179,8 +179,64 @@ test('セーブ：クリアの きろくと さいごの せかいの かいほ�
   C.recordClear(sv, 'star', 2); C.recordClear(sv, 'star', 1);
   assert.equal(sv.worlds.star.stars, 2); assert.equal(sv.worlds.star.reached, 0);
   C.recordClear(sv, 'hero', 3); C.recordClear(sv, 'idol', 3);
+  assert.equal(C.finalUnlocked(sv, ids), false);
+  C.recordClear(sv, 'race', 1);
   assert.ok(C.finalUnlocked(sv, ids));
   sv = C.loadSave(JSON.stringify(sv)); assert.ok(sv.worlds.hero.clear);
   assert.deepEqual(C.loadSave('こわれた'), C.newSave());
   assert.equal(C.avgStars([3, 2, 2]), 2);
+});
+
+test('レース：なにも しなくても ゴールして、じゅんいが つく', () => {
+  for (const def of stagesOf('race')) {
+    const s = C.newRace(def);
+    let t = 0;
+    while (!s.done && t < 120) { C.stepRace(s, 1 / 60, {}); t += 1 / 60; s.ev.length = 0; }
+    assert.ok(s.done, def.name); assert.ok(t < 60, `${def.name} ${t}`);
+    assert.ok(s.place >= 1 && s.place <= 4); assert.ok(C.rating(s) >= 1);
+  }
+});
+
+test('レース：コーンに あたると まわる だけ。よければ あたらない。レーンは 3つ', () => {
+  const def = WORLDS[3].stages[0], s = C.newRace(def);
+  s.objs = [{ z: 100, lane: 1, type: 'cone' }, { z: 200, lane: 1, type: 'coin' }, { z: 5000, lane: 0, type: 'cone' }];
+  for (let i = 0; i < 120; i++) C.stepRace(s, 1 / 60, {});
+  assert.equal(s.hits, 1); assert.ok(!s.done);
+  C.stepRace(s, 1 / 60, { turn: -1 }); C.stepRace(s, 1 / 60, { turn: -1 }); assert.equal(s.lane, 0);
+  C.stepRace(s, 1 / 60, { turn: 1 }); C.stepRace(s, 1 / 60, { turn: 1 }); C.stepRace(s, 1 / 60, { turn: 1 }); assert.equal(s.lane, 2);
+  while (!s.done && s.t < 100) C.stepRace(s, 1 / 60, {});
+  assert.equal(s.hits, 1, 'みぎの レーンに いれば あたらない');
+});
+
+test('まぜこぜ：8かい。おなじ あそびは つづかず、どれも さいごまで すすむ', () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const list = C.buildMix(C.rng32(seed));
+    assert.equal(list.length, MIX.rounds);
+    list.forEach((def, i) => {
+      if (i) assert.notEqual(def.kind, list[i - 1].kind);
+      let t = 0;
+      if (def.kind === 'danmaku') { const s = C.newDanmaku(def); while (!s.done && t < 60) { C.stepDanmaku(s, 1 / 60, {}); t += 1 / 60; s.ev.length = 0; } assert.ok(s.done && t < 20, `danmaku ${t}`); }
+      else if (def.kind === 'race') { const s = C.newRace(def); while (!s.done && t < 60) { C.stepRace(s, 1 / 60, {}); t += 1 / 60; } assert.ok(s.done && t < 25, `race ${t}`); }
+      else if (def.kind === 'rhythm') { const { notes, len } = C.buildChart(def); assert.ok(notes.length >= 4 && len < 16); for (const b of def.bars) assert.equal(b.length, 8); }
+      else {
+        const s = C.newAdventure(def); assert.ok(s.enemies.length >= 2);
+        for (const r of def.map) assert.equal(r.length, 16);
+        s.enemies = []; s.dir = [1, 0]; C.stepAdventure(s, 1 / 60, { act: true });
+        assert.ok(s.grid.some(r => r.includes('C')), 'スライムが いなくなると たからばこが でる');
+      }
+    });
+  }
+});
+
+test('ともだち：★が ふえると ふえ、バグバグは エンディングの あと', () => {
+  const sv = C.newSave();
+  assert.equal(C.friendsOf(sv).length, 0); assert.equal(C.nextFriend(sv).need, 2);
+  C.recordClear(sv, 'star', 3);
+  assert.deepEqual(C.friendsOf(sv).map(f => f.id), ['starkid']);
+  for (const id of ['hero', 'idol', 'race', 'bug']) C.recordClear(sv, id, 3);
+  assert.equal(C.totalStars(sv), 15); assert.equal(C.nextFriend(sv), null);
+  assert.equal(C.friendsOf(sv).length, FRIENDS.length - 1);
+  sv.ending = true; assert.equal(C.friendsOf(sv).length, FRIENDS.length);
+  assert.ok(Math.max(...FRIENDS.filter(f => !f.ending).map(f => f.need)) <= 15);
+  assert.equal(C.recordMix(sv, 40), true); assert.equal(C.recordMix(sv, 30), false); assert.equal(sv.mix.best, 40);
 });

@@ -98,6 +98,12 @@ export function drawPunyu(c, x, y, r, o = {}) {
     c.fillStyle = '#dfe8f5'; c.beginPath(); c.moveTo(-r * 0.09, 0); c.lineTo(-r * 0.09, -r * 0.95); c.lineTo(0, -r * 1.15); c.lineTo(r * 0.09, -r * 0.95); c.lineTo(r * 0.09, 0); c.fill();
     c.fillStyle = COL.gold; c.fillRect(-r * 0.24, -r * 0.05, r * 0.48, r * 0.12); c.fillStyle = '#b5651d'; c.fillRect(-r * 0.07, r * 0.05, r * 0.14, r * 0.24);
     c.restore();
+  } else if (costume === 'racer') {
+    c.fillStyle = '#e8483f'; c.beginPath(); c.ellipse(0, -r * 0.42, r * 0.98, r * 0.72, 0, Math.PI, TAU); c.fill();
+    c.fillStyle = '#fff'; c.fillRect(-r * 0.12, -r * 1.13, r * 0.24, r * 0.72);
+    c.fillStyle = '#9fe3ff'; rr(c, -r * 0.8, -r * 0.5, r * 1.6, r * 0.2, r * 0.1); c.fill();
+    c.fillStyle = COL.gold; c.beginPath(); c.moveTo(-r * 0.7, r * 0.5); c.quadraticCurveTo(0, r * 0.78, r * 0.7, r * 0.5); c.lineTo(r * 0.62, r * 0.66); c.quadraticCurveTo(0, r * 0.94, -r * 0.62, r * 0.66); c.fill();
+    c.beginPath(); c.moveTo(-r * 0.6, r * 0.56); c.lineTo(-r * 1.25 + flut, r * 0.44); c.lineTo(-r * 1.2 + flut, r * 0.74); c.fill();
   } else if (costume === 'idol') {
     c.fillStyle = '#ff5fae';
     for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(0, -r * 0.92); c.lineTo(sx * r * 0.62, -r * 1.32); c.lineTo(sx * r * 0.62, -r * 0.66); c.closePath(); c.fill(); }
@@ -196,6 +202,26 @@ export function drawItem(c, kind, x, y, r, t = 0) {
   c.restore();
 }
 
+// カート。rider(c) で のる ひとを かく
+export function drawKart(c, x, y, k, color, rider, o = {}) {
+  c.save(); c.translate(x, y); c.scale(k, k); if (o.rot) c.rotate(o.rot);
+  ell(c, 0, 16, 46, 9, 'rgba(0,0,0,.25)');
+  if (o.boost) { c.fillStyle = COL.gold; c.beginPath(); c.moveTo(-18, 10); c.lineTo(0, 44 + Math.sin(o.t * 30) * 8); c.lineTo(18, 10); c.fill(); }
+  ell(c, -34, 10, 11, 12, '#2a2238'); ell(c, 34, 10, 11, 12, '#2a2238');
+  if (rider) rider(c);
+  c.fillStyle = color; rr(c, -40, -8, 80, 26, 12); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.85)'; rr(c, -14, -2, 28, 14, 6); c.fill();
+  c.restore();
+}
+export function drawRider(c, kind, t = 0) {
+  if (kind === 'slime') drawSlime(c, 0, -26, 22, { t });
+  else if (kind === 'starkid') drawStarKid(c, 0, -28, 20, t);
+  else if (kind === 'comet') drawComet(c, 0, -28, 22, t);
+  else if (kind === 'bug') drawBug(c, 0, -22, 24, { t });
+  else drawPunyu(c, 0, -30, 26, { t, costume: 'racer', ...(kind || {}) });
+}
+export const KART_COL = { slime: '#58c8f0', starkid: '#ffb347', comet: '#7a9bff', bug: '#58f0a0' };
+
 // カセット（せかいの しるし）
 export function drawCart(c, x, y, w, h, world, o = {}) {
   const { locked = false, t = 0 } = o;
@@ -259,6 +285,16 @@ export function bgField(c, t) {
   c.fillStyle = '#e8483f'; for (const x of [700, 820, 760]) { c.beginPath(); c.moveTo(x - 22, x === 760 ? 160 : 180); c.lineTo(x, x === 760 ? 120 : 140); c.lineTo(x + 22, x === 760 ? 160 : 180); c.fill(); }
   c.fillStyle = '#5fc45a'; c.fillRect(0, 330, W, H - 330); c.fillStyle = '#4bb04a';
   for (let i = 0; i < 40; i++) c.fillRect(hash(i) * W, 340 + hash(i + 50) * 190, 16, 6);
+}
+// レースの そら と じめん（theme: field / sea / glitch）
+export function bgRace(c, t, theme = 'field', horizon = 200) {
+  if (theme === 'glitch') { bgGlitch(c, t); c.fillStyle = '#120726'; c.fillRect(0, horizon, W, H - horizon); return; }
+  const g = c.createLinearGradient(0, 0, 0, horizon); g.addColorStop(0, theme === 'sea' ? '#4aa8ff' : '#6fc4ff'); g.addColorStop(1, '#e4f7ff'); c.fillStyle = g; c.fillRect(0, 0, W, horizon);
+  ell(c, 800, 70, 38, 38, '#fff6c8');
+  for (let i = 0; i < 4; i++) { const x = (i * 290 + t * 10) % (W + 200) - 100; ell(c, x, 60 + i * 24, 54, 18, '#fff'); ell(c, x + 34, 52 + i * 24, 38, 16, '#fff'); }
+  if (theme === 'sea') { c.fillStyle = '#2f8fe0'; c.fillRect(0, horizon - 34, W, 34); c.fillStyle = 'rgba(255,255,255,.6)'; for (let i = 0; i < 14; i++) c.fillRect((i * 83 + t * 20) % W, horizon - 28 + (i % 4) * 7, 30, 3); c.fillStyle = '#f3dfa0'; }
+  else { c.fillStyle = '#7fc8a0'; c.beginPath(); c.moveTo(0, horizon); c.lineTo(140, horizon - 70); c.lineTo(330, horizon); c.lineTo(520, horizon - 90); c.lineTo(760, horizon); c.lineTo(880, horizon - 50); c.lineTo(W, horizon); c.fill(); c.fillStyle = '#5fc45a'; }
+  c.fillRect(0, horizon, W, H - horizon);
 }
 export function bgStage(c, t) {
   const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#5a1f8a'); g.addColorStop(0.7, '#ff6fb0'); g.addColorStop(1, '#ffc1e3'); c.fillStyle = g; c.fillRect(0, 0, W, H);
