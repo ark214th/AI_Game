@@ -131,9 +131,16 @@
           <a class="card wip" style="background:linear-gradient(150deg,#b8863b,#3a2a52)" data-added="2026-10-02" href="./games/aurelia/"><div class="icon">🏛️🌅</div><div class="body"><span class="wip-label hidden-label">非掲載</span><h3>AURELIA — 暁の遺跡</h3><p>直接URLで公開している縦持ち向けの3Dランゲーム。</p><div class="tags"><span>スマホ・iPad縦持ち</span><span>3Dラン</span></div></div></a>
         </div>
     </section>
-    <footer>© AI Game Library</footer>
+    <footer>© AI Game Library <span id="ver" style="opacity:.45;font-size:.85em;margin-left:.6em"></span></footer>
   </main>
   <div id="devToast" aria-live="polite"></div>
+  <script>
+  // 更新の番号と時刻（version.json）。キャッシュを使わずに取りにいくので、いま公開されている版がわかる
+  fetch('version.json', { cache: 'no-store' }).then(r => r.json()).then(v => {
+    const t = new Date(v.time).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    document.getElementById('ver').textContent = `#${v.rev}・${t} 更新`;
+  }).catch(() => {});
+  </script>
   <script>
   (() => {
     const store = {
