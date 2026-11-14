@@ -85,7 +85,7 @@ export function drawPage(c, page, t, pageIdx, total) {
   // もじは すこしずつ でる
   let left = Math.floor(t * 34);
   lines.forEach((ln, i) => { const show = ln.slice(0, Math.max(0, left)); left -= ln.length; if (show) D.text(c, show, 72, y + 40 + i * 38, 27, '#fff', { align: 'left' }); });
-  if (left > 0 && Math.sin(t * 6) > -0.2) D.text(c, '▼', W - 78, y + h - 24, 20, D.COL.gold);
+  if (left >= 0 && Math.sin(t * 6) > -0.2) D.text(c, '▼', W - 78, y + h - 24, 20, D.COL.gold);
   for (let i = 0; i < total; i++) { c.fillStyle = i === pageIdx ? '#fff' : 'rgba(255,255,255,.35)'; c.beginPath(); c.arc(W / 2 + (i - (total - 1) / 2) * 18, y - 14, 5, 0, D.TAU); c.fill(); }
-  return left > 0;   // ぜんぶ でた？
+  return left < 0;   // まだ もじを だしている とちゅう？
 }
