@@ -1,10 +1,13 @@
 // がめんを かく：3しゅるいの あそび と、タイトル・ひろば・けっか
 import { W, H, WORLDS, FINAL, FRIENDS } from './data.mjs';
-import { TS, RH, DM, rhythmRatio, finalUnlocked, friendsOf, nextFriend, totalStars, racePlace } from './core.mjs';
+import { TS, DM, rhythmRatio, finalUnlocked, friendsOf, nextFriend, totalStars, racePlace, roomCount } from './core.mjs';
 import * as D from './draw.mjs';
 import { worldBg } from './cutscene.mjs';
 
 export const ACT_BTN = { x: 858, y: 428, r: 70 };
+// ぷにゅが みぎしたに いる ときは、ボタンが じゃまに ならないよう ひだりしたへ うつす
+export const actBtn = s => (s && s.px > 640 && s.py > 290 ? { ...ACT_BTN, x: W - ACT_BTN.x } : ACT_BTN);
+export const BOMB_BTN = { x: 872, y: 446, r: 58 };
 export const LANE_X = [200, 480, 760], HIT_Y = 430;
 export const PAUSE_BTN = { x: W - 62, y: 6, w: 54, h: 40 };
 export const BACK_BTN = { x: 14, y: 12, w: 130, h: 46 };
@@ -26,7 +29,8 @@ function hud(c, s, hint) {
   c.fillStyle = 'rgba(15,10,40,.55)'; c.fillRect(0, 0, W, 52);
   c.fillStyle = D.COL.gold; D.star(c, 30, 26, 15); c.fill();
   D.text(c, String(s.stars), 54, 27, 26, '#fff', { align: 'left' });
-  if (hint) D.text(c, hint, W / 2, 27, 21, '#fff');
+  if (s.maxHp) for (let i = 0; i < s.maxHp; i++) { c.fillStyle = i < s.hp ? '#ff6f9f' : 'rgba(255,255,255,.22)'; D.heart(c, 126 + i * 30, 26, 12); c.fill(); }
+  if (hint) D.text(c, hint, W / 2 + 60, 27, 19, '#fff');
   c.fillStyle = 'rgba(255,255,255,.9)'; D.rr(c, PAUSE_BTN.x, PAUSE_BTN.y, PAUSE_BTN.w, PAUSE_BTN.h, 12); c.fill();
   c.fillStyle = '#5a3fd0'; c.fillRect(PAUSE_BTN.x + 17, PAUSE_BTN.y + 10, 7, 20); c.fillRect(PAUSE_BTN.x + 30, PAUSE_BTN.y + 10, 7, 20);
 }
@@ -73,6 +77,10 @@ export function drawDanmaku(c, s, ui) {
   c.fillStyle = '#fff'; c.beginPath(); c.arc(s.px, s.py, DM.PR - 1, 0, D.TAU); c.fill();
   drawFx(c, ui.fx);
   hud(c, s);
+  c.fillStyle = s.bombs > 0 ? 'rgba(255,216,74,.88)' : 'rgba(255,255,255,.2)'; c.beginPath(); c.arc(BOMB_BTN.x, BOMB_BTN.y, BOMB_BTN.r, 0, D.TAU); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 4; c.stroke();
+  D.text(c, 'ボム', BOMB_BTN.x, BOMB_BTN.y - 10, 26, s.bombs > 0 ? '#8a4a00' : 'rgba(255,255,255,.6)');
+  for (let i = 0; i < DM.BOMBS; i++) { c.fillStyle = i < s.bombs ? '#ff6f3f' : 'rgba(0,0,0,.2)'; D.star(c, BOMB_BTN.x - 14 + i * 28, BOMB_BTN.y + 22, 11); c.fill(); }
   const sp = ui.spell;
   if (sp) {
     const k = Math.min(1, sp.t / 0.35), out = sp.t > 2.2 ? Math.min(1, (sp.t - 2.2) / 0.3) : 0;
@@ -121,6 +129,10 @@ function drawTiles(p, s, t) {
     } else if (ch === 'D') {
       if (s.doorOpen) { p.fillStyle = 'rgba(0,0,0,.3)'; p.fillRect(X, Y, TS, 6); p.fillRect(X, Y + 54, TS, 6); }
       else { p.fillStyle = '#8a5a2b'; p.fillRect(X + 3, Y, TS - 6, TS); p.fillStyle = '#6b4320'; p.fillRect(X + 27, Y, 6, TS); p.fillStyle = D.COL.gold; p.fillRect(X + 21, Y + 21, 18, 18); p.fillStyle = '#3a2a10'; p.fillRect(X + 27, Y + 27, 6, 9); }
+    } else if (ch === 'X') {
+      p.fillStyle = '#2a2238'; p.fillRect(X + 3, Y + 3, 54, 54);
+      for (let i = 0; i < 4; i++) { p.fillStyle = ['#8f88a6', '#766f8c', '#5d5672', '#443d58'][i]; p.fillRect(X + 6, Y + 6 + i * 12, 48 - i * 9, 12); }
+      if (Math.sin(t * 5) > 0) { p.fillStyle = D.COL.gold; D.star(p, X + 45, Y + 15, 9, t); p.fill(); }
     } else if (ch === 'C') {
       const open = s.chest === 'open';
       p.fillStyle = '#8a5a2b'; p.fillRect(X + 6, Y + 24, 48, 30); p.fillStyle = D.COL.gold; p.fillRect(X + 6, Y + 33, 48, 6); p.fillRect(X + 24, Y + 30, 12, 15);
@@ -134,7 +146,12 @@ export function drawAdventure(c, s, ui) {
   pixelate(c, p => {
     drawTiles(p, s, t);
     for (const b of s.blocks) { const X = b.x * TS + b.ox, Y = b.y * TS + b.oy; p.fillStyle = '#8f88a6'; p.fillRect(X + 3, Y + 3, 54, 54); p.fillStyle = '#c4bed8'; p.fillRect(X + 6, Y + 6, 48, 42); p.fillStyle = '#5a5470'; p.fillRect(X + 18, Y + 21, 6, 9); p.fillRect(X + 36, Y + 21, 6, 9); }
-    for (const e of s.enemies) D.drawSlime(p, e.x, e.y, 21, { t: t + e.x });
+    for (const e of s.enemies) {
+      if (e.stun > 0 && Math.floor(t * 20) % 2) continue;
+      if (e.type === 'bat') D.drawBat(p, e.x, e.y, 20, t + e.x * 0.01);
+      else if (e.type === 'big') D.drawSlime(p, e.x, e.y, 31, { t: t + e.x, color: ['#ff8a8a', '#b98bff', '#5b8bf0'][Math.max(0, e.hp - 1)] });
+      else D.drawSlime(p, e.x, e.y, 21, { t: t + e.x });
+    }
     const b = s.boss;
     if (b && b.hp > 0) {
       p.fillStyle = 'rgba(0,0,0,.28)'; p.beginPath(); p.ellipse(b.px, b.py + b.r * 0.7, b.r * (1 - b.z / 260), b.r * 0.3, 0, 0, D.TAU); p.fill();
@@ -152,7 +169,9 @@ export function drawAdventure(c, s, ui) {
   });
   drawFx(c, ui.fx);
   hud(c, s, s.def.hint);
-  if (s.hasKey) D.drawItem(c, 'key', 130, 27, 14);
+  if (s.hasKey) D.drawItem(c, 'key', 232, 27, 13);
+  const rooms = roomCount(s.stage);
+  if (rooms > 1) for (let i = 0; i < rooms; i++) { c.fillStyle = i < s.room ? D.COL.gold : i === s.room ? '#fff' : 'rgba(255,255,255,.3)'; c.beginPath(); c.arc(W - 96 - (rooms - 1 - i) * 18, 27, i === s.room ? 7 : 5, 0, D.TAU); c.fill(); }
   if (s.boss && s.boss.hp > 0) for (let i = 0; i < s.boss.maxHp; i++) { c.fillStyle = i < s.boss.hp ? '#ff6f9f' : 'rgba(255,255,255,.25)'; D.heart(c, W / 2 - (s.boss.maxHp - 1) * 15 + i * 30, 78, 11); c.fill(); }
   if (s.chest === 'open') {
     const k = Math.min(1, (3.2 - s.doneT) / 0.5);
@@ -166,8 +185,9 @@ export function drawAdventure(c, s, ui) {
   } else if (ui.touch) {
     // スティック と「えいっ」ボタン
     if (ui.stick) { c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.arc(ui.stick.ox, ui.stick.oy, 62, 0, D.TAU); c.fill(); c.fillStyle = 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(ui.stick.ox + ui.stick.vx * 44, ui.stick.oy + ui.stick.vy * 44, 28, 0, D.TAU); c.fill(); }
-    c.fillStyle = s.cool > 0 ? 'rgba(255,216,74,.55)' : 'rgba(255,216,74,.9)'; c.beginPath(); c.arc(ACT_BTN.x, ACT_BTN.y, ACT_BTN.r, 0, D.TAU); c.fill();
-    c.strokeStyle = '#fff'; c.lineWidth = 5; c.stroke(); D.text(c, 'えいっ', ACT_BTN.x, ACT_BTN.y + 2, 30, '#8a4a00');
+    const ab = actBtn(s);
+    c.fillStyle = s.cool > 0 ? 'rgba(255,216,74,.55)' : 'rgba(255,216,74,.9)'; c.beginPath(); c.arc(ab.x, ab.y, ab.r, 0, D.TAU); c.fill();
+    c.strokeStyle = '#fff'; c.lineWidth = 5; c.stroke(); D.text(c, 'えいっ', ab.x, ab.y + 2, 30, '#8a4a00');
   }
 }
 
@@ -196,8 +216,8 @@ export function drawRhythm(c, s, ui) {
   for (const n of s.notes) {
     if (n.res && n.res !== 'miss') continue;
     const dtn = n.t - st;
-    if (dtn > RH.FALL || dtn < -0.5) continue;
-    const k = 1 - dtn / RH.FALL, x = W / 2 + (LANE_X[n.lane] - W / 2) * k, y = 250 + (HIT_Y - 250) * k, r = 14 + Math.min(1, k) * 32, col = LANE_COL[n.lane];
+    if (dtn > s.fall || dtn < -0.5) continue;
+    const k = 1 - dtn / s.fall, x = W / 2 + (LANE_X[n.lane] - W / 2) * k, y = 250 + (HIT_Y - 250) * k, r = 14 + Math.min(1, k) * 32, col = LANE_COL[n.lane];
     c.globalAlpha = n.res === 'miss' ? 0.3 : 1;
     if (!n.res && k > 0.25) { c.strokeStyle = '#fff'; c.lineWidth = 4; c.globalAlpha = 0.7; c.beginPath(); c.arc(LANE_X[n.lane], HIT_Y, 54 + Math.max(0, 1 - k) * 90, 0, D.TAU); c.stroke(); c.globalAlpha = 1; }
     c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, r + 5, 0, D.TAU); c.fill();
@@ -212,7 +232,7 @@ export function drawRhythm(c, s, ui) {
   c.fillStyle = 'rgba(0,0,0,.35)'; D.rr(c, 280, 16, 400, 22, 11); c.fill();
   const g = c.createLinearGradient(280, 0, 680, 0); g.addColorStop(0, '#ff7fc4'); g.addColorStop(1, '#ffd84a');
   c.fillStyle = g; D.rr(c, 280, 16, Math.max(22, 400 * Math.min(1, ratio)), 22, 11); c.fill();
-  D.text(c, 'きらきら', 230, 27, 18, '#fff');
+  c.fillStyle = '#fff'; c.fillRect(280 + 400 * s.pass - 2, 10, 4, 34); D.text(c, 'クリア', 280 + 400 * s.pass, 50, 13, '#fff', { stroke: 'rgba(0,0,0,.5)' });
   if (s.combo >= 3) D.text(c, `${s.combo} れんぞく！`, W / 2, 86, 26, '#fff', { stroke: '#ff5fae' });
   const first = s.notes[0].t, cnt = Math.ceil((first - st) * s.def.bpm / 60);
   if (st < first - 0.2) D.text(c, cnt > 4 ? 'よーい…' : String(cnt), W / 2, 340, cnt > 4 ? 40 : 70, '#fff', { stroke: '#ff5fae' });
@@ -249,7 +269,7 @@ export function drawRace(c, s, ui) {
   for (const r of s.rivals) { const z = r.dist - s.dist; if (z > -55 && z < 1500) list.push({ z, r }); }
   list.sort((a, b) => b.z - a.z);
   for (const it of list) {
-    if (it.r) { const p = rproj(it.r.lane, it.z); D.drawKart(c, p.x, p.y - 12 * p.k, p.k * 1.35, D.KART_COL[it.r.kind], k => D.drawRider(k, it.r.kind, t)); continue; }
+    if (it.r) { const p = rproj(it.r.x, it.z); D.drawKart(c, p.x, p.y - 12 * p.k, p.k * 1.35, D.KART_COL[it.r.kind], k => D.drawRider(k, it.r.kind, t)); continue; }
     const o = it.o, p = rproj(o.lane, it.z), k = p.k;
     if (o.type === 'coin') { c.fillStyle = D.COL.gold; D.star(c, p.x, p.y - 26 * k, 22 * k, t * 3); c.fill(); }
     else if (o.type === 'boost') { c.fillStyle = '#ffd84a'; for (let i = 0; i < 2; i++) { const y = p.y - i * 22 * k; c.beginPath(); c.moveTo(p.x - 44 * k, y); c.lineTo(p.x, y - 26 * k); c.lineTo(p.x + 44 * k, y); c.lineTo(p.x + 44 * k, y + 12 * k); c.lineTo(p.x, y - 14 * k); c.lineTo(p.x - 44 * k, y + 12 * k); c.fill(); } }
@@ -411,6 +431,18 @@ export function drawStageClear(c, run, t) {
   c.restore();
 }
 
+export const RETRY_BTN = { x: W / 2 - 170, y: 372, w: 340, h: 70 };
+export function drawFail(c, run, t) {
+  const k = Math.min(1, t / 0.4), mix = run.world.id === 'mix';
+  c.fillStyle = `rgba(15,10,40,${0.62 * k})`; c.fillRect(0, 0, W, H);
+  c.save(); c.translate(W / 2, H / 2 - 20 + (1 - k) * 40); c.globalAlpha = k;
+  c.fillStyle = '#fff'; D.rr(c, -300, -170, 600, 340, 30); c.fill();
+  D.drawPunyu(c, 0, -74 + Math.sin(t * 3) * 3, 56, { t, costume: run.def.costume, eyes: 'dizzy', mouth: 'o', squash: Math.sin(t * 6) * 0.03 });
+  D.text(c, mix ? 'ここまで！ よく がんばったね' : run.kind === 'rhythm' ? 'おしい！ きらきらが たりなかった' : run.kind === 'race' && run.sim.hp > 0 ? 'おしい！ 3ばん いないを めざそう' : 'あいたた… ハートが なくなっちゃった', 0, 22, 25, '#5a3fd0');
+  c.restore();
+  if (t > 0.8) button(c, RETRY_BTN, mix ? 'けっかを みる' : run.kind === 'danmaku' || run.kind === 'adventure' ? 'ここから もういちど！' : 'もういちど！', { size: 28, bg: '#ffd84a', fg: '#8a4a00' });
+}
+
 export function drawResult(c, world, stars, t, mix) {
   worldBg(c, world.id, t);
   c.fillStyle = 'rgba(15,10,40,.45)'; c.fillRect(0, 0, W, H);
@@ -419,7 +451,7 @@ export function drawResult(c, world, stars, t, mix) {
     const n = Math.round(mix.score * Math.min(1, t / 1.2));
     c.fillStyle = D.COL.gold; D.star(c, W / 2 - 96, 196, 40, t); c.fill();
     D.text(c, String(n), W / 2 + 30, 200, 84, '#fff', { stroke: '#5a2d8a', sw: 14 });
-    if (t > 1.3) D.text(c, mix.isBest ? 'いちばんの きろく！' : `いちばんは ★${mix.best}`, W / 2, 278, 28, mix.isBest ? '#ffd84a' : '#fff', { stroke: '#5a2d8a' });
+    if (t > 1.3) D.text(c, `${mix.rounds}かい クリア！  ${mix.isBest ? 'いちばんの きろく！' : `いちばんは ★${mix.best}`}`, W / 2, 278, 28, mix.isBest ? '#ffd84a' : '#fff', { stroke: '#5a2d8a' });
     D.drawPunyu(c, W / 2, 392 - Math.abs(Math.sin(t * 5)) * 16, 62, { t, eyes: 'happy', mouth: 'open' });
     if (t > 2 && blink(t)) D.text(c, 'タッチ して もどる', W / 2, 496, 28, '#fff', { stroke: '#5a3fd0' });
     return;

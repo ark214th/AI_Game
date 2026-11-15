@@ -151,6 +151,18 @@ export function drawSlime(c, x, y, r, o = {}) {
   c.restore();
 }
 
+export function drawBat(c, x, y, r, t = 0) {     // コウモリ
+  const flap = Math.sin(t * 22) * 0.5;
+  c.save(); c.translate(x, y);
+  c.fillStyle = '#6a4aa8';
+  for (const sx of [-1, 1]) { c.save(); c.scale(sx, 1); c.rotate(flap); c.beginPath(); c.moveTo(r * 0.3, -r * 0.2); c.lineTo(r * 1.6, -r * 0.9); c.lineTo(r * 1.4, -r * 0.1); c.lineTo(r * 1.7, r * 0.3); c.lineTo(r * 1.0, r * 0.2); c.lineTo(r * 0.4, r * 0.5); c.fill(); c.restore(); }
+  ell(c, 0, 0, r * 0.7, r * 0.75, '#8a63d2');
+  c.beginPath(); c.moveTo(-r * 0.6, -r * 0.5); c.lineTo(-r * 0.4, -r * 1.2); c.lineTo(-r * 0.1, -r * 0.6); c.moveTo(r * 0.6, -r * 0.5); c.lineTo(r * 0.4, -r * 1.2); c.lineTo(r * 0.1, -r * 0.6); c.fill();
+  ell(c, -r * 0.26, -r * 0.1, r * 0.14, r * 0.18, '#fff'); ell(c, r * 0.26, -r * 0.1, r * 0.14, r * 0.18, '#fff');
+  ell(c, -r * 0.24, -r * 0.06, r * 0.07, r * 0.1, '#234'); ell(c, r * 0.28, -r * 0.06, r * 0.07, r * 0.1, '#234');
+  c.restore();
+}
+
 export function drawStarKid(c, x, y, r, t = 0) {   // ほしっこ（弾幕の ざこ）
   c.save(); c.translate(x, y); c.rotate(Math.sin(t * 3) * 0.2);
   c.fillStyle = '#ffe680'; star(c, 0, 0, r * 1.2, 0, 5, 0.6); c.fill();

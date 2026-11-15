@@ -48,6 +48,7 @@ const LOOPS = {
   ] },
 };
 
+const CHART_LANES = { 1: [0], 2: [1], 3: [2], 4: [0, 1], 5: [1, 2], 6: [0, 2] };
 // リズムの うた：ふめん と おなじ タイミングで メロディが なる
 function songEvents(def) {
   const out = [], bars = def.bars.length;
@@ -58,7 +59,7 @@ function songEvents(def) {
     for (const off of [1, 3]) for (const iv of tri) out.push({ b: b0 + off, m: def.key + root + iv, d: 0.3, type: 'sine', vol: 0.045 });
     for (let i = 0; i < 4; i++) { out.push({ b: b0 + i, drum: i % 2 ? 's' : 'k' }); out.push({ b: b0 + i + 0.5, drum: 'h' }); }
     if (bi === 1) for (let i = 0; i < 4; i++) out.push({ b: b0 + i, m: def.key + 24, d: 0.15, type: 'square', vol: 0.06 });   // よっつ かぞえる
-    [...def.bars[bi]].forEach((ch, i) => { if (ch !== '.') out.push({ b: b0 + i / 2, m: def.key + 12 + root + tri[+ch - 1], d: 0.45, type: 'triangle', vol: 0.2 }, { b: b0 + i / 2, m: def.key + 24 + root + tri[+ch - 1], d: 0.3, type: 'sine', vol: 0.06 }); });
+    [...def.bars[bi]].forEach((ch, i) => { for (const ln of CHART_LANES[ch] || []) out.push({ b: b0 + i / 2, m: def.key + 12 + root + tri[ln], d: 0.45, type: 'triangle', vol: 0.18 }, { b: b0 + i / 2, m: def.key + 24 + root + tri[ln], d: 0.3, type: 'sine', vol: 0.05 }); });
   }
   for (const iv of [0, 4, 7, 12]) out.push({ b: bars * 4, m: def.key + iv, d: 2, type: 'triangle', vol: 0.12 });
   return out.sort((a, b) => a.b - b.b);
@@ -110,6 +111,12 @@ export class Sound {
     if (!this.ctx || !this.on) return;
     switch (name) {
       case 'tap': this.tone(700, 0.07, { vol: 0.14 }); break;
+      case 'fail': this.arp([523, 466, 392, 330], 0.16, 0.3, { vol: 0.16, last: 2 }); break;
+      case 'bomb': this.tone(120, 0.7, { vol: 0.3, slide: 0.4 }); this.noise(0.7, { vol: 0.14, hp: 800 }); this.arp([784, 1047, 1319, 1568, 2093], 0.05, 0.2, { vol: 0.12, at: 0.1 }); break;
+      case 'heart': this.arp([659, 880, 1319], 0.08, 0.2); break;
+      case 'exit': this.arp([392, 523, 659, 784, 1047], 0.07, 0.16); break;
+      case 'bump': this.tone(150, 0.12, { type: 'square', vol: 0.08, slide: 0.7 }); break;
+      case 'drop': this.tone(900, 0.1, { type: 'square', vol: 0.04, slide: 0.5 }); break;
       case 'lane': this.tone(520, 0.08, { type: 'triangle', vol: 0.12, slide: 1.5 }); break;
       case 'boost': this.tone(300, 0.5, { type: 'sawtooth', vol: 0.08, slide: 4 }); this.arp([784, 1047, 1568], 0.06, 0.14, { vol: 0.12 }); break;
       case 'page': this.tone(880, 0.06, { vol: 0.1 }); this.tone(1175, 0.08, { vol: 0.08, at: 0.05 }); break;

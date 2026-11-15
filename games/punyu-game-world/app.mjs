@@ -14,7 +14,7 @@ const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save))
 const sound = new Sound(save.sound);
 
 const G = { scr: 'boot', st: 0, t: 0, cut: null, run: null, world: null, result: null, paused: false, fx: [], taps: [], shake: 0, touch: true, toast: null };
-const inp = { ptr: new Map(), stick: null, dx: 0, dy: 0, act: false, turn: 0, keys: new Set(), dragId: null };
+const inp = { ptr: new Map(), stick: null, dx: 0, dy: 0, act: false, turn: 0, bomb: false, keys: new Set(), dragId: null };
 
 // ---------- がめんの おおきさ ----------
 function resize() {
@@ -26,7 +26,7 @@ addEventListener('resize', resize); addEventListener('orientationchange', () => 
 const toLogical = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; };
 
 // ---------- にゅうりょく ----------
-const inAct = p => Math.hypot(p.x - V.ACT_BTN.x, p.y - V.ACT_BTN.y) < V.ACT_BTN.r + 26;
+const inAct = p => { const b = V.actBtn(G.run.sim); return Math.hypot(p.x - b.x, p.y - b.y) < b.r + 26; };
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); sound.unlock();
   const p = toLogical(e);
@@ -35,6 +35,7 @@ cv.addEventListener('pointerdown', e => {
     if (inAct(p)) inp.act = true;
     else if (!V.inRect(p, V.PAUSE_BTN) && !inp.stick) inp.stick = { id: e.pointerId, ox: p.x, oy: p.y, vx: 0, vy: 0 };
   }
+  if (G.scr === 'play' && !G.paused && G.run.kind === 'danmaku' && Math.hypot(p.x - V.BOMB_BTN.x, p.y - V.BOMB_BTN.y) < V.BOMB_BTN.r + 12) { inp.bomb = true; return; }
   if (inp.dragId === null) inp.dragId = e.pointerId;
 });
 cv.addEventListener('pointermove', e => {
@@ -57,6 +58,8 @@ addEventListener('keydown', e => {
     const r = G.run;
     if (r.kind === 'rhythm' && e.key in LANE_KEYS && r.intro <= 0) hitLane(LANE_KEYS[e.key]);
     if (r.kind === 'adventure' && (e.key === ' ' || e.key === 'z' || e.key === 'Enter')) inp.act = true;
+    if (r.kind === 'danmaku' && (e.key === ' ' || e.key === 'x')) inp.bomb = true;
+    if (r.fail && (e.key === ' ' || e.key === 'Enter')) G.taps.push({ x: W / 2, y: H / 2, key: true });
     if (r.kind === 'race' && (e.key === 'ArrowLeft' || e.key === 'a')) inp.turn = -1;
     if (r.kind === 'race' && (e.key === 'ArrowRight' || e.key === 'd')) inp.turn = 1;
   } else if (e.key === ' ' || e.key === 'Enter') G.taps.push({ x: W / 2, y: H / 2, key: true });
@@ -88,7 +91,7 @@ function toHub() {
     save.friendsSeen = C.friendsOf(save).map(f => f.id); store();
   }
 }
-function startMix() { startStage({ ...MIX, stages: C.buildMix(C.rng32(Date.now() >>> 0)) }, 0, []); }
+function startMix() { startStage({ ...MIX, stages: C.buildMix(C.rng32(Date.now() >>> 0)) }, 0, [], true); }
 function playCut(id, ctx, then, music = 'hub') {
   go('cut'); G.cut = { pages: SCENES[id](ctx || {}), i: 0, t: 0, then };
   sound.loop(music); if (G.cut.pages[0].sfx) sound.play(G.cut.pages[0].sfx);
@@ -105,36 +108,56 @@ function enterWorld(world) {
   if (world.id === 'bug' && !save.worlds.bug) playCut('finalIntro', {}, enter, 'bug'); else enter();
 }
 
-function startStage(world, i, ratings = [], skipCut = false) {
+// o.retries：やりなおした かず。o.hp：まぜこぜ モードで ひきつぐ ハート
+function makeSim(def, i, o = {}) {
+  const hp = o.hp !== undefined ? { hp: o.hp, maxHp: MIX.hearts } : {};
+  if (def.kind === 'danmaku') return C.newDanmaku(def, 7 + i, hp);
+  if (def.kind === 'adventure') return C.newAdventure(def, 11 + i, hp);
+  if (def.kind === 'race') return C.newRace(def, 5 + i, hp);
+  return Object.assign(C.newRhythm(def), hp);
+}
+function startStage(world, i, ratings = [], skipCut = false, o = {}) {
   const def = world.stages[i];
-  if (def.bossIntro && !skipCut) { playCut(def.bossIntro, {}, () => startStage(world, i, ratings, true), musicOf(world, def) || 'hub'); return; }
-  const sim = def.kind === 'danmaku' ? C.newDanmaku(def, 7 + i) : def.kind === 'adventure' ? C.newAdventure(def, 11 + i) : def.kind === 'race' ? C.newRace(def, 5 + i) : C.newRhythm(def);
-  const introMax = def.mix ? 1.7 : 2.6;
+  if (def.bossIntro && !skipCut) { playCut(def.bossIntro, {}, () => startStage(world, i, ratings, true, o), musicOf(world, def) || 'hub'); return; }
+  const mix = world.id === 'mix', introMax = o.retries ? 1.0 : def.mix ? 1.7 : 2.6;
   go('play');
-  G.run = { world, i, def, sim, kind: def.kind, intro: introMax, introMax, playT: 0, outro: 0, ratings, spell: null, laneFlash: [0, 0, 0], jump: 0, songStart: null };
-  inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0;
+  G.run = { world, i, def, sim: makeSim(def, i, mix ? { hp: o.hp ?? MIX.hearts } : {}), kind: def.kind, intro: introMax, introMax, playT: 0, outro: 0, ratings, retries: o.retries || 0, fail: null,
+    spell: null, laneFlash: [0, 0, 0], jump: 0, songStart: null };
+  inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0; inp.bomb = false;
   const m = musicOf(world, def);
   if (m) sound.loop(m, i === 2 && !['bug', 'mix'].includes(world.id) ? 1.1 : 1); else sound.stop();
-  sound.play((world.id === 'bug' || world.id === 'mix') && i > 0 ? 'henshin' : 'ok');
+  sound.play((world.id === 'bug' || mix) && i > 0 ? 'henshin' : 'ok');
+}
+function endMix(r) {
+  const score = r.ratings.reduce((a, b) => a + b, 0), isBest = C.recordMix(save, score); store();
+  go('result'); G.result = { world: r.world, stars: 0, mix: { score, isBest, best: save.mix.best, rounds: r.sim.failed ? r.i : r.i + 1 } }; sound.loop('hub'); sound.play('clear');
 }
 function finishStage() {
   const r = G.run;
+  if (r.world.id === 'mix') { if (r.i + 1 < r.world.stages.length) startStage(r.world, r.i + 1, r.ratings, true, { hp: r.sim.hp }); else endMix(r); return; }
   if (r.i + 1 < r.world.stages.length) { startStage(r.world, r.i + 1, r.ratings); return; }
-  if (r.world.id === 'mix') {
-    const score = r.ratings.reduce((a, b) => a + b, 0), isBest = C.recordMix(save, score); store();
-    go('result'); G.result = { world: r.world, stars: 0, mix: { score, isBest, best: save.mix.best } }; sound.loop('hub'); sound.play('clear'); return;
-  }
   const stars = C.avgStars(r.ratings), world = r.world;
   C.recordClear(save, world.id, stars);
   const toResult = () => { go('result'); G.result = { world, stars }; sound.loop('hub'); sound.play('clear'); };
   if (world.id === 'bug') { save.ending = true; store(); playCut('ending', {}, toResult); }
   else { store(); playCut('clear', { world }, toResult); }
 }
+// しっぱいの あと：弾幕は その こうげきから、冒険は その へやから、ほかは あたまから
+function retry() {
+  const r = G.run, s = r.sim;
+  if (r.world.id === 'mix') { endMix(r); return; }
+  r.retries++;
+  if (r.kind === 'danmaku') { r.sim = C.newDanmaku(r.def, 7 + r.i, { phase: Math.max(0, s.pi), stars: s.stars }); r.spell = null; }
+  else if (r.kind === 'adventure') r.sim = C.retryRoom(s);
+  else if (r.kind === 'race') r.sim = C.newRace(r.def, 5 + r.i);
+  else { startStage(r.world, r.i, r.ratings, true, { retries: r.retries }); return; }
+  r.fail = null; G.fx = []; inp.stick = null; inp.dx = inp.dy = 0; sound.play('ok');
+}
 function setPause(on) {
-  if (G.scr !== 'play' || G.paused === on) return;
+  if (G.scr !== 'play' || G.paused === on || G.run.fail) return;
   G.paused = on; inp.stick = null;
   if (on && G.run.kind === 'rhythm') sound.stop();
-  if (!on && G.run.kind === 'rhythm') startStage(G.run.world, G.run.i, G.run.ratings, true);   // うたは あたまから
+  if (!on && G.run.kind === 'rhythm') { const r = G.run; startStage(r.world, r.i, r.ratings, true, { retries: r.retries, hp: r.world.id === 'mix' ? r.sim.hp : undefined }); }   // うたは あたまから
 }
 
 // ---------- あそびの こうしん ----------
@@ -162,7 +185,11 @@ function handleEvents(r) {
       case 'cut': sound.play('cut'); burst(e.x, e.y, 7, ['#5fd06a', '#2f9a45'], { kind: 'dot', v: 150, size: 7, up: 60 }); break;
       case 'key': sound.play('key'); say(e.x, e.y - 30, 'かぎを みつけた！', { c: '#ffd84a', life: 1.6 }); burst(e.x, e.y, 12, D.COL.gold); break;
       case 'door': sound.play('door'); say(W / 2, 110, 'とびらが ひらいた！', { c: '#ffd84a', life: 1.6 }); break;
-      case 'locked': sound.play('locked'); say(s.px, s.py - 50, 'かぎが いるよ', { size: 24 }); break;
+      case 'locked': sound.play('locked'); say(s.px, s.py - 50, e.door === 'key' ? 'かぎが いるよ' : e.door === 'switch' ? 'スイッチを ぜんぶ おそう' : 'スライムを ぜんぶ たおそう', { size: 24 }); break;
+      case 'bomb': sound.play('bomb'); ring(e.x, e.y, '#fff', 500); ring(e.x, e.y, D.COL.gold, 300); G.shake = 0.4; say(e.x, e.y - 50, 'ボム！', { c: '#ffd84a', size: 40 }); break;
+      case 'heart': sound.play('heart'); say(e.x, e.y - 30, 'ハート！', { c: '#ff6f9f', stroke: '#fff' }); break;
+      case 'bump': sound.play('bump'); say(e.x, e.y - 70, 'どんっ', { size: 24 }); break;
+      case 'fail': case 'exit': break;
       case 'thud': sound.play('thud'); G.shake = 0.3; ring(e.x, e.y + 30, '#fff', 90); break;
       case 'dizzy': sound.play('dizzy'); say(s.boss.px, s.boss.py - 90, 'いまだ！', { c: '#ffd84a', size: 36, life: 1.2 }); break;
       case 'bossHit': sound.play('bossHit'); burst(e.x, e.y, 10, ['#fff', D.COL.gold]); G.shake = 0.15; break;
@@ -182,18 +209,24 @@ function handleEvents(r) {
 }
 
 function updatePlay(dt) {
-  const r = G.run, s = r.sim;
+  const r = G.run;
+  if (r.fail) {
+    r.fail.t += dt;
+    if (r.fail.t > 0.8 && G.taps.some(p => p.key || V.inRect(p, V.RETRY_BTN))) retry();
+    return;
+  }
   // ひとやすみ ボタン
   for (const p of G.taps) if (!p.key && V.inRect(p, V.PAUSE_BTN)) { setPause(true); sound.play('tap'); return; }
   if (r.intro > 0) {
     r.intro -= dt; if (G.taps.length && r.intro < r.introMax - 0.6) r.intro = 0;
     if (r.intro <= 0 && r.kind === 'rhythm') r.songStart = sound.song(r.def);
-    inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0; return;
+    inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0; inp.bomb = false; return;
   }
   if (r.outro > 0) { r.outro -= dt; if (r.outro <= 0) finishStage(); return; }
-  const k = keyAxis(); r.playT += dt;
+  const k = keyAxis(), mix = r.world.id === 'mix'; r.playT += dt;
+  let s = r.sim;
   if (r.kind === 'race') { for (const p of G.taps) if (!p.key && p.y > 60) inp.turn = p.x < W / 2 ? -1 : 1; C.stepRace(s, dt, { turn: inp.turn }); }
-  else if (r.kind === 'danmaku') { C.stepDanmaku(s, dt, { dx: inp.dx, dy: inp.dy, kx: k.x, ky: k.y }); if (r.spell) r.spell.t += dt; }
+  else if (r.kind === 'danmaku') { C.stepDanmaku(s, dt, { dx: inp.dx, dy: inp.dy, kx: k.x, ky: k.y, bomb: inp.bomb }); if (r.spell) r.spell.t += dt; }
   else if (r.kind === 'adventure') {
     const st = inp.stick;
     C.stepAdventure(s, dt, { mx: (st ? st.vx : 0) + k.x, my: (st ? st.vy : 0) + k.y, act: inp.act });
@@ -204,12 +237,16 @@ function updatePlay(dt) {
     for (let i = 0; i < 3; i++) r.laneFlash[i] = Math.max(0, r.laneFlash[i] - dt);
     r.jump = Math.max(0, r.jump - dt);
   }
-  inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0;
+  inp.dx = inp.dy = 0; inp.act = false; inp.turn = 0; inp.bomb = false;
   handleEvents(r);
-  const mix = r.world.id === 'mix';
+  // つぎの へやへ
+  if (s.exit) { s = r.sim = C.nextRoom(s); G.fx = []; G.flash = 0.45; inp.stick = null; sound.play('exit'); say(W / 2, 130, `へや ${s.room + 1}`, { c: '#ffd84a', size: 40, life: 1.4 }); return; }
   if (mix && r.playT > 30) s.done = true;   // まぜこぜは ながびいても つぎへ
+  // まぜこぜの リズムは、たりないと ハートが 1つ へるだけ
+  if (mix && r.kind === 'rhythm' && s.failed) { s.hp--; s.failed = s.hp <= 0; s.done = !s.failed; if (s.done) say(W / 2, 200, 'ハートが へっちゃった', { size: 30 }); }
+  if (s.failed) { r.fail = { t: 0 }; if (mix) r.ratings.push(s.stars); if (r.kind === 'rhythm') sound.stop(); sound.play('fail'); return; }
   if (s.done) {
-    r.outro = mix ? 1.1 : 2.2; r.outroMax = r.outro; r.ratings.push(mix ? s.stars : C.rating(s));
+    r.outro = mix ? 1.1 : 2.2; r.outroMax = r.outro; r.ratings.push(mix ? s.stars : C.rating(s, r.retries));
     if (!mix) { C.recordStage(save, r.world.id, r.i, r.world.stages.length); store(); }
     sound.play('clear'); burst(W / 2, 250, 40, [D.COL.gold, '#fff', D.COL.pink], { v: 420, life: 1.2 });
     if (r.kind === 'rhythm') sound.play('cheer');
@@ -222,7 +259,7 @@ function updatePause() {
     sound.play('tap');
     const i = V.PAUSE_ITEMS.indexOf(it), r = G.run;
     if (i === 0) setPause(false);
-    else if (i === 1) startStage(r.world, r.i, r.ratings, true);
+    else if (i === 1) { if (r.world.id === 'mix') startMix(); else startStage(r.world, r.i, r.ratings, true, { retries: r.retries + 1 }); }
     else if (i === 2) toWorldTitle(r.world);
     else { save.sound = !save.sound; sound.setOn(save.sound); store(); }
     return;
@@ -232,6 +269,7 @@ function updatePause() {
 function update(dt) {
   G.t += dt; G.st += dt; if (G.shake > 0) G.shake -= dt;
   if (G.hubNews > 0) G.hubNews -= dt;
+  if (G.flash > 0) G.flash -= dt;
   stepFx(dt);
   const tap = G.taps[0];
   if (G.scr === 'boot') {
@@ -283,6 +321,8 @@ function draw() {
     if (r.kind === 'danmaku') V.drawDanmaku(c, r.sim, ui); else if (r.kind === 'adventure') V.drawAdventure(c, r.sim, ui); else if (r.kind === 'race') V.drawRace(c, r.sim, ui); else V.drawRhythm(c, r.sim, ui);
     if (r.intro > 0) V.drawStageCard(c, r, r.introMax - r.intro);
     if (r.outro > 0) V.drawStageClear(c, r, r.outroMax - r.outro);
+    if (r.fail) V.drawFail(c, r, r.fail.t);
+    if (G.flash > 0) { c.fillStyle = `rgba(255,255,255,${G.flash / 0.45})`; c.fillRect(0, 0, W, H); }
     if (G.paused) V.drawPause(c, save);
   } else if (G.scr === 'result') { V.drawResult(c, G.result.world, G.result.stars, G.st, G.result.mix); V.drawFx(c, G.fx); }
 }
@@ -297,4 +337,4 @@ toBoot();
 requestAnimationFrame(frame);
 
 // かくにんよう（開発者が コンソールから つかう）
-window.__punyu = { G, save, sound, startStage: (id, i) => startStage(worldById(id), i, [], true), cut: (id, wid) => playCut(id, { world: worldById(wid || 'star') }, toHub), title: id => toWorldTitle(worldById(id)), hub: toHub, mix: startMix, store, result: (id, n) => { go('result'); G.result = { world: worldById(id), stars: n }; }, FINAL };
+window.__punyu = { G, save, sound, startStage: (id, i) => startStage(worldById(id), i, [], true), cut: (id, wid) => playCut(id, { world: worldById(wid || 'star') }, toHub), title: id => toWorldTitle(worldById(id)), hub: toHub, mix: startMix, store, nextRoom: () => { G.run.sim = C.nextRoom(G.run.sim); }, result: (id, n) => { go('result'); G.result = { world: worldById(id), stars: n }; }, FINAL };
