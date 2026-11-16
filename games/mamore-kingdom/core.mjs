@@ -145,7 +145,7 @@ export function createBattle(meta, stageId, diffId = 'normal', endless = false) 
   const g = {
     si, stage: st, diff, endless, paths, t: 0,
     gold: BASE_GOLD + CASTLE_UPS.gold.step * (meta.castle.gold || 0), lives, maxLives: lives,
-    wave: 0, cleared: 0, waveActive: false, waveT: 0, spawns: [], auto: false, autoT: 0,
+    wave: 0, cleared: 0, banked: 0, bestBefore: meta.best[st.id + ':endless'] || 0, waveActive: false, waveT: 0, spawns: [], auto: false, autoT: 0,
     enemies: [], towers: [], soldiers: [], shots: [], events: [], nextId: 1, kills: 0, over: null, buffT: 0,
     pow: { ...meta.pow }, unlocked: { ...meta.towers },
     guard: GUARD[meta.castle.guard || 0] ? { ...GUARD[meta.castle.guard], x: st.castle[0], y: st.castle[1] - 30, cd: 0 } : null,
@@ -515,12 +515,20 @@ export function step(g, dt) {
 }
 
 // ───────── ほうしゅう ─────────
-export function battleGems(g) {
-  const st = g.stage;
+function waveGemsRaw(g) {
   let v = 0;
-  for (let w = 0; w < g.cleared; w++) v += st.gemWave * (g.endless ? 1 + w / 8 : 1);
-  if (g.over === 'win') v += st.gemWin;
-  return Math.round(v * g.diff.gem);
+  for (let w = 0; w < g.cleared; w++) v += g.stage.gemWave * (g.endless ? 1 + w / 8 : 1);
+  return v;
+}
+export function battleGems(g) {
+  return Math.round((waveGemsRaw(g) + (g.over === 'win' ? g.stage.gemWin : 0)) * g.diff.gem);
+}
+// 波を クリアする たびに、その ぶんの ほう石を すぐ ちょきんする（とちゅうで やめても なくならない）
+export function bankGems(meta, g) {
+  const now = Math.round(waveGemsRaw(g) * g.diff.gem), add = now - (g.banked || 0);
+  if (add > 0) { meta.gems += add; meta.totalGems += add; g.banked = now; }
+  if (g.endless) { const bk = g.stage.id + ':endless'; if (g.cleared > (meta.best[bk] || 0)) meta.best[bk] = g.cleared; }
+  return Math.max(0, add);
 }
 // バトルの けっかを ずっと のこる データに 足す
 export function applyResult(meta, g) {
@@ -529,8 +537,9 @@ export function applyResult(meta, g) {
   const bonus = first ? Math.round(base * 0.5) : 0;
   if (g.over === 'win' && !g.endless) meta.clears[key] = 1;
   const bk = g.stage.id + (g.endless ? ':endless' : ':' + g.diff.id);
-  const newBest = g.cleared > (meta.best[bk] || 0);
-  if (newBest) meta.best[bk] = g.cleared;
-  meta.gems += base + bonus; meta.totalGems += base + bonus; meta.runs++;
+  const newBest = g.cleared > (g.endless ? g.bestBefore : (meta.best[bk] || 0));   // はてしないは とちゅうで きろくが 入るので、はじめの きろくと くらべる
+  if (g.cleared > (meta.best[bk] || 0)) meta.best[bk] = g.cleared;
+  const rest = base + bonus - (g.banked || 0);   // まだ ちょきん していない ぶんだけ 足す
+  meta.gems += rest; meta.totalGems += rest; meta.runs++; g.banked = base + bonus;
   return { base, bonus, total: base + bonus, first, newBest, waves: g.cleared };
 }

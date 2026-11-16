@@ -222,3 +222,17 @@ test('バランス：ぜんぶ 買うと 火山の むずかしいまで 勝て�
   assert.equal(e.over, 'lose'); assert.ok(e.cleared > 10 && e.cleared < 80);
   assert.ok(C.battleGems(e) > 100);
 });
+
+test('ほう石は 波を クリアする たびに ちょきんされ、さいごに 2重に 足されない', () => {
+  const m = C.newMeta(), g = C.createBattle(m, 'meadow');
+  for (let n = 1; n <= 3; n++) { g.cleared = n; C.bankGems(m, g); }
+  assert.equal(m.gems, 18, '3波で 18こ（とちゅうで やめても のこる）');
+  assert.equal(C.bankGems(m, g), 0, '同じ 波で 2回 もらえない');
+  g.cleared = 10; C.bankGems(m, g); g.over = 'win';
+  const r = C.applyResult(m, g);
+  assert.equal(r.total, 150); assert.equal(m.gems, 150);
+  const e = C.createBattle(m, 'meadow', 'normal', true);
+  e.cleared = 7; C.bankGems(m, e);
+  assert.equal(m.best['meadow:endless'], 7, 'はてしないの きろくも すぐ のこる');
+  e.over = 'lose'; assert.ok(C.applyResult(m, e).newBest);
+});

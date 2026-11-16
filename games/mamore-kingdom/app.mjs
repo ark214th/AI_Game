@@ -252,7 +252,10 @@ function handleEvents() {
       case 'upgrade': snd.play(e.evolve ? 'evolve' : 'upgrade'); if (e.evolve) banner('✨ 進化した！', '', 'good'); break;
       case 'leak': snd.play('leak', 0.15); break;
       case 'wave': snd.play(e.boss ? 'bossIn' : 'wave'); if (e.boss) banner('⚠️ ボスが 来る！', '力を あわせて たおそう', 'warn'); else if (e.n > 1) banner(`波 ${e.n}`); if (hintStep < 3) hintStep = 3; break;
-      case 'waveClear': snd.play('clear'); if (!g.over) banner(`波 ${e.n} クリア！`, `ボーナス 💰+${e.bonus}`, 'good'); break;
+      case 'waveClear': {
+        const gem = C.bankGems(meta, g); save();
+        snd.play('clear'); if (!g.over) banner(`波 ${e.n} クリア！`, `💰+${e.bonus}${gem ? `　💎+${gem}` : ''}`, 'good'); break;
+      }
       case 'aura': snd.play('boom'); if (e.any) banner(e.kind === 'fire' ? '🔥 タワーが もやされた！' : '🧊 タワーが こおった！', 'しばらく うごけない', 'warn'); break;
       case 'skill': snd.play(e.id === 'meteor' ? 'meteor' : 'skill'); break;
       case 'heroDown': snd.play('down'); toast(`${HEROES[g.hero.type].short} が ひとやすみ…すぐ もどるよ`); break;
@@ -288,7 +291,8 @@ function pause() {
   const s = modal(`<h3>ひとやすみ</h3>
     <button class="row-btn main" id="pGo">▶ つづける</button>
     <button class="row-btn" id="pSound">🔊 音：${meta.sound ? 'あり' : 'なし'}</button>
-    <button class="row-btn" id="pQuit">🏰 やめて まちへ（ほう石は もらえる）</button>`);
+    <p class="have">ほう石は 波を クリアする たびに ちょきん されているよ（いま 💎${meta.gems}）</p>
+    <button class="row-btn" id="pQuit">🏰 やめて まちへ</button>`);
   s.querySelector('#pGo').onclick = () => { paused = false; closeModal(); };
   s.querySelector('#pSound').onclick = () => { meta.sound = !meta.sound; snd.setOn(meta.sound); save(); pause(); };
   s.querySelector('#pQuit').onclick = () => { paused = false; g.over = 'quit'; finish(); };
@@ -360,7 +364,8 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('resize', () => R.resize());
 window.addEventListener('orientationchange', () => setTimeout(() => R.resize(), 200));
-document.addEventListener('visibilitychange', () => { if (document.hidden && g && !g.over && !$('battle').hidden) pause(); });
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); if (document.hidden && g && !g.over && !$('battle').hidden) pause(); });
 
 // ───────── まいフレーム ─────────
 function frame(ts) {
