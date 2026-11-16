@@ -532,6 +532,198 @@ export function stepRace(s, dt, inp = {}) {
 }
 
 // ===================================================================
+// ひろい せかい（うしろから みる のはら。あるく・とうを のぼる・はっぱで とぶ）
+// むき：yaw 0 は +z。まえ＝(sin, cos)、みぎ＝(cos, -sin)
+// ===================================================================
+export const FD = { SPEED: 245, GLIDE: 330, SINK: 48, DIVE: 430, CLIMB: 95, STA: 6.8, R: 22, TURN: 1.5, REACH: 92 };
+const hyp = Math.hypot;
+const wrapPi = a => { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; };
+
+// o.got：もう とった たね（やりなおし用）
+export function newField(def, seed = 21, o = {}) {
+  const rand = rng32(seed);
+  const busy = (x, z, pad) => hyp(x, z) > def.size - 90 || def.towers.some(t => hyp(x - t.x, z - t.z) < t.r + pad + 30) || def.lakes.some(l => hyp(x - l.x, z - l.z) < l.r + pad)
+    || hyp(x - def.start[0], z - def.start[1]) < pad + 90 || hyp(x - def.goal[0], z - def.goal[1]) < pad + 130 || def.seeds.some(q => hyp(x - q.x, z - q.z) < pad + 40) || (def.boss && hyp(x - def.boss.x, z - def.boss.z) < 380);
+  const scatter = (n, pad, make) => { const out = []; for (let tries = 0; out.length < n && tries < n * 30; tries++) { const a = rand() * TAU, d = Math.sqrt(rand()) * def.size, x = Math.sin(a) * d, z = Math.cos(a) * d; if (!busy(x, z, pad) && !out.some(p => hyp(p.x - x, p.z - z) < 90)) out.push(make(x, z)); } return out; };
+  const trees = scatter(def.trees, 50, (x, z) => ({ x, z, r: 26, apple: rand() < 0.45, size: 0.85 + rand() * 0.4 }));
+  const rocks = scatter(def.rocks, 50, (x, z) => ({ x, z, r: 30 + rand() * 14 }));
+  const enemies = [];
+  for (const c of def.camps) for (let i = 0; i < c.n; i++) {
+    const a = i * TAU / c.n, big = i < (c.big || 0), x = c.x + Math.sin(a) * 90, z = c.z + Math.cos(a) * 90;
+    enemies.push({ type: big ? 'big' : 'slime', x, z, hx: x, hz: z, tx: x, tz: z, r: big ? 34 : 24, hp: big ? 3 : 1, speed: big ? 95 : 125, stun: 0, wait: rand() * 2, score: big ? 5 : 2 });
+  }
+  const s = {
+    kind: 'field', def, seed, rand, t: 0, x: def.start[0], z: def.start[1], y: 0, head: 0, cam: 0, state: 'walk', tw: null, dive: false, sta: 1, kx: 0, kz: 0,
+    hp: o.hp ?? HEARTS, maxHp: o.maxHp ?? HEARTS, inv: 0, hits: o.hits || 0, stars: o.stars || 0, failed: false, done: false, goalT: 0, goalOpen: false,
+    got: def.seeds.map((_, i) => !!(o.got && o.got[i])), trees, rocks, enemies, apples: [], ringGot: def.rings.map(() => false), stones: [],
+    boss: def.boss ? { ...def.boss, r: 72, maxHp: def.boss.hp, state: 'idle', st: 2.2, throws: 0, hitCool: 0 } : null, swing: 0, cool: 0, moving: false, ev: [],
+  };
+  s.goalOpen = fieldReady(s);
+  return s;
+}
+export const seedsLeft = s => s.got.filter(g => !g).length;
+const fieldReady = s => seedsLeft(s) === 0 && (!s.boss || s.boss.hp <= 0);
+// しっぱい したら、とった たねは そのままで スタートの ばしょから
+export const retryField = s => newField(s.def, s.seed, { got: s.got, stars: s.stars, hits: s.hits, maxHp: s.maxHp });
+
+const inWater = (s, x, z) => s.def.lakes.find(l => { const d = hyp(x - l.x, z - l.z); return d < l.r && d > (l.island || 0); });
+function fieldHurt(s, fx, fz) {
+  const dx = s.x - fx, dz = s.z - fz, d = hyp(dx, dz) || 1;
+  s.kx = dx / d * 420; s.kz = dz / d * 420;
+  if (s.inv > 0) return;
+  s.hits++; s.inv = 1.4; s.ev.push({ t: 'hit' });
+  loseHeart(s);
+}
+function pushOut(s, ox, oz, rad) {
+  const dx = s.x - ox, dz = s.z - oz, d = hyp(dx, dz) || 1;
+  if (d < rad) { s.x = ox + dx / d * rad; s.z = oz + dz / d * rad; return true; }
+  return false;
+}
+// あるいて いる ときの かべ（き・いわ・とう・みず・せかいの はし）
+function fieldWalls(s, dirx, dirz) {
+  for (const t of s.trees) pushOut(s, t.x, t.z, t.r + FD.R);
+  for (const r of s.rocks) pushOut(s, r.x, r.z, r.r + FD.R);
+  pushOut(s, s.def.goal[0], s.def.goal[1], 64 + FD.R);
+  for (const t of s.def.towers) {
+    const dx = t.x - s.x, dz = t.z - s.z, d = hyp(dx, dz) || 1;
+    if (d >= t.r + FD.R) continue;
+    // とうに むかって おすと のぼりはじめる
+    if (s.moving && (dirx * dx + dirz * dz) / d > 0.3 && s.sta > 0.15 && s.state === 'walk') { s.state = 'climb'; s.tw = t; s.ang = Math.atan2(-dx, -dz); s.ev.push({ t: 'climbStart' }); return; }
+    pushOut(s, t.x, t.z, t.r + FD.R);
+  }
+  for (const l of s.def.lakes) {
+    const dx = s.x - l.x, dz = s.z - l.z, d = hyp(dx, dz) || 1, isl = l.island || 0;
+    if (d < l.r && d > isl) { const rad = d - isl < l.r - d ? isl : l.r; s.x = l.x + dx / d * rad; s.z = l.z + dz / d * rad; }
+  }
+  const d = hyp(s.x, s.z); if (d > s.def.size) { s.x *= s.def.size / d; s.z *= s.def.size / d; }
+}
+
+export function stepField(s, dt, inp = {}) {
+  if (s.done || s.failed) return;
+  s.t += dt;
+  if (s.goalT > 0) { if ((s.goalT -= dt) <= 0) s.done = true; return; }
+  if (s.inv > 0) s.inv -= dt;
+  if (s.cool > 0) s.cool -= dt;
+  if (s.swing > 0) s.swing -= dt;
+  let mx = inp.mx || 0, my = inp.my || 0; const m = hyp(mx, my);
+  if (m > 1) { mx /= m; my /= m; }
+  s.moving = m > 0.25;
+  const sinC = Math.sin(s.cam), cosC = Math.cos(s.cam);
+  const dirx = cosC * mx - sinC * my, dirz = -sinC * mx - cosC * my;   // カメラから みた むきで うごく
+  const grounded = s.state === 'walk';
+
+  if (s.state === 'walk') {
+    if (s.moving) { s.cam += mx * FD.TURN * dt; s.head = Math.atan2(dirx, dirz); s.x += dirx * FD.SPEED * dt; s.z += dirz * FD.SPEED * dt; }
+    s.x += s.kx * dt; s.z += s.kz * dt; s.kx *= Math.max(0, 1 - dt * 6); s.kz *= Math.max(0, 1 - dt * 6);
+    s.sta = Math.min(1, s.sta + dt / 2.5);
+    fieldWalls(s, dirx, dirz);
+  } else if (s.state === 'climb') {
+    const t = s.tw;
+    s.x = t.x + Math.sin(s.ang) * (t.r + 12); s.z = t.z + Math.cos(s.ang) * (t.r + 12); s.head = s.ang + Math.PI;
+    s.cam += wrapPi(s.head - s.cam) * Math.min(1, dt * 3);
+    if (s.moving && my > 0.6) { s.state = 'fall'; }                       // てまえに ひくと はなす
+    else if (s.moving) { s.y += FD.CLIMB * dt; s.sta -= dt / FD.STA; }
+    if (s.sta <= 0) { s.sta = 0; s.state = 'fall'; s.ev.push({ t: 'slip' }); }
+    else if (s.y >= t.h) { s.y = t.h; s.x = t.x; s.z = t.z; s.state = 'top'; s.topWait = 1.6; s.ev.push({ t: 'top' }); }
+  } else if (s.state === 'fall') {
+    s.y -= 460 * dt; if (s.y <= 0) { s.y = 0; s.state = 'walk'; pushOut(s, s.tw.x, s.tw.z, s.tw.r + FD.R + 2); }
+  } else if (s.state === 'top') {
+    const t = s.tw; s.sta = Math.min(1, s.sta + dt / 1.5);
+    if (s.topWait > 0) { s.topWait -= dt; if (!s.moving) s.topWait = 0; }   // スティックを はなすか、すこし まつと うごける
+    else if (s.moving) { s.cam += mx * FD.TURN * dt; s.head = Math.atan2(dirx, dirz); s.x += dirx * FD.SPEED * 0.55 * dt; s.z += dirz * FD.SPEED * 0.55 * dt; }
+    if (hyp(s.x - t.x, s.z - t.z) > t.r + 6) { s.state = 'glide'; s.dive = false; s.ev.push({ t: 'glide' }); }   // ふちから でると はっぱが ひらく
+  } else if (s.state === 'glide') {
+    if (inp.act && !s.dive) { s.dive = true; s.ev.push({ t: 'dive' }); }
+    s.head += mx * 1.9 * dt; s.cam += wrapPi(s.head - s.cam) * Math.min(1, dt * 4);
+    const v = s.dive ? FD.GLIDE * 0.25 : FD.GLIDE, prevY = s.y;
+    s.x += Math.sin(s.head) * v * dt; s.z += Math.cos(s.head) * v * dt; s.y -= (s.dive ? FD.DIVE : FD.SINK) * dt;
+    const d = hyp(s.x, s.z); if (d > s.def.size) { s.x *= s.def.size / d; s.z *= s.def.size / d; }
+    s.def.rings.forEach((r, i) => { if (!s.ringGot[i] && hyp(s.x - r.x, s.z - r.z) < 62 && Math.abs(s.y + 20 - r.y) < 62) { s.ringGot[i] = true; s.stars += 5; s.ev.push({ t: 'ring' }); } });
+    for (const t of s.def.towers) {
+      const td = hyp(s.x - t.x, s.z - t.z);
+      if (t !== s.tw && td < t.r + 8 && prevY >= t.h && s.y <= t.h) { s.y = t.h; s.tw = t; s.state = 'top'; s.topWait = 1.6; s.ev.push({ t: 'top' }); }   // べつの とうの うえに おりる
+      else if (td < t.r + FD.R && s.y < t.h - 4 && t !== s.tw) pushOut(s, t.x, t.z, t.r + FD.R);
+    }
+    if (s.state === 'glide' && s.y <= 0) {
+      s.y = 0; s.state = 'walk'; const dived = s.dive; s.dive = false;
+      const l = inWater(s, s.x, s.z), b = s.boss;
+      if (l) { const dx = s.x - l.x, dz = s.z - l.z, dd = hyp(dx, dz) || 1; s.x = l.x + dx / dd * (l.r + 30); s.z = l.z + dz / dd * (l.r + 30); s.ev.push({ t: 'splash' }); }
+      else if (dived && b && b.hp > 0 && hyp(s.x - b.x, s.z - b.z) < b.r + 60) {   // そらから ずどん
+        b.hp = Math.max(0, b.hp - 2); b.hitCool = 0.5; s.ev.push({ t: 'stomp' });
+        const dx = s.x - b.x, dz = s.z - b.z, dd = hyp(dx, dz) || 1; s.x = b.x + dx / dd * (b.r + 60); s.z = b.z + dz / dd * (b.r + 60); s.inv = Math.max(s.inv, 1);
+        if (b.hp <= 0) bossFall(s);
+      } else s.ev.push({ t: 'land' });
+    }
+  }
+
+  // けん（じめんに いる とき）
+  if (inp.act && grounded && s.cool <= 0) {
+    s.swing = 0.22; s.cool = 0.34; s.ev.push({ t: 'swing' });
+    const fx = Math.sin(s.head), fz = Math.cos(s.head);
+    const front = (ox, oz, reach) => { const dx = ox - s.x, dz = oz - s.z, d = hyp(dx, dz); return d < reach && (d < 30 || (dx * fx + dz * fz) / d > 0.1); };
+    for (const e of s.enemies) {
+      if (e.stun > 0.15 || !front(e.x, e.z, FD.REACH + e.r)) continue;
+      e.hp--; e.stun = 0.45;
+      if (e.hp <= 0) { e.dead = true; s.stars += e.score; s.ev.push({ t: 'pop' }); } else s.ev.push({ t: 'bossHit' });
+    }
+    s.enemies = s.enemies.filter(e => !e.dead);
+    for (const t of s.trees) if (t.apple && front(t.x, t.z, FD.REACH + t.r)) { t.apple = false; s.apples.push({ x: t.x + fx * -46, z: t.z + fz * -46 }); s.ev.push({ t: 'cut' }); }
+    const b = s.boss;
+    if (b && b.hp > 0 && front(b.x, b.z, FD.REACH + b.r)) {
+      if (b.state === 'stuck' && b.hitCool <= 0) { b.hp--; b.hitCool = 0.45; s.ev.push({ t: 'bossHit' }); if (b.hp <= 0) bossFall(s); }
+      else if (b.state !== 'stuck') s.ev.push({ t: 'clang' });
+    }
+  }
+
+  // りんご：ハートが もどる
+  for (const a of s.apples) if (grounded && hyp(a.x - s.x, a.z - s.z) < 48) { a.dead = true; if (s.hp < s.maxHp) { s.hp++; s.ev.push({ t: 'heart' }); } else { s.stars += 3; s.ev.push({ t: 'star' }); } }
+  s.apples = s.apples.filter(a => !a.dead);
+
+  // たね
+  s.def.seeds.forEach((q, i) => {
+    if (s.got[i] || hyp(q.x - s.x, q.z - s.z) > 56 || Math.abs(s.y - q.y) > 70) return;
+    s.got[i] = true; s.stars += 10; s.ev.push({ t: 'seed', left: seedsLeft(s) });
+    if (fieldReady(s) && !s.goalOpen) { s.goalOpen = true; s.ev.push({ t: 'goalOpen' }); }
+  });
+  if (s.goalOpen && grounded && hyp(s.x - s.def.goal[0], s.z - s.def.goal[1]) < 64 + FD.R + 14) { s.goalT = 2.8; s.ev.push({ t: 'chest' }); return; }
+
+  // スライム：ちかづくと おいかけて くる
+  for (const e of s.enemies) {
+    if (e.stun > 0) { e.stun -= dt; continue; }
+    const pd = hyp(s.x - e.x, s.z - e.z), chase = pd < 430 && s.y < 40;
+    if (chase) { e.tx = s.x; e.tz = s.z; }
+    else if ((e.wait -= dt) <= 0) { e.wait = 1.5 + s.rand() * 2; const a = s.rand() * TAU; e.tx = e.hx + Math.sin(a) * 110; e.tz = e.hz + Math.cos(a) * 110; }
+    const dx = e.tx - e.x, dz = e.tz - e.z, d = hyp(dx, dz);
+    if (d > 4) { const v = Math.min(d, e.speed * (chase ? 1 : 0.4) * dt); e.x += dx / d * v; e.z += dz / d * v; }
+    if (pd < e.r + FD.R && s.y < 30) fieldHurt(s, e.x, e.z);
+  }
+
+  // いわおやぶん：いわを なげる ×2 → おいかけて ドスン → しばらく うごけない
+  const b = s.boss;
+  if (b && b.hp > 0) {
+    b.st -= dt; if (b.hitCool > 0) b.hitCool -= dt;
+    const pd = hyp(s.x - b.x, s.z - b.z);
+    if (b.state === 'idle' && b.st <= 0) {
+      if (b.throws < 2) { b.throws++; b.st = 1.5; s.stones.push({ x: s.x, z: s.z, t: 1.5, r: 84 }); s.ev.push({ t: 'throw' }); }
+      else { b.throws = 0; b.state = 'chase'; b.st = 2.4; }
+    } else if (b.state === 'chase') {
+      if (pd > b.r + 40) { b.x += (s.x - b.x) / pd * 125 * dt; b.z += (s.z - b.z) / pd * 125 * dt; }
+      if (b.st <= 0) { b.state = 'windup'; b.st = 0.7; }
+    } else if (b.state === 'windup' && b.st <= 0) {
+      b.state = 'stuck'; b.st = 3.4; s.ev.push({ t: 'thud' });
+      if (pd < b.r + 150 && s.y < 30) fieldHurt(s, b.x, b.z);
+    } else if (b.state === 'stuck' && b.st <= 0) { b.state = 'idle'; b.st = 1.2; }
+    if (grounded && pd < b.r + FD.R) { pushOut(s, b.x, b.z, b.r + FD.R); if (b.state !== 'stuck') fieldHurt(s, b.x, b.z); }
+  }
+  for (const k of s.stones) if ((k.t -= dt) <= 0) { k.dead = true; s.ev.push({ t: 'thud' }); if (hyp(s.x - k.x, s.z - k.z) < k.r && s.y < 30) fieldHurt(s, k.x, k.z); }
+  s.stones = s.stones.filter(k => !k.dead);
+}
+function bossFall(s) {
+  s.ev.push({ t: 'bossDown', boss: 'golem' }); s.stones = [];
+  if (fieldReady(s) && !s.goalOpen) { s.goalOpen = true; s.ev.push({ t: 'goalOpen' }); }
+}
+
+// ===================================================================
 // まぜこぜ モード：みじかい あそびが つぎつぎ くる。ハートが なくなるまで つづく
 // ===================================================================
 const RH_POOL = ['1...2...', '3...2...', '1.2.3...', '3.2.1...', '2.2.2...', '1...3...', '1.2.3.2.', '2.2.3...', '3.3.1...', '4...5...', '6...2...', '1.3.2...'];
@@ -586,4 +778,5 @@ export const totalStars = save => Object.values(save.worlds).reduce((a, w) => a 
 export const friendsOf = save => { const n = totalStars(save); return FRIENDS.filter(f => (f.ending ? save.ending : n >= f.need)); };
 export const nextFriend = save => { const n = totalStars(save); return FRIENDS.find(f => !f.ending && n < f.need) || null; };
 export function recordMix(save, score) { const m = (save.mix ||= { best: 0, plays: 0 }); m.plays++; const isBest = score > m.best; m.best = Math.max(m.best, score); return isBest; }
-export const finalUnlocked = (save, ids) => ids.every(id => save.worlds[id]?.clear);
+// さいごの せかい：ぜんぶ クリアで ひらく。いちど ひらいたら、せかいが ふえても ひらいた まま
+export const finalUnlocked = (save, ids) => ids.every(id => save.worlds[id]?.clear) || !!save.worlds.bug || !!save.ending;

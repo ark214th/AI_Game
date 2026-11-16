@@ -41,6 +41,12 @@ const LOOPS = {
     line('c3 g3 c3 g3 | c3 g3 c3 g3 | f3 c4 f3 c4 | g3 d4 g3 d4 | c3 g3 c3 g3 | a2 e3 a2 e3 | g3 d4 g3 d4 | c3 g3 c3:2', { vol: 0.16, gate: 0.5 }),
     drum(32, 'k.hsk.hs', 0.5),
   ] },
+  wild: { bpm: 88, beats: 32, parts: [
+    line('e5:1.5 g5:.5 b5:2 | a5:3 -:1 | d5:1.5 f#5:.5 a5:2 | g5:3 -:1 | e5:1.5 g5:.5 c6:2 | b5:2 g5:2 | a5 f#5 d5 f#5 | e5:4', { vol: 0.15, type: 'triangle' }),
+    line('e3:2 b3:2 | a3:2 e4:2 | d3:2 a3:2 | g3:2 d4:2 | c3:2 g3:2 | g3:2 d4:2 | d3:2 a3:2 | e3:4', { vol: 0.14, type: 'sine' }),
+    line('-:2 g4:2 | -:2 c5:2 | -:2 f#4:2 | -:2 b4:2 | -:2 e4:2 | -:2 b4:2 | -:2 f#4:2 | -:1 b4:3', { vol: 0.06, type: 'sine' }),
+    drum(32, 'h...', 1),
+  ] },
   bug: { bpm: 144, beats: 16, parts: [
     line('e5 -:.5 e5:.5 g5 e5 | bb5:2 a5:2 | e5 -:.5 e5:.5 g5 e5 | d5:2 eb5:2', { vol: 0.08, type: 'square' }),
     line('e2 e3 e2 e3 | e2 e3 e2 e3 | e2 e3 e2 e3 | d2 d3 eb2 eb3', { vol: 0.16, type: 'sawtooth', gate: 0.5 }),
@@ -117,6 +123,18 @@ export class Sound {
       case 'exit': this.arp([392, 523, 659, 784, 1047], 0.07, 0.16); break;
       case 'bump': this.tone(150, 0.12, { type: 'square', vol: 0.08, slide: 0.7 }); break;
       case 'drop': this.tone(900, 0.1, { type: 'square', vol: 0.04, slide: 0.5 }); break;
+      case 'seed': this.arp([659, 880, 1047, 1319, 1760], 0.08, 0.22, { last: 3 }); break;
+      case 'goalOpen': this.arp([523, 659, 784, 1047, 1319, 1568], 0.1, 0.25, { vol: 0.16, last: 4 }); break;
+      case 'ring': this.arp([1047, 1319, 1568], 0.05, 0.14, { vol: 0.14 }); break;
+      case 'glide': this.noise(0.6, { vol: 0.07, hp: 900 }); this.tone(400, 0.5, { type: 'triangle', vol: 0.08, slide: 1.8 }); break;
+      case 'dive': this.tone(900, 0.5, { type: 'triangle', vol: 0.1, slide: 0.3 }); break;
+      case 'land': this.tone(160, 0.1, { vol: 0.2, slide: 0.6 }); break;
+      case 'splash': this.noise(0.5, { vol: 0.16, hp: 1200 }); this.tone(500, 0.3, { vol: 0.1, slide: 0.4 }); break;
+      case 'slip': this.tone(700, 0.4, { type: 'triangle', vol: 0.12, slide: 0.3 }); break;
+      case 'top': this.arp([784, 1047, 1319], 0.07, 0.18); break;
+      case 'throw': this.tone(260, 0.5, { type: 'triangle', vol: 0.1, slide: 2.4 }); break;
+      case 'stomp': this.tone(90, 0.4, { vol: 0.4, slide: 0.5 }); this.noise(0.3, { vol: 0.14, hp: 500 }); this.arp([784, 1047, 1568], 0.06, 0.16, { at: 0.1 }); break;
+      case 'climbStart': this.tone(520, 0.08, { type: 'triangle', vol: 0.1, slide: 1.4 }); break;
       case 'lane': this.tone(520, 0.08, { type: 'triangle', vol: 0.12, slide: 1.5 }); break;
       case 'boost': this.tone(300, 0.5, { type: 'sawtooth', vol: 0.08, slide: 4 }); this.arp([784, 1047, 1568], 0.06, 0.14, { vol: 0.12 }); break;
       case 'page': this.tone(880, 0.06, { vol: 0.1 }); this.tone(1175, 0.08, { vol: 0.08, at: 0.05 }); break;

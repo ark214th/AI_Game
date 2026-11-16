@@ -31,7 +31,7 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault(); sound.unlock();
   const p = toLogical(e);
   inp.ptr.set(e.pointerId, p); G.taps.push(p);
-  if (G.scr === 'play' && !G.paused && G.run.kind === 'adventure') {
+  if (G.scr === 'play' && !G.paused && (G.run.kind === 'adventure' || G.run.kind === 'field')) {
     if (inAct(p)) inp.act = true;
     else if (!V.inRect(p, V.PAUSE_BTN) && !inp.stick) inp.stick = { id: e.pointerId, ox: p.x, oy: p.y, vx: 0, vy: 0 };
   }
@@ -57,7 +57,7 @@ addEventListener('keydown', e => {
   if (G.scr === 'play' && !G.paused) {
     const r = G.run;
     if (r.kind === 'rhythm' && e.key in LANE_KEYS && r.intro <= 0) hitLane(LANE_KEYS[e.key]);
-    if (r.kind === 'adventure' && (e.key === ' ' || e.key === 'z' || e.key === 'Enter')) inp.act = true;
+    if ((r.kind === 'adventure' || r.kind === 'field') && (e.key === ' ' || e.key === 'z' || e.key === 'Enter')) inp.act = true;
     if (r.kind === 'danmaku' && (e.key === ' ' || e.key === 'x')) inp.bomb = true;
     if (r.fail && (e.key === ' ' || e.key === 'Enter')) G.taps.push({ x: W / 2, y: H / 2, key: true });
     if (r.kind === 'race' && (e.key === 'ArrowLeft' || e.key === 'a')) inp.turn = -1;
@@ -101,7 +101,7 @@ function nextPage() {
   if (q.i >= q.pages.length) { const f = q.then; G.cut = null; f(); return; }
   sound.play('page'); if (q.pages[q.i].sfx) sound.play(q.pages[q.i].sfx);
 }
-const musicOf = (world, def) => (world.id === 'bug' ? 'bug' : def.kind === 'danmaku' ? 'star' : def.kind === 'adventure' ? 'hero' : def.kind === 'race' ? 'race' : null);
+const musicOf = (world, def) => (world.id === 'bug' ? 'bug' : def.kind === 'danmaku' ? 'star' : def.kind === 'adventure' ? 'hero' : def.kind === 'race' ? 'race' : def.kind === 'field' ? 'wild' : null);
 function toWorldTitle(world) { if (world.id === 'mix') { toHub(); return; } go('wtitle'); G.world = world; sound.loop(world.id === 'bug' ? 'bug' : world.id === 'idol' ? 'hub' : world.id); }
 function enterWorld(world) {
   const enter = () => playCut('enter', { world }, () => toWorldTitle(world), world.id === 'bug' ? 'bug' : 'hub');
@@ -114,6 +114,7 @@ function makeSim(def, i, o = {}) {
   if (def.kind === 'danmaku') return C.newDanmaku(def, 7 + i, hp);
   if (def.kind === 'adventure') return C.newAdventure(def, 11 + i, hp);
   if (def.kind === 'race') return C.newRace(def, 5 + i, hp);
+  if (def.kind === 'field') return C.newField(def, 21 + i, hp);
   return Object.assign(C.newRhythm(def), hp);
 }
 function startStage(world, i, ratings = [], skipCut = false, o = {}) {
@@ -150,6 +151,7 @@ function retry() {
   if (r.kind === 'danmaku') { r.sim = C.newDanmaku(r.def, 7 + r.i, { phase: Math.max(0, s.pi), stars: s.stars }); r.spell = null; }
   else if (r.kind === 'adventure') r.sim = C.retryRoom(s);
   else if (r.kind === 'race') r.sim = C.newRace(r.def, 5 + r.i);
+  else if (r.kind === 'field') r.sim = C.retryField(s);
   else { startStage(r.world, r.i, r.ratings, true, { retries: r.retries }); return; }
   r.fail = null; G.fx = []; inp.stick = null; inp.dx = inp.dy = 0; sound.play('ok');
 }
@@ -172,6 +174,7 @@ function handleEvents(r) {
   const s = r.sim;
   for (const e of s.ev) {
     if (r.kind === 'race') { e.x = V.raceX(e.lane ?? s.x); e.y = 420; }
+    if (r.kind === 'field') { e.x = W / 2; e.y = 300; }
     switch (e.t) {
       case 'hit': sound.play('hit'); say(e.x, e.y - 40, 'ぽよん', { c: '#fff', stroke: '#ff5fae' }); burst(e.x, e.y, 10, ['#fff', '#ff9fd0']); G.shake = 0.25; break;
       case 'star': if (G.t - starSfx > 0.05) { starSfx = G.t; sound.play('star'); } burst(e.x, e.y, 2, D.COL.gold, { v: 60, life: 0.35, size: 6 }); break;
@@ -189,7 +192,16 @@ function handleEvents(r) {
       case 'bomb': sound.play('bomb'); ring(e.x, e.y, '#fff', 500); ring(e.x, e.y, D.COL.gold, 300); G.shake = 0.4; say(e.x, e.y - 50, 'ボム！', { c: '#ffd84a', size: 40 }); break;
       case 'heart': sound.play('heart'); say(e.x, e.y - 30, 'ハート！', { c: '#ff6f9f', stroke: '#fff' }); break;
       case 'bump': sound.play('bump'); say(e.x, e.y - 70, 'どんっ', { size: 24 }); break;
-      case 'fail': case 'exit': break;
+      case 'fail': case 'exit': case 'climbStart': case 'land': break;
+      case 'seed': sound.play('seed'); burst(W / 2, 320, 26, [D.COL.gold, '#fff'], { v: 320, life: 1 }); ring(W / 2, 330, D.COL.gold, 160); say(W / 2, 200, e.left ? `たねを みつけた！ あと ${e.left}こ` : 'たねを みつけた！', { c: '#ffd84a', size: 34, life: 1.8 }); break;
+      case 'goalOpen': sound.play('goalOpen'); say(W / 2, 150, 'ひかりの きが ひらいた！', { c: '#ff9fd0', stroke: '#fff', size: 38, life: 2.6, vy: 0 }); break;
+      case 'ring': sound.play('ring'); ring(W / 2, 320, D.COL.gold, 140); say(W / 2, 230, 'わっか！', { c: '#ffd84a' }); break;
+      case 'top': sound.play('top'); say(W / 2, 200, 'てっぺん！ はしから とぼう', { c: '#fff', size: 28, life: 1.6 }); break;
+      case 'glide': sound.play('glide'); say(W / 2, 200, 'ふわり', { c: '#9be36a', stroke: '#fff', size: 34 }); break;
+      case 'slip': sound.play('slip'); say(W / 2, 230, 'つるっ… ひとやすみ しよう', { size: 26, life: 1.4 }); break;
+      case 'splash': sound.play('splash'); say(W / 2, 230, 'ざぶん！', { c: '#7fe0ff', stroke: '#fff', size: 34 }); burst(W / 2, 330, 14, ['#7fe0ff', '#fff'], { kind: 'dot', v: 240, up: 120 }); break;
+      case 'stomp': sound.play('stomp'); G.shake = 0.5; ring(W / 2, 330, '#fff', 260); say(W / 2, 200, 'ずどん！', { c: '#ffd84a', size: 48, life: 1.2 }); burst(W / 2, 330, 24, [D.COL.gold, '#fff']); break;
+      case 'throw': sound.play('throw'); say(W / 2, 150, 'いわが くるよ！ あかい ところから にげて', { size: 24, life: 1.3, vy: 0 }); break;
       case 'thud': sound.play('thud'); G.shake = 0.3; ring(e.x, e.y + 30, '#fff', 90); break;
       case 'dizzy': sound.play('dizzy'); say(s.boss.px, s.boss.py - 90, 'いまだ！', { c: '#ffd84a', size: 36, life: 1.2 }); break;
       case 'bossHit': sound.play('bossHit'); burst(e.x, e.y, 10, ['#fff', D.COL.gold]); G.shake = 0.15; break;
@@ -227,6 +239,7 @@ function updatePlay(dt) {
   let s = r.sim;
   if (r.kind === 'race') { for (const p of G.taps) if (!p.key && p.y > 60) inp.turn = p.x < W / 2 ? -1 : 1; C.stepRace(s, dt, { turn: inp.turn }); }
   else if (r.kind === 'danmaku') { C.stepDanmaku(s, dt, { dx: inp.dx, dy: inp.dy, kx: k.x, ky: k.y, bomb: inp.bomb }); if (r.spell) r.spell.t += dt; }
+  else if (r.kind === 'field') { const st = inp.stick; C.stepField(s, dt, { mx: (st ? st.vx : 0) + k.x, my: (st ? st.vy : 0) + k.y, act: inp.act }); if (s.goalT > 0 && Math.random() < 0.4) burst(Math.random() * W, 120 + Math.random() * 200, 1, [D.COL.gold, '#ff9fd0', '#fff'], { v: 60, life: 0.8 }); }
   else if (r.kind === 'adventure') {
     const st = inp.stick;
     C.stepAdventure(s, dt, { mx: (st ? st.vx : 0) + k.x, my: (st ? st.vy : 0) + k.y, act: inp.act });
@@ -318,7 +331,7 @@ function draw() {
   else if (G.scr === 'wtitle') V.drawWorldTitle(c, G.world, t, save);
   else if (G.scr === 'play') {
     const r = G.run, ui = { t, fx: G.fx, world: r.world, spell: r.spell, stick: inp.stick, touch: G.touch, laneFlash: r.laneFlash, jump: r.jump };
-    if (r.kind === 'danmaku') V.drawDanmaku(c, r.sim, ui); else if (r.kind === 'adventure') V.drawAdventure(c, r.sim, ui); else if (r.kind === 'race') V.drawRace(c, r.sim, ui); else V.drawRhythm(c, r.sim, ui);
+    if (r.kind === 'danmaku') V.drawDanmaku(c, r.sim, ui); else if (r.kind === 'adventure') V.drawAdventure(c, r.sim, ui); else if (r.kind === 'race') V.drawRace(c, r.sim, ui); else if (r.kind === 'field') V.drawField(c, r.sim, ui); else V.drawRhythm(c, r.sim, ui);
     if (r.intro > 0) V.drawStageCard(c, r, r.introMax - r.intro);
     if (r.outro > 0) V.drawStageClear(c, r, r.outroMax - r.outro);
     if (r.fail) V.drawFail(c, r, r.fail.t);

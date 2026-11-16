@@ -98,6 +98,15 @@ export function drawPunyu(c, x, y, r, o = {}) {
     c.fillStyle = '#dfe8f5'; c.beginPath(); c.moveTo(-r * 0.09, 0); c.lineTo(-r * 0.09, -r * 0.95); c.lineTo(0, -r * 1.15); c.lineTo(r * 0.09, -r * 0.95); c.lineTo(r * 0.09, 0); c.fill();
     c.fillStyle = COL.gold; c.fillRect(-r * 0.24, -r * 0.05, r * 0.48, r * 0.12); c.fillStyle = '#b5651d'; c.fillRect(-r * 0.07, r * 0.05, r * 0.14, r * 0.24);
     c.restore();
+  } else if (costume === 'wild') {
+    // ぼうけんか：オレンジの ずきん と みどりの マフラー
+    c.fillStyle = '#f08a3c'; c.beginPath(); c.moveTo(-r * 0.98, -r * 0.2); c.quadraticCurveTo(-r * 1.0, -r * 1.2, 0, -r * 1.22); c.quadraticCurveTo(r * 1.0, -r * 1.2, r * 0.98, -r * 0.2);
+    c.quadraticCurveTo(r * 0.7, -r * 0.62, 0, -r * 0.66); c.quadraticCurveTo(-r * 0.7, -r * 0.62, -r * 0.98, -r * 0.2); c.fill();
+    c.beginPath(); c.moveTo(-r * 0.2, -r * 1.2); c.lineTo(r * 0.1 + flut, -r * 1.62); c.lineTo(r * 0.3, -r * 1.16); c.fill();
+    c.fillStyle = '#ffd84a'; c.fillRect(-r * 0.5, -r * 0.76, r, r * 0.09);
+    c.fillStyle = '#4fbf6a'; c.beginPath(); c.moveTo(-r * 0.72, r * 0.48); c.quadraticCurveTo(0, r * 0.78, r * 0.72, r * 0.48); c.lineTo(r * 0.64, r * 0.68); c.quadraticCurveTo(0, r * 0.96, -r * 0.64, r * 0.68); c.fill();
+    c.beginPath(); c.moveTo(r * 0.5, r * 0.6); c.lineTo(r * 1.15 + flut, r * 0.5); c.lineTo(r * 1.1 + flut, r * 0.84); c.fill();
+    if (o.sword !== false) { c.save(); c.translate(r * 0.92, r * 0.3); c.rotate(-0.5 + swing * 2.2); c.fillStyle = '#eaf6ff'; c.beginPath(); c.moveTo(-r * 0.08, 0); c.lineTo(-r * 0.08, -r * 0.85); c.lineTo(0, -r * 1.05); c.lineTo(r * 0.08, -r * 0.85); c.lineTo(r * 0.08, 0); c.fill(); c.fillStyle = '#8a5a2b'; c.fillRect(-r * 0.2, -r * 0.04, r * 0.4, r * 0.1); c.restore(); }
   } else if (costume === 'racer') {
     c.fillStyle = '#e8483f'; c.beginPath(); c.ellipse(0, -r * 0.42, r * 0.98, r * 0.72, 0, Math.PI, TAU); c.fill();
     c.fillStyle = '#fff'; c.fillRect(-r * 0.12, -r * 1.13, r * 0.24, r * 0.72);
@@ -163,6 +172,44 @@ export function drawBat(c, x, y, r, t = 0) {     // コウモリ
   c.restore();
 }
 
+// はっぱの グライダー（ぷにゅ の うえに かく）
+export function drawLeaf(c, x, y, r, t = 0) {
+  c.save(); c.translate(x, y); c.rotate(Math.sin(t * 3) * 0.06);
+  c.fillStyle = '#4fbf6a'; c.beginPath(); c.moveTo(-r * 1.9, 0); c.quadraticCurveTo(-r * 0.9, -r * 1.2, 0, -r * 0.9); c.quadraticCurveTo(r * 0.9, -r * 1.2, r * 1.9, 0); c.quadraticCurveTo(0, -r * 0.35, -r * 1.9, 0); c.fill();
+  c.strokeStyle = '#2f8f4a'; c.lineWidth = r * 0.08; c.beginPath(); c.moveTo(0, -r * 0.9); c.lineTo(0, -r * 0.2); c.moveTo(-r * 1.1, -r * 0.42); c.lineTo(-r * 0.5, -r * 0.24); c.moveTo(r * 1.1, -r * 0.42); c.lineTo(r * 0.5, -r * 0.24); c.stroke();
+  c.strokeStyle = '#8a5a2b'; c.lineWidth = r * 0.07; c.beginPath(); c.moveTo(-r * 0.9, -r * 0.2); c.lineTo(-r * 0.5, r * 0.9); c.moveTo(r * 0.9, -r * 0.2); c.lineTo(r * 0.5, r * 0.9); c.stroke();
+  c.restore();
+}
+// いわおやぶん（いわの ゴーレム）
+export function drawGolem(c, x, y, r, o = {}) {
+  const { t = 0, state = 'idle', flash = false } = o, stuck = state === 'stuck', up = state === 'windup';
+  c.save(); c.translate(x, y - (up ? r * 0.25 : 0) + (stuck ? r * 0.12 : 0));
+  ell(c, 0, r * 0.95, r * 1.1, r * 0.22, 'rgba(0,0,0,.22)');
+  const body = flash ? '#fff' : '#9a8f84', dark = flash ? '#eee' : '#7a6f66';
+  for (const sx of [-1, 1]) { c.save(); c.translate(sx * r * 1.05, stuck ? r * 0.5 : up ? -r * 0.9 : Math.sin(t * 2 + sx) * r * 0.06); ell(c, 0, 0, r * 0.36, r * 0.46, dark); c.restore(); }
+  c.fillStyle = body; c.beginPath(); c.moveTo(-r * 0.9, r * 0.9); c.lineTo(-r, -r * 0.2); c.lineTo(-r * 0.55, -r * 0.95); c.lineTo(r * 0.5, -r * 1.05); c.lineTo(r, -r * 0.25); c.lineTo(r * 0.85, r * 0.9); c.closePath(); c.fill();
+  c.fillStyle = dark; c.beginPath(); c.moveTo(-r * 0.9, r * 0.9); c.lineTo(-r * 0.2, r * 0.3); c.lineTo(r * 0.85, r * 0.9); c.fill();
+  c.fillStyle = '#6fbf5a'; c.beginPath(); c.ellipse(-r * 0.1, -r * 0.98, r * 0.5, r * 0.16, -0.05, 0, TAU); c.fill();
+  if (stuck) { text(c, '×', -r * 0.34, -r * 0.2, r * 0.44, '#3a2f2a'); text(c, '×', r * 0.34, -r * 0.2, r * 0.44, '#3a2f2a'); c.fillStyle = '#ffd84a'; star(c, 0, -r * 1.25, r * 0.26, t * 3); c.fill(); }
+  else { ell(c, -r * 0.34, -r * 0.2, r * 0.13, r * 0.17, '#ffd84a'); ell(c, r * 0.34, -r * 0.2, r * 0.13, r * 0.17, '#ffd84a'); ell(c, -r * 0.34, -r * 0.2, r * 0.06, r * 0.09, '#3a2f2a'); ell(c, r * 0.34, -r * 0.2, r * 0.06, r * 0.09, '#3a2f2a'); }
+  c.strokeStyle = '#3a2f2a'; c.lineWidth = r * 0.07; c.lineCap = 'round'; c.beginPath(); c.moveTo(-r * 0.25, r * 0.22); c.lineTo(r * 0.25, r * 0.22); c.stroke();
+  c.restore();
+}
+// ひろい せかいの そら と とおくの やま（yaw で よこに ながれる）
+export function bgWild(c, t, yaw = 0, horizon = 190) {
+  const g = c.createLinearGradient(0, 0, 0, horizon); g.addColorStop(0, '#3f9fe8'); g.addColorStop(0.7, '#a8dcff'); g.addColorStop(1, '#e9f8ff'); c.fillStyle = g; c.fillRect(0, 0, W, Math.max(0, horizon));
+  const F = 440, wrap = a => { a = (a % TAU + TAU) % TAU; return a > Math.PI ? a - TAU : a; };
+  const sx = a => W / 2 + wrap(a - yaw) * F;
+  ell(c, sx(0.9), horizon - 130, 34, 34, '#fff6c8');
+  for (let i = 0; i < 9; i++) { const x = sx(i * 0.7 + t * 0.006 + 0.2), y = horizon - 90 - (i % 3) * 34; ell(c, x, y, 62, 17, 'rgba(255,255,255,.9)'); ell(c, x + 36, y - 9, 40, 15, 'rgba(255,255,255,.9)'); }
+  for (let i = 0; i < 18; i++) {
+    const a = i * TAU / 18 + hash(i) * 0.2, x = sx(a), h = 46 + hash(i + 30) * 80, w = 150 + hash(i + 60) * 110;
+    c.fillStyle = i % 2 ? '#8fb9de' : '#a3c8e8'; c.beginPath(); c.moveTo(x - w, horizon); c.lineTo(x, horizon - h); c.lineTo(x + w, horizon); c.fill();
+    if (h > 90) { c.fillStyle = '#f4fbff'; c.beginPath(); c.moveTo(x - w * 0.2, horizon - h * 0.8); c.lineTo(x, horizon - h); c.lineTo(x + w * 0.2, horizon - h * 0.8); c.fill(); }
+  }
+  const gg = c.createLinearGradient(0, horizon, 0, H); gg.addColorStop(0, '#8fdc74'); gg.addColorStop(1, '#55b254'); c.fillStyle = gg; c.fillRect(0, horizon, W, H - horizon);
+}
+
 export function drawStarKid(c, x, y, r, t = 0) {   // ほしっこ（弾幕の ざこ）
   c.save(); c.translate(x, y); c.rotate(Math.sin(t * 3) * 0.2);
   c.fillStyle = '#ffe680'; star(c, 0, 0, r * 1.2, 0, 5, 0.6); c.fill();
@@ -198,6 +245,7 @@ export function drawLuna(c, x, y, r, o = {}) {     // つきの ひめ ルナリ
 }
 
 export function drawBossByKind(c, kind, x, y, r, o = {}) {
+  if (kind === 'golem') return drawGolem(c, x, y, r, o);
   if (kind === 'comet') drawComet(c, x, y, r, o.t);
   else if (kind === 'luna') drawLuna(c, x, y, r * 0.9, o);
   else if (kind === 'king') drawSlime(c, x, y, r, { ...o, color: '#7fe08a', crown: true });

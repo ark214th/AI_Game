@@ -16,8 +16,8 @@ test('がめんに でる もじに かんじが ない', () => {
   }
 });
 
-test('せかいは 4つ＋さいご、それぞれ 3ステージ', () => {
-  assert.equal(WORLDS.length, 4);
+test('せかいは 5つ＋さいご、それぞれ 3ステージ', () => {
+  assert.equal(WORLDS.length, 5);
   for (const w of ALL_WORLDS) { assert.equal(w.stages.length, 3); assert.ok(w.title.length === 2 && w.sub); }
   assert.deepEqual(FINAL.stages.map(s => s.kind), ['danmaku', 'adventure', 'rhythm']);
 });
@@ -320,6 +320,125 @@ test('レース：バグバグは ブロックを おとす', () => {
   assert.ok(drops >= 2); assert.equal(s.objs.length, n + drops);
 });
 
+// ---------------- ひろい せかい ----------------
+const hyp = Math.hypot;
+function fwalk(s, mx, my, sec, act = false) { for (let i = 0; i < sec * 60 && !s.done && !s.failed; i++) { C.stepField(s, DT, { mx, my, act }); s.ev.length = 0; } }
+// とうの ふもとへ おいて、てっぺんまで のぼらせる
+function climbTower(s, t) { s.x = t.x; s.z = t.z - t.r - 30; s.cam = 0; s.state = 'walk'; s.y = 0; s.sta = 1; fwalk(s, 0, -1, 0.5); assert.equal(s.state, 'climb'); for (let i = 0; i < 60 * 12 && s.state === 'climb'; i++) C.stepField(s, DT, { mx: 0, my: -1 }); }
+
+test('ひろい せかい：ちずの つじつま（とうは のぼりきれる、しまへは とんで とどく）', () => {
+  for (const def of stagesOf('field')) {
+    assert.ok(hyp(...def.start) < def.size && hyp(...def.goal) < def.size, def.name);
+    for (const t of def.towers) assert.ok(t.h < C.FD.CLIMB * C.FD.STA * 0.9, `${def.name} とうが たかすぎ`);
+    const top = Math.max(...def.towers.map(t => t.h));
+    for (const q of def.seeds) {
+      assert.ok(hyp(q.x, q.z) < def.size - 60, def.name);
+      const lake = def.lakes.find(l => hyp(q.x - l.x, q.z - l.z) < l.r);
+      if (lake) assert.ok(hyp(q.x - lake.x, q.z - lake.z) < lake.island - 40, `${def.name} たねが みずの なか`);
+      // そら や しま の たねは、どれかの とうから とんで とどく
+      if (lake || (q.y > 0 && !def.towers.some(t => t.x === q.x && t.z === q.z))) {
+        assert.ok(def.towers.some(t => { const d = hyp(q.x - t.x, q.z - t.z), drop = d / C.FD.GLIDE * C.FD.SINK; return t.h - drop >= q.y - 30; }), `${def.name} とどかない たね`);
+        assert.ok(q.y < top);
+      }
+    }
+    const s = C.newField(def);
+    assert.ok(s.trees.length >= def.trees * 0.8, `${def.name} きが すくない ${s.trees.length}`);
+    for (const t of s.trees) assert.ok(!def.lakes.some(l => hyp(t.x - l.x, t.z - l.z) < l.r), 'きは みずの そと');
+  }
+  assert.ok(stagesOf('field').reduce((n, d) => n + d.seeds.length, 0) >= 9);
+});
+
+test('ひろい せかい：スティックは カメラから みた むき。みずには はいれない', () => {
+  const def = WORLDS[4].stages[0], s = C.newField(def);
+  s.trees = []; s.rocks = []; s.enemies = [];
+  const z0 = s.z; fwalk(s, 0, -1, 1);
+  assert.ok(s.z > z0 + 200 && Math.abs(s.x) < 5, 'うえ＝まえ');
+  s.cam = Math.PI / 2; const x0 = s.x; fwalk(s, 0, -1, 1);
+  assert.ok(s.x > x0 + 150, 'カメラが みぎを むくと みぎへ');
+  const l = def.lakes[0]; s.cam = 0; s.x = l.x; s.z = l.z - l.r - 40; fwalk(s, 0, -1, 2);
+  assert.ok(hyp(s.x - l.x, s.z - l.z) >= l.r - 1, 'みずの ふちで とまる');
+});
+
+test('ひろい せかい：とうを のぼって たねを とり、とんで しまへ おりる', () => {
+  const def = WORLDS[4].stages[0], s = C.newField(def), t = def.towers[0], l = def.lakes[0];
+  s.enemies = [];
+  climbTower(s, t);
+  assert.equal(s.state, 'top'); assert.equal(s.y, t.h); assert.ok(s.sta > 0.2, 'スタミナは たりる');
+  C.stepField(s, DT, {}); assert.ok(s.got[0], 'とうの うえの たね');
+  s.cam = Math.atan2(l.x - t.x, l.z - t.z); fwalk(s, 0, -1, 0.8);
+  assert.equal(s.state, 'glide');
+  let rings = 0;
+  for (let i = 0; i < 60 * 30 && s.state === 'glide'; i++) {
+    const want = Math.atan2(l.x - s.x, l.z - s.z), near = hyp(l.x - s.x, l.z - s.z) < 60;
+    C.stepField(s, DT, { mx: C.clamp((want - s.head) * 3, -1, 1), act: near });
+    rings += s.ev.filter(e => e.t === 'ring').length; s.ev.length = 0;
+  }
+  assert.equal(s.state, 'walk'); assert.ok(hyp(s.x - l.x, s.z - l.z) < l.island, 'しまに おりた');
+  fwalk(s, 0, 0, 0.1); assert.ok(s.got[1], 'しまの たね');
+  assert.ok(rings >= 1, 'わっかを くぐった');
+});
+
+test('ひろい せかい：スタミナが きれると すべりおちる（いたくない）。みずに おちても もどされる だけ', () => {
+  const def = WORLDS[4].stages[0], s = C.newField(def), t = def.towers[0], l = def.lakes[0];
+  s.enemies = []; s.x = t.x; s.z = t.z - t.r - 30; s.sta = 0.3; fwalk(s, 0, -1, 0.4);
+  assert.equal(s.state, 'climb');
+  let slipped = false;
+  for (let i = 0; i < 60 * 6 && s.state === 'climb'; i++) { C.stepField(s, DT, { mx: 0, my: -1 }); slipped ||= s.ev.some(e => e.t === 'slip'); s.ev.length = 0; }
+  assert.ok(slipped); assert.ok(s.y < t.h);
+  fwalk(s, 0, 0, 2);
+  assert.equal(s.state, 'walk'); assert.equal(s.y, 0); assert.equal(s.hp, C.HEARTS);
+  s.state = 'glide'; s.y = 5; s.x = l.x + l.island + 60; s.z = l.z; s.head = 0;
+  fwalk(s, 0, 0, 0.5);
+  assert.equal(s.state, 'walk'); assert.ok(hyp(s.x - l.x, s.z - l.z) >= l.r); assert.equal(s.hp, C.HEARTS);
+});
+
+test('ひろい せかい：スライムで ハートが へり、けんで たおせる。きを きると りんごで かいふく', () => {
+  const def = WORLDS[4].stages[0], s = C.newField(def), e = s.enemies[0];
+  s.x = e.x; s.z = e.z - 30; C.stepField(s, DT, {});
+  assert.equal(s.hp, C.HEARTS - 1); assert.equal(s.hits, 1);
+  s.inv = 0; s.kx = s.kz = 0; s.x = e.x; s.z = e.z - 80; s.head = 0; s.cool = 0;
+  const n = s.enemies.length; C.stepField(s, DT, { act: true });
+  assert.equal(s.enemies.length, n - 1);
+  s.enemies = []; const tr = s.trees[0]; tr.apple = true; s.x = tr.x; s.z = tr.z - 70; s.head = 0; s.cool = 0;
+  C.stepField(s, DT, { act: true });
+  assert.equal(tr.apple, false);
+  fwalk(s, 0, 0, 0.2);
+  assert.equal(s.hp, C.HEARTS, 'りんごで ハートが もどる');
+});
+
+test('ひろい せかい：たねを ぜんぶ あつめると ひかりの きが ひらき、そこで クリア', () => {
+  const def = WORLDS[4].stages[0], s = C.newField(def);
+  s.enemies = []; s.trees = []; s.rocks = [];
+  s.x = def.goal[0]; s.z = def.goal[1] - 110; fwalk(s, 0, -1, 1);
+  assert.ok(!s.done && s.goalT === 0, 'たねが たりないと ひらかない');
+  def.seeds.forEach(q => { s.x = q.x; s.z = q.z; s.y = q.y; C.stepField(s, DT, {}); });
+  assert.equal(C.seedsLeft(s), 0); assert.ok(s.goalOpen);
+  s.y = 0; s.state = 'walk'; s.x = def.goal[0]; s.z = def.goal[1] - 130; fwalk(s, 0, -1, 5);
+  assert.ok(s.done);
+  const f = C.newField(def); f.got[0] = true; f.stars = 10; f.hp = 0;
+  const again = C.retryField(f);
+  assert.ok(again.got[0]); assert.equal(again.hp, C.HEARTS); assert.equal(again.stars, 10);
+});
+
+test('ひろい せかい ボス：うごけない ときだけ けんが きく。そらから おちると 2つ ぶん', () => {
+  const def = WORLDS[4].stages[2], s = C.newField(def), b = s.boss;
+  s.god = true; s.trees = []; s.rocks = [];
+  assert.equal(s.goalOpen, false);
+  s.x = b.x; s.z = b.z - b.r - 60; s.head = 0;
+  C.stepField(s, DT, { act: true }); assert.equal(b.hp, b.maxHp, 'げんきな ときは きかない');
+  let guard = 0, thuds = 0;
+  while (b.state !== 'stuck' && guard++ < 60 * 30) { s.x = b.x; s.z = b.z - 500; C.stepField(s, DT, {}); thuds += s.ev.filter(e => e.t === 'thud').length; s.ev.length = 0; }
+  assert.equal(b.state, 'stuck'); assert.ok(thuds >= 3, 'いわ 2つ と ドスン');
+  s.x = b.x; s.z = b.z - b.r - 60; s.head = 0; s.cool = 0; s.kx = s.kz = 0;
+  C.stepField(s, DT, { act: true }); assert.equal(b.hp, b.maxHp - 1);
+  s.state = 'glide'; s.dive = true; s.y = 20; s.x = b.x + 10; s.z = b.z; s.tw = def.towers[0];
+  fwalk(s, 0, 0, 0.3);
+  assert.equal(b.hp, b.maxHp - 3, 'ずどん で 2つ');
+  b.hp = 1; b.state = 'stuck'; b.st = 3; b.hitCool = 0; s.state = 'walk'; s.y = 0; s.x = b.x; s.z = b.z - b.r - 60; s.head = 0; s.cool = 0;
+  C.stepField(s, DT, { act: true });
+  assert.equal(b.hp, 0); assert.ok(s.goalOpen);
+});
+
 // ---------------- まぜこぜ・ともだち・セーブ ----------------
 test('まぜこぜ：おなじ あそびは つづかず、どれも さいごまで すすむ', () => {
   for (const seed of [1, 2, 3]) {
@@ -359,7 +478,8 @@ test('ともだち：★が ふえると ふえ、バグバグは エンディ�
   C.recordClear(sv, 'star', 3);
   assert.deepEqual(C.friendsOf(sv).map(f => f.id), ['starkid']);
   for (const id of ['hero', 'idol', 'race', 'bug']) C.recordClear(sv, id, 3);
-  assert.equal(C.totalStars(sv), 15); assert.equal(C.nextFriend(sv), null);
+  assert.equal(C.totalStars(sv), 15);
+  C.recordClear(sv, 'wild', 3); assert.equal(C.totalStars(sv), 18); assert.equal(C.nextFriend(sv), null);
   assert.equal(C.friendsOf(sv).length, FRIENDS.length - 1);
   sv.ending = true; assert.equal(C.friendsOf(sv).length, FRIENDS.length);
   assert.ok(Math.max(...FRIENDS.filter(f => !f.ending).map(f => f.need)) <= 15);
@@ -385,7 +505,11 @@ test('セーブ：クリアの きろくと さいごの せかいの かいほ�
   C.recordClear(sv, 'hero', 3); C.recordClear(sv, 'idol', 3);
   assert.equal(C.finalUnlocked(sv, ids), false);
   C.recordClear(sv, 'race', 1);
+  assert.equal(C.finalUnlocked(sv, ids), false);
+  C.recordClear(sv, 'wild', 1);
   assert.ok(C.finalUnlocked(sv, ids));
+  const old = C.newSave(); old.worlds.bug = { clear: false, stars: 0, reached: 1 };
+  assert.ok(C.finalUnlocked(old, ids), 'いちど ひらいたら ひらいた まま');
   sv = C.loadSave(JSON.stringify(sv)); assert.ok(sv.worlds.hero.clear);
   assert.deepEqual(C.loadSave('こわれた'), C.newSave());
 });

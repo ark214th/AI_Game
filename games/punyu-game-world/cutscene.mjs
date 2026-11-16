@@ -9,7 +9,13 @@ function raceScene(c, t, theme = 'field') {
   c.fillStyle = '#5a5470'; c.beginPath(); c.moveTo(W / 2, 250); c.lineTo(W + 80, H); c.lineTo(-80, H); c.fill();
   c.fillStyle = '#fff'; for (let i = 0; i < 5; i++) { const k = ((i + t * 2) % 5) / 5, y = 250 + k * k * 290; c.fillRect(W / 2 - 4 - k * 6, y, 8 + k * 12, 10 + k * 26); }
 }
-export const worldBg = (c, id, t) => (id === 'star' ? D.bgSky(c, t) : id === 'hero' ? D.bgField(c, t) : id === 'idol' ? D.bgStage(c, t) : id === 'race' ? raceScene(c, t) : id === 'mix' ? D.bgTunnel(c, t * 0.4, '#ffd84a', '#3a2466') : D.bgGlitch(c, t));
+function wildScene(c, t, o = {}) {
+  D.bgWild(c, t, o.yaw ?? Math.sin(t * 0.2) * 0.25, 250);
+  c.fillStyle = '#3a9fd8'; c.beginPath(); c.ellipse(700, 330, 170, 26, 0, 0, D.TAU); c.fill();
+  c.fillStyle = '#b9a58c'; c.fillRect(150, 110, 44, 170); c.fillStyle = '#d6c4aa'; c.fillRect(140, 100, 64, 14);
+  for (let i = 0; i < 7; i++) { const x = 60 + i * 140, s = 0.7 + (i % 3) * 0.2; c.fillStyle = '#8a5a2b'; c.fillRect(x - 5 * s, 300 - 30 * s, 10 * s, 34 * s); c.fillStyle = '#3fae4a'; c.beginPath(); c.arc(x, 300 - 50 * s, 28 * s, 0, D.TAU); c.fill(); }
+}
+export const worldBg = (c, id, t) => (id === 'star' ? D.bgSky(c, t) : id === 'hero' ? D.bgField(c, t) : id === 'idol' ? D.bgStage(c, t) : id === 'race' ? raceScene(c, t) : id === 'wild' ? wildScene(c, t) : id === 'mix' ? D.bgTunnel(c, t * 0.4, '#ffd84a', '#3a2466') : D.bgGlitch(c, t));
 
 function flash(c, t, dur = 0.5) { if (t < dur) { c.fillStyle = `rgba(255,255,255,${1 - t / dur})`; c.fillRect(0, 0, W, H); } }
 function sparkles(c, x, y, t, n = 10, rad = 120) {
@@ -34,7 +40,7 @@ export const SCENES = {
 
   enter: ({ world }) => {
     const name = world.title.join(' ').replace('☆', '');
-    const line = { star: 'ほしの まほうつかいに へんしん！', hero: 'ゆうしゃに へんしん！', idol: 'アイドルに へんしん！', race: 'レーサーに へんしん！', bug: 'ぜんぶの ふくで たたかうよ！' }[world.id];
+    const line = { star: 'ほしの まほうつかいに へんしん！', hero: 'ゆうしゃに へんしん！', idol: 'アイドルに へんしん！', race: 'レーサーに へんしん！', wild: 'ぼうけんかに へんしん！', bug: 'ぜんぶの ふくで たたかうよ！' }[world.id];
     return [
       { text: `「${name}」の せかいへ…`, sfx: 'warp', draw(c, t) { D.bgTunnel(c, t, world.color2, '#140a2e'); D.drawPunyu(c, W / 2 + Math.cos(t * 4) * 90, 230 + Math.sin(t * 4) * 50, 60, { t, mouth: 'open' }); } },
       { text: line, sfx: 'henshin', draw(c, t) { worldBg(c, world.id, t); sparkles(c, W / 2, 250, t); const k = ease(t / 0.5); D.drawPunyu(c, W / 2, 260 - Math.abs(bob(t, 5, 12)), 60 + k * 30, { t, costume: world.id === 'bug' ? ['star', 'hero', 'idol', 'racer'][Math.floor(t * 1.5) % 4] : world.costume, eyes: 'happy', mouth: 'open' }); flash(c, t); } },
@@ -54,19 +60,25 @@ export const SCENES = {
     { text: 'うたと ダンスで ノイズを ふきとばそう！', draw(c, t) { D.bgStage(c, t); sparkles(c, W / 2, 300, t, 8, 150); D.drawPunyu(c, W / 2, 320 - Math.abs(bob(t, 6, 18)), 76, { t, costume: 'idol', eyes: 'happy', mouth: 'open' }); } },
   ],
 
+  bossWild: () => [
+    { text: 'のはらの まんなかで おおきな いわが うごきだした！', sfx: 'thud', draw(c, t) { wildScene(c, t, { yaw: 0 }); D.drawGolem(c, 620, 280 - Math.abs(bob(t, 3, 8)), 120, { t }); D.drawPunyu(c, 240, 340, 54, { t, costume: 'wild', dir: 1, mouth: 'o' }); } },
+    { text: 'いわおやぶんだ！ うごけない ときに えいっ。 とうから とんで ずどん も きくよ！', draw(c, t) { wildScene(c, t, { yaw: 0 }); D.drawGolem(c, 660, 300, 110, { t, state: 'stuck' }); const k = (t * 0.5) % 1; D.drawLeaf(c, 260 + k * 260, 150 + k * 60 - 62, 40, t); D.drawPunyu(c, 260 + k * 260, 150 + k * 60, 46, { t, costume: 'wild', dir: 1, mouth: 'open', sword: false }); } },
+  ],
+
   bossRace: () => [
     { text: 'さいごの レースに バグバグが とびこんで きた！', sfx: 'glitch', draw(c, t) { raceScene(c, t, 'glitch'); D.drawKart(c, 640, 300 + bob(t, 9, 4), 1.9, D.KART_COL.bug, k => D.drawRider(k, 'bug', t)); D.drawKart(c, 280, 350, 1.6, '#ff7fc4', k => D.drawRider(k, { mouth: 'o' }, t)); } },
     { text: 'じゃまな ブロックを よけて、 １ばんを めざそう！', draw(c, t) { raceScene(c, t, 'glitch'); D.drawKart(c, W / 2 + bob(t, 3, 60), 320, 2.1, '#ff7fc4', k => D.drawRider(k, { mouth: 'open', eyes: 'happy' }, t), { boost: true, t }); } },
   ],
 
   clear: ({ world }) => {
-    const line = { star: '「ありがとう、 ぷにゅ。 また いっしょに おどりましょう」', hero: '「まいった〜。 たからものは きみの ものだ」', idol: 'ライブは だいせいこう！ みんな にこにこ だよ。', race: '「いい はしり だったね！ また きょうそう しよう」' }[world.id];
+    const line = { star: '「ありがとう、 ぷにゅ。 また いっしょに おどりましょう」', hero: '「まいった〜。 たからものは きみの ものだ」', idol: 'ライブは だいせいこう！ みんな にこにこ だよ。', race: '「いい はしり だったね！ また きょうそう しよう」', wild: '「まいった まいった。 きみは ほんものの ぼうけんか だ」' }[world.id];
     return [
       { text: line, sfx: 'cheer', draw(c, t) {
         worldBg(c, world.id, t);
         if (world.id === 'star') D.drawLuna(c, 620, 220 + bob(t, 2), 66, { t, mood: 'happy' });
         if (world.id === 'hero') D.drawSlime(c, 640, 340, 90, { t, color: '#7fe08a', crown: true });
         if (world.id === 'idol') sparkles(c, W / 2, 280, t, 12, 220);
+        if (world.id === 'wild') D.drawGolem(c, 650, 300, 100, { t, state: 'stuck' });
         if (world.id === 'race') { D.drawKart(c, 600, 330, 1.5, D.KART_COL.slime, k => D.drawRider(k, 'slime', t)); D.drawKart(c, 760, 300, 1.2, D.KART_COL.comet, k => D.drawRider(k, 'comet', t)); }
         D.drawPunyu(c, world.id === 'idol' ? W / 2 : 300, 350 - Math.abs(bob(t, 6, 16)), 72, { t, costume: world.costume, eyes: 'happy', mouth: 'open', dir: 1 });
       } },

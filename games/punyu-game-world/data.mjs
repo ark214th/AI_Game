@@ -169,11 +169,39 @@ const RACE_STAGES = [
   { kind: 'race', costume: 'racer', name: 'バグバグ グランプリ', hint: 'バグバグの おとす ブロックに きを つけて', theme: 'glitch', len: 18000, density: 1.4, rivals: ['slime', 'comet', 'bug'], bossIntro: 'bossRace' },
 ];
 
+// ---- ひろい せかい（そよかぜの だいそうげん）----
+// うしろから みる ひろい のはら。とうに のぼって、はっぱで そらを とぶ
+// たねを ぜんぶ あつめると「ひかりの き」が ひらく
+// towers: のぼれる とう（h＝たかさ）  lakes: みずうみ（island＝まんなかの しま の はんけい）
+// seeds: y＝たかさ（とうの うえ や そら）  camps: てきの たまりば  rings: そらの わっか
+const WILD_STAGES = [
+  { kind: 'field', costume: 'wild', name: 'はじまりの だいち', hint: 'ひかりの はしらを めざそう。とうは おして のぼる', size: 1500, start: [0, -1150], goal: [0, 1180],
+    towers: [{ x: -350, z: -520, h: 360, r: 46 }],
+    lakes: [{ x: 380, z: 300, r: 340, island: 150 }],
+    seeds: [{ x: -350, z: -520, y: 360 }, { x: 380, z: 300, y: 0 }, { x: -760, z: 520, y: 0 }],
+    camps: [{ x: -760, z: 520, n: 3 }, { x: 600, z: -700, n: 2 }],
+    rings: [{ x: -130, z: -270, y: 290 }, { x: 100, z: -10, y: 215 }],
+    trees: 46, rocks: 12 },
+  { kind: 'field', costume: 'wild', name: 'かぜの たにと ふたつの とう', hint: 'たかい とうから とべば とおくまで いけるよ', size: 1900, start: [0, -1550], goal: [0, 1560],
+    towers: [{ x: -620, z: -820, h: 380, r: 46 }, { x: 560, z: 180, h: 540, r: 50 }],
+    lakes: [{ x: -520, z: 80, r: 330, island: 140 }, { x: 900, z: 1100, r: 380, island: 130 }],
+    seeds: [{ x: -620, z: -820, y: 380 }, { x: -520, z: 80, y: 0 }, { x: 560, z: 180, y: 540 }, { x: 900, z: 1100, y: 0 }, { x: 760, z: 660, y: 330 }, { x: -1100, z: 900, y: 0 }],
+    camps: [{ x: -1100, z: 900, n: 3, big: 1 }, { x: 300, z: -900, n: 3 }, { x: -200, z: 900, n: 2, big: 1 }],
+    rings: [{ x: -580, z: -470, y: 300 }, { x: 640, z: 370, y: 450 }, { x: 830, z: 880, y: 220 }],
+    trees: 64, rocks: 18 },
+  { kind: 'field', costume: 'wild', name: 'いわおやぶんの のはら', hint: 'うごけない ときに えいっ！ そらから おちても きくよ', size: 1250, start: [0, -1000], goal: [0, 1000], bossIntro: 'bossWild',
+    towers: [{ x: -520, z: -150, h: 340, r: 46 }, { x: 520, z: 150, h: 340, r: 46 }],
+    lakes: [], seeds: [], camps: [], rings: [{ x: -300, z: -70, y: 250 }, { x: 300, z: 70, y: 250 }],
+    boss: { x: 0, z: 100, hp: 8 },
+    trees: 30, rocks: 6 },
+];
+
 export const WORLDS = [
   { id: 'star', title: ['ほしふる', 'ワルツ'], sub: 'たまよけ シューティング', costume: 'star', color: '#6b4de0', color2: '#ff8fd0', stages: STAR_STAGES },
   { id: 'hero', title: ['けんと たからの', 'だいぼうけん'], sub: 'ぼうけん アクション', costume: 'hero', color: '#3fa34d', color2: '#ffd84a', stages: HERO_STAGES },
   { id: 'idol', title: ['きらめき☆', 'アイドル ステージ'], sub: 'リズム ゲーム', costume: 'idol', color: '#ff6fb0', color2: '#7fe0ff', stages: IDOL_STAGES },
   { id: 'race', title: ['びゅんびゅん', 'サーキット'], sub: 'レース ゲーム', costume: 'racer', color: '#e8483f', color2: '#ffb347', stages: RACE_STAGES },
+  { id: 'wild', title: ['そよかぜの', 'だいそうげん'], sub: 'ひろい せかいの ぼうけん', costume: 'wild', color: '#2f9fd0', color2: '#9be36a', stages: WILD_STAGES },
 ];
 
 // ---- さいご（バグバグの まぜこぜ ゲーム）----
