@@ -1,5 +1,5 @@
 // けしき と もの の え（ずけいで かく）
-import { drawWall, drawFloor, drawItem, depth, itemColor, drawSky, heartPath } from '../fushigi-pet-hotel/draw.mjs';
+import { drawWall, drawFloor, drawItem, depth, itemColor, drawSky, heartPath, drawCreature } from '../fushigi-pet-hotel/draw.mjs';
 import { ROOM } from '../fushigi-pet-hotel/data.mjs';
 import { itemDef } from './core.mjs';
 import { rr, circ, ell, star, text, V, G, hash } from './ui.mjs';
@@ -347,4 +347,127 @@ export function drawKidArt(c, sp, x, y, w, h) {
   }
   c.restore();
   c.strokeStyle = '#e8a86a'; c.lineWidth = 4; c.strokeRect(x, y, w, h);
+}
+
+// ---------- おんがくしつ ----------
+export function drawMusicRoom(c) {
+  const W = V.W, H = V.H, fy = H * 0.55;
+  c.fillStyle = '#eef3ff'; c.fillRect(0, 0, W, fy);
+  c.fillStyle = '#d9e3fb'; for (let x = 0; x < W; x += 60) c.fillRect(x, 0, 3, fy);
+  // ごせん
+  c.strokeStyle = '#b8c6ee'; c.lineWidth = 3;
+  for (let i = 0; i < 5; i++) { c.beginPath(); c.moveTo(W * 0.1, 120 + i * 16); c.lineTo(W * 0.9, 120 + i * 16); c.stroke(); }
+  c.fillStyle = '#8fa2de'; [[0.2, 2], [0.32, 3], [0.44, 1], [0.56, 4], [0.68, 2], [0.8, 3]].forEach(([fx, l]) => { ell(c, W * fx, 120 + l * 16, 10, 7, -0.3); c.fill(); c.fillRect(W * fx + 8, 120 + l * 16 - 44, 3, 44); });
+  // ピアノ
+  c.fillStyle = '#3a2a3a'; rr(c, W * 0.04, fy - 140, 170, 140, 10); c.fill();
+  c.fillStyle = '#fff'; c.fillRect(W * 0.04 + 10, fy - 70, 150, 26);
+  c.fillStyle = '#3a2a3a'; for (let i = 0; i < 7; i++) if (i % 7 !== 2 && i % 7 !== 6) c.fillRect(W * 0.04 + 26 + i * 20, fy - 70, 10, 15);
+  // ゆか
+  c.fillStyle = '#c9a77c'; c.fillRect(0, fy, W, H - fy);
+  c.strokeStyle = 'rgba(120,70,30,.16)'; c.lineWidth = 2; for (let y = fy + 18; y < H; y += 26) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+}
+// けんばんハーモニカ（down：おしている けん 0=ド 1=ソ）
+export function drawKeyboard(c, x, y, w, down = -1) {
+  const h = w * 0.22;
+  c.save(); c.translate(x - w / 2, y - h);
+  c.fillStyle = '#5cc8ff'; rr(c, 0, 0, w, h, h * 0.3); c.fill();
+  const n = 8, kw = (w - 10) / n;
+  for (let i = 0; i < n; i++) {
+    const on = (down === 0 && i === 0) || (down === 1 && i === 4);
+    c.fillStyle = on ? '#ffd84a' : '#fff'; c.fillRect(5 + i * kw + 1, h * 0.2, kw - 2, h * 0.7);
+  }
+  c.fillStyle = '#3a2a3a'; for (const i of [0, 1, 3, 4, 5]) c.fillRect(5 + (i + 0.65) * kw, h * 0.2, kw * 0.6, h * 0.4);
+  c.restore();
+}
+
+// ---------- ぶたい（リハーサル・はっぴょうかい） ----------
+export function drawStage(c, t = 0, { recital = false, lights = 0 } = {}) {
+  const W = V.W, H = V.H, sy = H * 0.78;
+  c.fillStyle = recital ? '#3b2f5c' : '#fbe9d0'; c.fillRect(0, 0, W, H);
+  // うしろの かべ と ポスター
+  c.fillStyle = recital ? '#4a3a72' : '#ffe9d6'; c.fillRect(W * 0.04, 40, W * 0.92, sy - 40);
+  if (recital) for (let i = 0; i < 18; i++) { c.fillStyle = `rgba(255,247,200,${0.3 + Math.sin(t * 2 + i) * 0.25})`; star(c, W * (0.08 + hash(i) * 0.84), 60 + hash(i + 4) * (sy * 0.45), 3 + hash(i + 8) * 4); c.fill(); }
+  const poster = G.save.poster;
+  if (poster) drawFramedPic(c, poster, W * 0.5, 130, 180, 120, '#ffd84a');
+  // かざり：ガーランド
+  const cols = ['#ff8fab', '#ffd84a', '#7fc7ff', '#8fd36a', '#b58cff'];
+  for (let i = 0; i < 16; i++) { const x = W * 0.04 + (i + 0.5) * W * 0.92 / 16; c.fillStyle = cols[i % 5]; c.beginPath(); c.moveTo(x - 16, 44); c.lineTo(x + 16, 44); c.lineTo(x, 74 + Math.sin(i) * 4); c.fill(); }
+  // まく
+  c.fillStyle = '#e8506e';
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(W * 0.1, 0); c.quadraticCurveTo(W * 0.07, sy * 0.5, W * 0.03, sy); c.lineTo(0, sy); c.fill();
+  c.beginPath(); c.moveTo(W, 0); c.lineTo(W * 0.9, 0); c.quadraticCurveTo(W * 0.93, sy * 0.5, W * 0.97, sy); c.lineTo(W, sy); c.fill();
+  c.fillStyle = '#ff6f91'; c.fillRect(0, 0, W, 36);
+  for (let x = 0; x < W; x += 40) { c.fillStyle = x / 40 % 2 ? '#ff8fab' : '#ff6f91'; c.beginPath(); c.moveTo(x, 36); c.quadraticCurveTo(x + 20, 56, x + 40, 36); c.fill(); }
+  // ぶたいの ゆか
+  c.fillStyle = '#d99a5f'; c.fillRect(0, sy - 40, W, 40);
+  c.fillStyle = '#b97a45'; c.fillRect(0, sy, W, H - sy);
+  // ライト
+  if (recital) for (let i = 0; i < 3; i++) {
+    const x = W * (0.2 + i * 0.3), a = 0.08 + Math.max(0, Math.sin(lights * Math.PI + i)) * 0.08;
+    c.fillStyle = `rgba(255,${200 + i * 20},${220 - i * 30},${a})`; c.beginPath(); c.moveTo(x - 12, 36); c.lineTo(x + 12, 36); c.lineTo(x + 130, sy); c.lineTo(x - 130, sy); c.fill();
+  }
+}
+// みにきた みんな（まえの れつ。right：レーンの ひだりはし まで）
+export function drawAudience(c, right, t = 0, cheer = false) {
+  const H = V.H, ids = ['kumokumo', 'kani', 'yukimi', 'ponta', 'piyo', 'pen', 'mitsuba', 'koron', 'kaze'];
+  const n = Math.max(3, Math.min(ids.length, Math.floor(right / 78)));
+  for (let i = 0; i < n; i++) {
+    const x = 40 + i * (right - 60) / Math.max(1, n - 1), hop = cheer ? Math.max(0, Math.sin(t * 8 + i * 1.3)) * 18 : Math.max(0, Math.sin(t * 2 + i)) * 3;
+    drawCreature(c, ids[i], x, H + 18 - hop, 30, { t: t + i, mood: 'happy' });
+  }
+  if (cheer) drawCreature(c, 'dora', 30, H + 40, 46, { t, mood: 'happy' });
+}
+
+// ---------- いしょう ----------
+// ぷにゅに いしょう（マント・ぼうし・かざり）を きせて かく
+export function drawCostumed(c, x, y, r, st = {}, costume = null) {
+  if (!costume) { drawCreature(c, 'punyu', x, y, r, { t: G.T, acc: G.save.outfit, ...st }); return; }
+  const lift = r * (1 - (st.sq || 0));
+  c.save(); c.translate(x, y - lift); if (st.rot) c.rotate(st.rot);
+  // マント（からだの うしろ）
+  c.fillStyle = costume.cape; c.strokeStyle = 'rgba(0,0,0,.12)'; c.lineWidth = r * 0.05;
+  const w = Math.sin(G.T * 5) * r * 0.08;
+  c.beginPath(); c.moveTo(-r * 0.8, -r * 0.35); c.quadraticCurveTo(-r * 1.55, r * 0.5, -r * 1.4 - w, r * 1.02); c.lineTo(r * 1.4 + w, r * 1.02); c.quadraticCurveTo(r * 1.55, r * 0.5, r * 0.8, -r * 0.35); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.moveTo(-r * 1.2, r * 0.3); c.quadraticCurveTo(-r * 1.4, r * 0.7, -r * 1.3 - w, r * 0.98); c.lineTo(-r * 1.15 - w, r * 0.98); c.quadraticCurveTo(-r * 1.2, r * 0.6, -r * 1.05, r * 0.3); c.fill();
+  c.restore();
+  drawCreature(c, 'punyu', x, y, r, { t: G.T, acc: null, bow: true, ...st });
+  c.save(); c.translate(x, y - lift); if (st.rot) c.rotate(st.rot);
+  // むねの かざり
+  if (costume.deco !== 'none') {
+    c.fillStyle = '#fff3b0';
+    if (costume.deco === 'sparkle') for (const [dx, dy] of [[-0.55, 0.35], [0.6, 0.3], [-0.2, 0.7]]) { star(c, dx * r, dy * r, r * 0.12 + Math.sin(G.T * 6 + dx * 9) * r * 0.03); c.fill(); }
+    else if (costume.deco === 'heart') { c.fillStyle = '#ff6f91'; for (const dx of [-0.55, 0.55]) { heartPath(c, dx * r, r * 0.42, r * 0.28); c.fill(); } }
+    else { c.fillStyle = '#5a68b0'; for (const dx of [-0.55, 0.55]) { ell(c, dx * r, r * 0.5, r * 0.09, r * 0.07, -0.3); c.fill(); c.fillRect(dx * r + r * 0.07, r * 0.2, r * 0.03, r * 0.3); } }
+  }
+  // ぼうし
+  // マントの えり（かたの うえ）
+  c.fillStyle = costume.cape; for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(sx * r * 0.2, r * 0.55); c.lineTo(sx * r * 0.62, r * 0.38); c.lineTo(sx * r * 0.5, r * 0.72); c.closePath(); c.fill(); }
+  drawHat(c, costume.hat, 0, -r * 1.0, r * 0.9);
+  c.restore();
+}
+export function drawHat(c, hat, x, y, r) {
+  c.save(); c.translate(x, y);
+  c.lineJoin = 'round';
+  if (hat === 'crown') {
+    c.fillStyle = '#ffd84a'; c.strokeStyle = '#e8a920'; c.lineWidth = r * 0.04;
+    c.beginPath(); c.moveTo(-r * 0.45, r * 0.15); c.lineTo(-r * 0.5, -r * 0.25); c.lineTo(-r * 0.25, -r * 0.05); c.lineTo(0, -r * 0.35); c.lineTo(r * 0.25, -r * 0.05); c.lineTo(r * 0.5, -r * 0.25); c.lineTo(r * 0.45, r * 0.15); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#ff5d86'; circ(c, 0, 0, r * 0.07); c.fill(); c.fillStyle = '#5cc8ff'; circ(c, -r * 0.27, r * 0.05, r * 0.05); c.fill(); circ(c, r * 0.27, r * 0.05, r * 0.05); c.fill();
+  } else if (hat === 'tiara') {
+    c.strokeStyle = '#d6dcf0'; c.lineWidth = r * 0.06; c.beginPath(); c.arc(0, r * 0.35, r * 0.45, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+    c.fillStyle = '#bfe8ff'; c.strokeStyle = '#fff'; c.lineWidth = r * 0.03; c.beginPath(); c.moveTo(0, -r * 0.3); c.lineTo(r * 0.12, -r * 0.08); c.lineTo(0, r * 0.02); c.lineTo(-r * 0.12, -r * 0.08); c.closePath(); c.fill(); c.stroke();
+  } else if (hat === 'star') {
+    c.fillStyle = '#ffd84a'; c.strokeStyle = '#ffb21e'; c.lineWidth = r * 0.04; star(c, 0, -r * 0.05, r * 0.36, r * 0.17, 5, -Math.PI / 2 + Math.sin(G.T * 2) * 0.15); c.fill(); c.stroke();
+  } else if (hat === 'flower') {
+    const cols = ['#ff8fab', '#ffd84a', '#ffffff', '#b58cff', '#7fc7ff', '#ff9f43'];
+    for (let i = 0; i < 6; i++) { const a = Math.PI * (1.05 + i * 0.18); c.fillStyle = cols[i]; for (let k = 0; k < 5; k++) { const b = k / 5 * Math.PI * 2; circ(c, Math.cos(a) * r * 0.5 + Math.cos(b) * r * 0.08, r * 0.3 + Math.sin(a) * r * 0.25 + Math.sin(b) * r * 0.08, r * 0.07); c.fill(); } }
+  } else if (hat === 'bow') {
+    c.fillStyle = '#ff5d86';
+    c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(-r * 0.5, -r * 0.45, -r * 0.55, 0); c.quadraticCurveTo(-r * 0.5, r * 0.35, 0, 0); c.fill();
+    c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(r * 0.5, -r * 0.45, r * 0.55, 0); c.quadraticCurveTo(r * 0.5, r * 0.35, 0, 0); c.fill();
+    c.fillStyle = '#ff8fab'; circ(c, 0, 0, r * 0.12); c.fill();
+  } else if (hat === 'top') {
+    c.fillStyle = '#3a2a4a'; rr(c, -r * 0.5, r * 0.05, r, r * 0.12, r * 0.05); c.fill(); rr(c, -r * 0.3, -r * 0.45, r * 0.6, r * 0.55, r * 0.06); c.fill();
+    c.fillStyle = '#ff5d86'; c.fillRect(-r * 0.3, -r * 0.05, r * 0.6, r * 0.1);
+  }
+  c.restore();
 }

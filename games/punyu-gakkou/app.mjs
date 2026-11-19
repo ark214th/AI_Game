@@ -1,11 +1,12 @@
-// ぷにゅの がっこう（おためしばん）：がめんの ながれ
-import { SAVE_KEY, normalize, newSave, tryBag, bagDone } from './core.mjs';
-import { CLASSMATES, TEACHER, OUTFITS, SCHEDULE, BAG_ITEMS, LUNCH, LUNCH_TALK, FEEDBACK } from './data.mjs';
+// ぷにゅの がっこう：がめんの ながれ（1にちの よてい G.day.plan を G.next() で すすめる）
+import { SAVE_KEY, normalize, newSave, tryBag, bagDone, bagChoices, dayNeeds, finishDay, diaryLines } from './core.mjs';
+import { CLASSMATES, TEACHER, OUTFITS, nameOf } from './data.mjs';
+import { DAYS, SUBJECTS, DAY_NAMES, DAY_SHORT, LUNCHES } from './story.mjs';
 import { Sound } from './audio.mjs';
 import {
   G, V, hits, initCanvas, beginFrame, endFrame, toV, inRect, button, hitArea, pointerDownHits, pointerUpHits, isPressing,
   talk, talking, talkTap, updateTalk, drawTalk, panel, hud, drawPunyu, drawCreature, text, emoji, rr, circ, ell, star,
-  burst, floatText, updateFx, drawFx, showBanner, drawBanner, fadeTo, updateFade, drawFade, ease, clamp, lerp, stickerIcon, drawSpeech, hash,
+  burst, floatText, updateFx, drawFx, showBanner, drawBanner, fadeTo, updateFade, drawFade, fade, resetTalk, ease, clamp, lerp, stickerIcon, drawSpeech, hash,
 } from './ui.mjs';
 import { classFloor, drawHomeRoom, drawClassroom, drawDesk, drawStreet, drawSchoolGate, drawPunyuHouse, drawSky, drawFramedPic, drawCraft } from './art.mjs';
 import { ROOM } from '../fushigi-pet-hotel/data.mjs';
@@ -21,10 +22,39 @@ G.sound = new Sound(G.save.sound);
 const DEBUG = new URLSearchParams(location.search).has('debug');
 
 // きょう いちにちの きろく
-export function newDay() {
-  return { clock: 7, results: {}, awarded: {}, friend: 'pokari', packed: [] };
+export function newDay(dayNo = 1) {
+  return { dayNo, clock: 7, results: {}, awarded: {}, friend: DAYS[dayNo].recess[0].sp, packed: [], plan: buildPlan(dayNo), step: -1 };
 }
-G.day = newDay();
+// 1にちの よてい
+function buildPlan(d) {
+  const D = DAYS[d], P = [];
+  P.push({ scene: 'morning' }, { scene: 'walk', arg: 'school' }, { scene: 'classHello' });
+  const per = (i, clock) => {
+    const p = D.periods[i]; if (!p) return;
+    const sub = SUBJECTS[p.id];
+    P.push({ scene: p.id, arg: p.arg, period: { label: p.id === 'recital' ? 'ごご' : `${i + 1}じかんめ`, name: sub.name, icon: sub.icon, clock } });
+  };
+  per(0, 9);
+  P.push({ scene: 'recess', period: { label: 'やすみじかん', name: 'あそぼう！', icon: '🏃', clock: 10 } });
+  per(1, 10.75);
+  P.push({ scene: 'lunch', period: { label: 'おひる', name: 'きゅうしょく', icon: '🍛', clock: 12 } });
+  per(2, 13);
+  P.push({ scene: 'classBye' }, { scene: 'walk', arg: 'home' }, { scene: 'home', arg: D.party ? 'party' : undefined }, { scene: 'diary' });
+  return P;
+}
+G.day = newDay(1);
+G.next = () => {
+  if (fade.dir) return;   // きりかえの とちゅうは 2かいめを むしする（つづけて タッチ しても とばない）
+  if (G.dbgNext) console.log('next', G.day.step + 1, G.day.plan[G.day.step + 1]?.scene, new Error().stack.split('\n')[2]);
+  const st = G.day.plan[++G.day.step];
+  if (!st) return G.go('title');
+  if (st.period) G.go('period', { ...st.period, next: st.scene, arg: st.arg });
+  else G.go(st.scene, st.arg);
+};
+// つぎの じゅぎょうの なまえ（「つぎは ○○ です」に つかう）
+G.upcoming = () => { const st = G.day.plan[G.day.step + 1]; return st?.period ? st.period.name : null; };
+G.upcomingLine = () => { const n = G.upcoming(); return n ? { who: TEACHER, text: `つぎは ${n} です！` } : null; };
+G.startDay = d => { G.day = newDay(d); G.next(); };
 // シールを あげる（もういちど あそんでも ふえすぎない）
 G.award = (key, n) => {
   const had = G.day.awarded[key] || 0;
@@ -40,6 +70,7 @@ let scene = null, sceneName = '';
 G.go = (name, arg) => fadeTo(() => start(name, arg));
 function start(name, arg) {
   sceneName = name;
+  resetTalk();
   scene = SCENES[name](arg);
   scene.t = 0;
   G.talkAt = scene.talkAt || 'top';
@@ -65,17 +96,27 @@ SCENES.title = () => {
       // タイトル
       c.save(); c.translate(W / 2, 130 + Math.sin(G.T * 1.6) * 4);
       text(c, 'ぷにゅの がっこう', 0, 0, 84, { color: '#ff5d86', stroke: '#fff', sw: 18 });
-      c.rotate(-0.06);
-      c.fillStyle = '#ffd84a'; rr(c, 110, 44, 200, 50, 25); c.fill();
-      text(c, 'おためしばん', 210, 70, 30, { color: '#7a4a10' });
       c.restore();
-      button(c, { x: W / 2 - 150, y: 260, w: 300, h: 84 }, G.save.days ? 'もういちど あそぶ' : 'はじめる', () => {
-        G.sound.unlock(); G.sound.play('yay'); G.day = newDay(); G.go('morning');
-      }, { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e', size: 38, pulse: true });
+      const wk = G.save.week, go = d => { G.sound.unlock(); G.sound.play('yay'); G.startDay(d); };
+      const PINKB = { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e' };
+      if (!G.save.days) button(c, { x: W / 2 - 150, y: 250, w: 300, h: 84 }, 'はじめる', () => go(1), { ...PINKB, size: 38, pulse: true });
+      else if (!wk.cleared) {
+        button(c, { x: W / 2 - 190, y: 236, w: 380, h: 84 }, `つづきから（${DAY_NAMES[wk.day]}）`, () => go(wk.day), { ...PINKB, size: 32, pulse: true });
+        if (wk.day > 1) button(c, { x: W / 2 - 110, y: 336, w: 220, h: 50 }, 'げつようびから', () => go(1), { size: 22 });
+      } else {
+        text(c, 'どの ひを あそぶ？', W / 2, 238, 30, { color: '#ff5d86', stroke: '#fff', sw: 8 });
+        for (let d = 1; d <= 5; d++) {
+          const bw = 110, x = W / 2 + (d - 3) * (bw + 14) - bw / 2;
+          button(c, { x, y: 266, w: bw, h: 74 }, DAY_SHORT[d], () => go(d), d === 5 ? { color: '#ffd84a', ink: '#7a4a10', shadow: '#d9a520', size: 32 } : { ...PINKB, size: 32 });
+        }
+        text(c, d5Label(), W / 2, 370, 20, { color: '#7a4a6a', stroke: '#fff', sw: 6 });
+      }
       hud(c, '', { stickers: false });
     },
   };
 };
+
+const d5Label = () => 'きんようびは ダンス はっぴょうかい！';
 
 // ---------- あさ（ぷにゅの へや） ----------
 SCENES.morning = () => {
@@ -84,13 +125,10 @@ SCENES.morning = () => {
   const s = { phase: 'sleep', taps: 0, wake: 0, py: 560, px: 190, outfitPick: G.save.outfit, items: [], bagShake: 0, bagT: 0, flying: [], hop: 0 };
   // ランドセルの まわりに ものを ちらす
   const spots = [[-300, -40], [-160, 60], [220, -60], [330, 50], [-330, 110], [180, 120]];
-  const order = [...BAG_ITEMS].sort((a, b) => hash(a.id.length * 7 + G.save.days) - hash(b.id.length * 7 + G.save.days));
-  s.items = order.map((it, i) => ({ ...it, dx: spots[i][0], dy: spots[i][1], shake: 0, inBag: false }));
-  talk([
-    'ぷにゅは ペットホテルで あった みんなと おなじ がっこうに かよう ことに なりました',
-    'きょうは はじめての がっこう！',
-    'あれれ… ぷにゅは まだ ねてるみたい。 ぷにゅを トントンして おこしてあげよう',
-  ]);
+  const D = DAYS[G.day.dayNo];
+  s.needs = dayNeeds(G.day.dayNo);
+  s.items = bagChoices(G.day.dayNo, G.save.week.weeks).map((it, i) => ({ ...it, dx: spots[i][0], dy: spots[i][1], shake: 0, inBag: false }));
+  talk(G.day.dayNo === 1 ? D.morning : [`${DAY_NAMES[G.day.dayNo]}の あさ。 ぷにゅを トントンして おこそう`]);
   const roomRect = () => { const w = Math.min(V.W, V.H * 1.6); return { x: (V.W - w) / 2, y: (V.H - w / 1.6) / 2, w, h: w / 1.6 }; };
   const toRoom = (r, p) => ({ x: (p.x - r.x) / (r.w / ROOM.w), y: (p.y - r.y) / (r.w / ROOM.w) });
   return {
@@ -118,7 +156,7 @@ SCENES.morning = () => {
           s.taps++; G.sound.play('pop'); burst(bx, by - 40 * k, 'star', 4);
           if (s.taps >= 3) {
             s.phase = 'wake'; s.hop = 0; s.px = 330; s.py = 560; G.sound.play('morning');
-            talk([{ who: 'punyu', text: 'ふわぁ… おはよう！' }, { who: 'punyu', text: 'あっ きょうは がっこう だ！ きがえなくちゃ' }], () => { s.phase = 'dress'; });
+            talk(G.day.dayNo === 1 ? [{ who: 'punyu', text: 'ふわぁ… おはよう！' }, { who: 'punyu', text: 'あっ きょうは がっこう だ！ きがえなくちゃ' }] : [...D.morning, { who: 'punyu', text: 'きがえ なくちゃ！' }], () => { s.phase = 'dress'; });
           }
         }, { instant: true });
         if (!talking()) text(c, `トントン ${s.taps} / 3`, bx, by - 150 * k, 30, { color: '#ff5d86', stroke: '#fff', sw: 8 });
@@ -158,13 +196,16 @@ function drawBag(c, s, dt) {
   const tx = 18, ty = 74;
   panel(c, tx, ty, 220, 290, { fill: '#fffef4', stroke: '#9fd3ff' });
   text(c, 'じかんわり', tx + 110, ty + 34, 28, { color: '#3d7ac2' });
-  SCHEDULE.forEach((sc, i) => {
-    const y = ty + 86 + i * 70;
-    c.fillStyle = '#eaf6ff'; rr(c, tx + 14, y - 28, 192, 58, 14); c.fill();
-    text(c, `${i + 1}`, tx + 36, y, 28, { color: '#3d7ac2' });
-    emoji(c, sc.icon, tx + 80, y, 34);
-    text(c, sc.name, tx + 148, y, 24);
-    if (s.items.find(it => it.id === sc.item)?.inBag) { c.strokeStyle = '#ff5d86'; c.lineWidth = 5; circ(c, tx + 36, y, 20); c.stroke(); }
+  text(c, DAY_NAMES[G.day.dayNo], tx + 110, ty + 62, 18, { color: '#7a9cc2' });
+  DAYS[G.day.dayNo].periods.forEach((p, i) => {
+    const y = ty + 106 + i * 62;
+    c.fillStyle = '#eaf6ff'; rr(c, tx + 14, y - 26, 192, 54, 14); c.fill();
+    if (!p) { text(c, `${i + 1}`, tx + 36, y, 26, { color: '#3d7ac2' }); text(c, '−', tx + 130, y, 24, { color: '#aab' }); return; }
+    const sc = SUBJECTS[p.id];
+    text(c, p.id === 'recital' ? 'ご' : `${i + 1}`, tx + 36, y, 26, { color: '#3d7ac2' });
+    emoji(c, sc.icon, tx + 78, y, 30);
+    text(c, sc.name, tx + 146, y, sc.name.length > 5 ? 18 : 22);
+    if (s.items.find(it => it.id === (p.id === 'recital' ? 'costumebag' : sc.item))?.inBag) { c.strokeStyle = '#ff5d86'; c.lineWidth = 5; circ(c, tx + 36, y, 20); c.stroke(); }
   });
   // ランドセル
   s.bagShake = Math.max(0, s.bagShake - dt * 3);
@@ -175,7 +216,7 @@ function drawBag(c, s, dt) {
   c.fillStyle = 'rgba(255,255,255,.3)'; rr(c, -70, -100, 50, 12, 6); c.fill();
   c.restore();
   const packed = s.items.filter(it => it.inBag).length;
-  text(c, `${packed} / 3`, cx, cy + 165, 30, { color: '#ff5d86', stroke: '#fff', sw: 7 });
+  text(c, `${packed} / ${s.needs.length}`, cx, cy + 165, 30, { color: '#ff5d86', stroke: '#fff', sw: 7 });
   // もの
   for (const it of s.items) {
     if (it.inBag) continue;
@@ -186,19 +227,19 @@ function drawBag(c, s, dt) {
     text(c, it.name, x, y + 40, 17);
     hitArea({ label: 'bag:' + it.id, x: x - 56, y: y - 56, w: 112, h: 112 }, () => {
       if (talking()) return;
-      const res = tryBag(G.day.packed, it.id);
+      const res = tryBag(G.day.packed, it.id, s.needs);
       if (res === 'ok') {
         it.inBag = true; s.bagShake = 1; G.sound.play('drop'); burst(cx, cy, 'star', 8);
         floatText(cx, cy - 60, `${it.name} OK！`);
-        if (bagDone(G.day.packed)) {
+        if (bagDone(G.day.packed, s.needs)) {
           G.sound.play('fanfare'); showBanner('じゅんび できた！');
           s.phase = 'go';
         }
-      } else { it.shake = 1; G.sound.play('no'); talk([{ who: 'punyu', text: it.say, mood: 'normal' }]); }
+      } else { it.shake = 1; G.sound.play('no'); talk([{ who: 'punyu', text: it.say || `${it.name}は きょうは つかわないよ`, mood: 'normal' }]); }
     }, { instant: true });
   }
   if (s.phase === 'go') {
-    button(c, { x: cx - 160, y: H - 100, w: 320, h: 80 }, 'いってきます！', () => { G.sound.play('door'); G.go('walk', 'school'); }, { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e', size: 36, pulse: true });
+    button(c, { x: cx - 160, y: H - 100, w: 320, h: 80 }, 'いってきます！', () => { G.sound.play('door'); G.next(); }, { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e', size: 36, pulse: true });
   }
 }
 
@@ -207,7 +248,7 @@ SCENES.walk = (to) => {
   const toSchool = to === 'school';
   G.sound.startBgm('home');
   const D = toSchool ? 1700 : 1500;
-  const friend = toSchool ? 'fuwari' : G.day.friend;
+  const friend = toSchool ? DAYS[G.day.dayNo].walkWith : G.day.friend;
   const s = { scroll: 0, hold: false, joined: !toSchool, metAt: toSchool ? 500 : 99999, splitAt: toSchool ? 99999 : 900, split: false, done: false, step: 0 };
   if (!toSchool) talk([{ who: friend, text: 'いっしょに かえろう！' }]);
   return {
@@ -218,11 +259,11 @@ SCENES.walk = (to) => {
       if (!talking() && !s.done) {
         const sp = s.hold ? 430 : 230;
         s.scroll = Math.min(D, s.scroll + sp * dt); s.step += dt * (s.hold ? 11 : 7);
-        if (!s.joined && s.scroll >= s.metAt) { s.joined = true; talk([{ who: friend, text: 'おはよう ぷにゅ！ いっしょに いこう！' }, { who: 'punyu', text: 'うん！ どきどき するな〜' }, { who: friend, text: 'だいじょうぶ！ クラスの みんな やさしいよ' }]); }
-        if (!toSchool && !s.split && s.scroll >= s.splitAt) { s.split = true; talk([{ who: friend, text: 'じゃあ あとで ぷにゅの おうちに いくね！' }, { who: 'punyu', text: 'うん！ まってるね！' }]); }
+        if (!s.joined && s.scroll >= s.metAt) { s.joined = true; talk(DAYS[G.day.dayNo].walk); }
+        if (!toSchool && !s.split && s.scroll >= s.splitAt) { s.split = true; talk(DAYS[G.day.dayNo].party ? [{ who: friend, text: 'あとで みんなで いくからね！' }, { who: 'punyu', text: 'うん！ じゅんび して まってる！' }] : [{ who: friend, text: 'じゃあ あとで ぷにゅの おうちに いくね！' }, { who: 'punyu', text: 'うん！ まってるね！' }]); }
         if (s.scroll >= D) {
           s.done = true;
-          talk([toSchool ? { who: 'punyu', text: 'がっこうに ついた〜！' } : { who: 'punyu', text: 'ただいま〜！' }], () => G.go(toSchool ? 'classHello' : 'home'));
+          talk([toSchool ? { who: 'punyu', text: 'がっこうに ついた〜！' } : { who: 'punyu', text: 'ただいま〜！' }], () => G.next());
         }
       }
       const gateWorld = D + W * 0.55;
@@ -269,25 +310,15 @@ export function drawTeacher(c, mood = 'happy') {
 SCENES.classHello = () => {
   G.sound.startBgm('school');
   G.day.clock = 8.5;
-  const mood = {};
-  let board = 'ようこそ\nぷにゅ さん';
-  talk([
-    { who: TEACHER, text: 'みなさん おはよう ございます！' },
-    { text: 'みんな「おはよう ございまーす！」' },
-    { who: TEACHER, text: 'きょうから あたらしい おともだちが きました。 ぷにゅ さんです！' },
-    { who: 'punyu', text: 'ぷにゅ です！ よろしく ね！' },
-    { who: 'kirara', text: 'あっ ペットホテルの ぷにゅ だ！' },
-    { who: 'gorota', text: 'いっしょの クラス うれしいな〜' },
-    { who: TEACHER, text: 'きょうの じかんわりは… おえかき・ダンス・こうさく！' },
-    { who: TEACHER, text: 'まずは 1じかんめ、 おえかき です！' },
-  ], () => G.go('period', { label: '1じかんめ', name: 'おえかき', icon: '🖍️', next: 'draw', clock: 9 }));
+  const D = DAYS[G.day.dayNo];
+  talk([...D.hello, G.upcomingLine()], () => G.next());
   return {
     talkAt: 'bottom',
     draw(c, dt) {
-      drawClassroom(c, board, { t: G.T });
+      drawClassroom(c, D.board, { t: G.T });
       drawTeacher(c);
-      drawClassKids(c, { mood: { punyu: 'happy', kirara: 'happy', gorota: 'happy', fuwari: 'happy' } });
-      hud(c, 'あさの かい');
+      drawClassKids(c, { mood: { punyu: 'happy', kirara: 'happy', gorota: 'happy', fuwari: 'happy', popuri: 'happy' } });
+      hud(c, `${DAY_NAMES[G.day.dayNo]}  あさの かい`);
     },
   };
 };
@@ -295,19 +326,18 @@ SCENES.classHello = () => {
 SCENES.classBye = () => {
   G.sound.startBgm('school');
   G.day.clock = 14.5;
-  const f = G.day.friend;
+  const D = DAYS[G.day.dayNo], f = G.day.friend;
   talk([
-    { who: TEACHER, text: 'きょうは どうでしたか？' },
-    { who: 'punyu', text: 'すっごく たのしかった！' },
-    { who: TEACHER, text: 'よかった！ あしたも げんきに きてね。 さようなら！' },
+    ...D.bye,
+    { who: TEACHER, text: 'それでは みなさん、 さようなら！' },
     { text: 'みんな「さようなら〜！」' },
-    { who: f, text: 'ぷにゅ、 あとで おうちに あそびに いっても いい？' },
-    { who: 'punyu', text: 'もちろん！ へやを かざって まってるね！' },
-  ], () => G.go('walk', 'home'));
+    D.party ? null : { who: f, text: 'ぷにゅ、 あとで おうちに あそびに いっても いい？' },
+    D.party ? null : { who: 'punyu', text: 'もちろん！ へやを かざって まってるね！' },
+  ], () => G.next());
   return {
     talkAt: 'bottom',
     draw(c) {
-      drawClassroom(c, 'また あした', { t: G.T, evening: 1 });
+      drawClassroom(c, D.byeBoard || 'また あした', { t: G.T, evening: 1 });
       drawTeacher(c);
       drawClassKids(c, { mood: { punyu: 'happy', [f]: 'happy' } });
       c.fillStyle = 'rgba(255,170,90,.12)'; c.fillRect(0, 0, V.W, V.H);
@@ -347,16 +377,18 @@ SCENES.period = (a) => {
 SCENES.lunch = () => {
   G.sound.startBgm('school');
   G.day.clock = 12.2;
+  const LD = LUNCHES[DAYS[G.day.dayNo].lunch];
+  const LUNCH = LD.foods.map(([id, name, icon, bites]) => ({ id, name, icon, bites })), LUNCH_TALK = LD.talk;
   const s = { phase: 'ready', left: LUNCH.map(f => f.bites), eatT: 0, bubble: null, bubbleT: 0, said: new Set() };
   talk([
     { who: TEACHER, text: 'おまちかねの きゅうしょくの じかん です！' },
-    { who: 'pokari', text: 'きょうは カレー だって！' },
+    { who: 'pokari', text: `きょうは ${LUNCH[0].name} だって！` },
     { who: TEACHER, text: 'みんなで 「いただきます」 しましょう' },
   ]);
   return {
     draw(c, dt) {
       const W = V.W, H = V.H;
-      drawClassroom(c, 'きょうの こんだて\nカレー サラダ りんご', { t: G.T });
+      drawClassroom(c, LD.board, { t: G.T });
       s.eatT = Math.max(0, s.eatT - dt);
       if (s.bubbleT > 0) { s.bubbleT -= dt; if (s.bubbleT <= 0) s.bubble = null; }
       drawClassKids(c, { eat: s.phase === 'eat', bubble: s.bubble });
@@ -394,8 +426,10 @@ SCENES.lunch = () => {
               setTimeout(() => talk([
                 { who: 'punyu', text: 'おなか いっぱい！ おいしかった〜' },
                 got ? { text: 'ぜんぶ たべたので シールを 1まい もらったよ！' } : null,
-                { who: TEACHER, text: 'つぎは 3じかんめ、 こうさく です！' },
-              ], () => G.go('period', { label: '3じかんめ', name: 'こうさく', icon: '✂️', next: 'craft', clock: 13 })), 1300);
+                ...(DAYS[G.day.dayNo].lunchEnd || []),
+                G.upcomingLine(),
+              ], () => G.next()), 1300);
+              if (DAYS[G.day.dayNo].lunchEnd) setTimeout(() => { G.sound.play('fanfare'); burst(V.W * 0.81, V.H * 0.6, 'heart', 16); }, 2200);
             }
           }, { instant: true });
         } else { c.fillStyle = '#f2e6d8'; ell(c, x, y + 20, cw * 0.3, 12); c.fill(); }
@@ -411,56 +445,85 @@ SCENES.lunch = () => {
   };
 };
 
-// ---------- おためしばん おわり ----------
-SCENES.end = () => {
+// ---------- にっき（1にちの おわり） ----------
+function nightSky(c) {
+  const W = V.W, H = V.H;
+  const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#3d4687'); g.addColorStop(1, '#8a7fd0');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) { c.fillStyle = '#fff7c8'; c.globalAlpha = 0.5 + Math.sin(G.T * 2 + i) * 0.4; star(c, hash(i) * W, hash(i + 3) * H * 0.9, 3 + hash(i + 7) * 4); c.fill(); }
+  c.globalAlpha = 1;
+}
+function diaryPage(c, x, y, w, h, d, e, big = true) {
+  c.fillStyle = 'rgba(0,0,0,.18)'; rr(c, x + 6, y + 8, w, h, 18); c.fill();
+  c.fillStyle = '#fffaf0'; rr(c, x, y, w, h, 18); c.fill();
+  c.fillStyle = '#ff9fbd'; rr(c, x, y, w, big ? 56 : 34, 18); c.fill(); c.fillRect(x, y + (big ? 36 : 20), w, big ? 20 : 14);
+  text(c, big ? `${DAY_NAMES[d]}の にっき` : DAY_SHORT[d], x + w / 2, y + (big ? 30 : 18), big ? 30 : 20, { color: '#fff' });
+  if (!e) { text(c, '？', x + w / 2, y + h / 2 + 10, 40, { color: '#ddd' }); return; }
+  const pw = big ? w * 0.36 : w - 20, ph = pw * 0.625;
+  const px = big ? x + w - pw / 2 - 24 : x + w / 2, py = big ? y + 70 + ph / 2 : y + 44 + ph / 2;
+  if (e.pic) drawFramedPic(c, e.pic, px, py, pw, ph, '#ffc2d4');
+  else { c.fillStyle = '#ffeef4'; rr(c, px - pw / 2, py - ph / 2, pw, ph, 10); c.fill(); drawPunyu(c, px, py + ph * 0.38, ph * 0.32, { mood: 'happy' }); }
+  if (e.friend) drawCreature(c, e.friend, px + pw * 0.32, py + ph / 2 + (big ? 70 : 34), big ? 34 : 18, { t: G.T, mood: 'happy' });
+  for (let i = 0; i < 3; i++) { c.fillStyle = i < e.stars ? '#ffd84a' : '#eee2ea'; star(c, px - pw * 0.3 + i * (big ? 30 : 16), py + ph / 2 + (big ? 40 : 20), big ? 13 : 7); c.fill(); }
+  if (!big) return;
+  c.strokeStyle = '#f3d6e0'; c.lineWidth = 2;
+  for (let i = 0; i < 7; i++) { const ly = y + 100 + i * 44; c.beginPath(); c.moveTo(x + 24, ly + 20); c.lineTo(x + w - pw - 48, ly + 20); c.stroke(); }
+  let ly = y + 100;
+  for (const l of e.lines) {
+    const ls = wrapTo(c, l, w - pw - 80, 23);
+    for (const t of ls) { text(c, t, x + 28, ly, 23, { align: 'left' }); ly += 44; }
+  }
+}
+function wrapTo(c, str, maxW, size) {
+  c.font = `800 ${size}px "Hiragino Maru Gothic ProN",sans-serif`;
+  const out = []; let line = '';
+  for (const w of str.split(' ')) { const t = line ? line + ' ' + w : w; if (line && c.measureText(t).width > maxW) { out.push(line); line = w; } else line = t; }
+  out.push(line); return out;
+}
+SCENES.diary = () => {
   G.sound.startBgm('night');
-  G.save.days++; G.persist();
-  const s = { pick: null };
-  const r = G.day.results;
+  const d = G.day.dayNo, r = G.day.results;
+  const entry = { lines: diaryLines(d, r, G.day.friend ? nameOf(G.day.friend) : null), pic: r.draw ? G.save.pictures[G.save.pictures.length - 1] : null, stars: r.danceStars || 0, friend: G.day.friend };
+  finishDay(G.save, d, entry); G.persist();
+  talk([{ who: 'punyu', text: 'きょうの ことを にっきに かいたよ！' }]);
   return {
-    draw(c, dt) {
+    draw(c) {
       const W = V.W, H = V.H;
-      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#3d4687'); g.addColorStop(1, '#8a7fd0');
-      c.fillStyle = g; c.fillRect(0, 0, W, H);
-      for (let i = 0; i < 40; i++) { c.fillStyle = '#fff7c8'; c.globalAlpha = 0.5 + Math.sin(G.T * 2 + i) * 0.4; star(c, hash(i) * W, hash(i + 3) * H * 0.9, 3 + hash(i + 7) * 4); c.fill(); }
-      c.globalAlpha = 1;
-      text(c, 'おためしばんは ここまで！', W / 2, 54, 46, { color: '#fff3b0', stroke: '#3d4687', sw: 10 });
-      text(c, 'あそんでくれて ありがとう！', W / 2, 104, 28, { color: '#fff' });
-      // きょうの おもいで
-      const pw = Math.min(W - 40, 820), px = (W - pw) / 2, py = 136;
-      panel(c, px, py, pw, 190, { fill: 'rgba(255,255,255,.95)', stroke: '#ffd84a' });
-      text(c, 'きょうの おもいで', px + pw / 2, py + 26, 24, { color: '#a07ad0' });
-      const slots = 4, sw = pw / slots;
-      const pic = G.save.pictures[G.save.pictures.length - 1];
-      if (r.draw && pic) drawFramedPic(c, pic, px + sw * 0.5, py + 104, 150, 100); else emoji(c, '🖍️', px + sw * 0.5, py + 104, 50);
-      text(c, 'おえかき', px + sw * 0.5, py + 172, 20);
-      emoji(c, '💃', px + sw * 1.5, py + 84, 50);
-      for (let i = 0; i < 3; i++) { c.fillStyle = i < (r.danceStars || 0) ? '#ffd84a' : '#e6dfea'; star(c, px + sw * 1.5 + (i - 1) * 36, py + 134, 16); c.fill(); }
-      text(c, 'ダンス', px + sw * 1.5, py + 172, 20);
-      const craft = G.save.crafts[G.save.crafts.length - 1];
-      if (r.craft && craft) drawCraft(c, craft, px + sw * 2.5, py + 150, 0.55, { t: G.T }); else emoji(c, '✂️', px + sw * 2.5, py + 104, 50);
-      text(c, 'こうさく', px + sw * 2.5, py + 172, 20);
-      drawCreature(c, G.day.friend, px + sw * 3.5, py + 146, 40, { t: G.T, mood: 'happy' });
-      text(c, 'なかよし', px + sw * 3.5, py + 172, 20);
-      // かんそう
-      text(c, 'いちばん たのしかったのは どれ？', W / 2, py + 228, 30, { color: '#fff' });
-      const bw = Math.min(128, (pw - 50) / 6), by = py + 258;
-      FEEDBACK.forEach((f, i) => {
-        const x = W / 2 + (i - 2.5) * (bw + 10) - bw / 2;
-        const on = s.pick === f.id;
-        button(c, { x, y: by, w: bw, h: 110 }, '', () => {
-          s.pick = f.id; G.save.feedback = G.save.feedback.filter(x => x.day !== G.save.days); G.save.feedback.push({ day: G.save.days, pick: f.id }); G.persist();
-          G.sound.play('yay'); burst(x + bw / 2, by + 40, 'heart', 10);
-        }, { color: on ? '#fff3b0' : '#fff', shadow: on ? '#e8c84a' : '#b9addf', round: 20, tag: 'fb:' + f.id });
-        emoji(c, f.icon, x + bw / 2, by + 42, 46);
-        const lines = f.name.split(' ');
-        lines.forEach((l, j) => text(c, l, x + bw / 2, by + 86 + (j - (lines.length - 1) / 2) * 20, lines.length > 1 ? 17 : 19));
-      });
-      if (s.pick) {
-        text(c, 'おしえてくれて ありがとう！ おうちの ひとにも おはなし してね', W / 2, by + 140, 22, { color: '#fff3b0' });
-        button(c, { x: W / 2 - 150, y: H - 78, w: 300, h: 66 }, 'タイトルへ', () => G.go('title'), { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e', size: 30 });
+      nightSky(c);
+      const w = Math.min(W - 40, 820), h = H - 130, x = (W - w) / 2, y = 30;
+      diaryPage(c, x, y, w, h, d, entry);
+      if (!talking()) {
+        if (d < 5) {
+          button(c, { x: W / 2 - 40, y: H - 88, w: 330, h: 72 }, `つぎの ひへ（${DAY_SHORT[d + 1]}）`, () => G.startDay(d + 1), { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e', size: 30, pulse: true });
+          button(c, { x: W / 2 - 260, y: H - 84, w: 190, h: 64 }, 'タイトルへ', () => G.go('title'), { size: 24 });
+        } else button(c, { x: W / 2 - 160, y: H - 88, w: 320, h: 72 }, 'つぎへ', () => G.go('ending'), { color: '#ffd84a', ink: '#7a4a10', shadow: '#d9a520', size: 32, pulse: true });
       }
-      hud(c, '', { stickers: false });
+      hud(c, 'よる', { stickers: true });
+    },
+  };
+};
+
+// ---------- 1しゅうかんの おわり ----------
+SCENES.ending = () => {
+  G.sound.startBgm('home');
+  G.sound.play('fanfare');
+  const conf = Array.from({ length: 60 }, (_, i) => ({ x: hash(i) , y: hash(i + 9), s: 0.4 + hash(i + 3), c: ['#ff8fab', '#ffd84a', '#7fc7ff', '#b58cff', '#8fd36a'][i % 5] }));
+  return {
+    draw(c) {
+      const W = V.W, H = V.H;
+      c.fillStyle = '#fff4f8'; c.fillRect(0, 0, W, H);
+      for (const p of conf) { c.fillStyle = p.c; c.save(); c.translate(p.x * W, (p.y * H + G.T * 60 * p.s) % (H + 20) - 10); c.rotate(G.T * p.s * 3); c.fillRect(-5, -3, 10, 6); c.restore(); }
+      text(c, 'ぷにゅの 1しゅうかん', W / 2, 60, 52, { color: '#ff5d86', stroke: '#fff', sw: 12 });
+      text(c, 'おしまい', W / 2, 116, 40, { color: '#a07ad0', stroke: '#fff', sw: 10 });
+      const pw = Math.min(150, (W - 80) / 5 - 12);
+      for (let d = 1; d <= 5; d++) diaryPage(c, W / 2 + (d - 3) * (pw + 12) - pw / 2, 150, pw, pw * 1.15, d, G.save.diary[d], false);
+      const kids = ['fuwari', 'gorota', 'pokari', 'punyu', 'chapu', 'popuri', 'kirara'];
+      kids.forEach((sp, i) => {
+        const x = W / 2 + (i - 3) * Math.min(105, W / 8), hop = Math.max(0, Math.sin(G.T * 5 + i)) * 20, y = H - 110 - hop;
+        if (sp === 'punyu') drawPunyu(c, x, y, 46, { mood: 'bliss' }); else drawCreature(c, sp, x, y, 36, { t: G.T, mood: 'happy' });
+      });
+      text(c, 'あそんでくれて ありがとう！', W / 2, H - 76 + 30, 24, { stroke: '#fff', sw: 7 });
+      button(c, { x: W - 220, y: H - 80, w: 200, h: 62 }, 'タイトルへ', () => G.go('title'), { color: '#ff7aa8', ink: '#fff', shadow: '#d9507e', size: 26 });
     },
   };
 };
@@ -487,6 +550,7 @@ function frame(now) {
 canvasEl.addEventListener('pointerdown', e => {
   e.preventDefault();
   G.sound.unlock();
+  if (fade.dir) return;   // きりかえの とちゅうは さわれない
   const p = toV(e);
   canvasEl.setPointerCapture?.(e.pointerId);
   if (talking()) { if (pointerDownHits(p, true)) return; talkTap(); return; }
@@ -503,11 +567,15 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) G.per
 const q = new URLSearchParams(location.search);
 if (DEBUG && q.get('scene')) {
   if (q.get('stickers')) G.save.stickers = +q.get('stickers');
-  start(q.get('scene'), q.get('scene') === 'period' ? { label: '1じかんめ', name: 'おえかき', icon: '🖍️', next: 'draw', clock: 9 } : q.get('arg') || undefined);
+  G.day = newDay(+(q.get('day') || 1));
+  const sc = q.get('scene'), i = G.day.plan.findIndex(st => st.scene === sc && (!q.get('arg') || st.arg === q.get('arg')));
+  const st = G.day.plan[i];
+  if (i >= 0) G.day.step = i;
+  start(sc, sc === 'period' ? { label: '1じかんめ', name: 'おえかき', icon: '🖍️', next: 'draw', clock: 9 } : st ? st.arg : q.get('arg') || undefined);
 } else start('title');
 requestAnimationFrame(frame);
 window.__G = G;
 if (DEBUG) {
-  G.auto = q.has('auto');
+  G.auto = q.has('auto'); G.dbgNext = q.has('dbgnext');
   window.__dbg = () => ({ scene: sceneName, talking: talking(), V: { ...V }, hits: hits.map(h => ({ label: h.label || '', x: h.r.x + h.r.w / 2, y: h.r.y + h.r.h / 2 })), save: G.save, day: G.day });
 }

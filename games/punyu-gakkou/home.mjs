@@ -2,7 +2,7 @@
 import { ITEMS, ROOM, WALLS, FLOORS } from '../fushigi-pet-hotel/data.mjs';
 import { drawItem, drawWall, drawFloor, depth } from '../fushigi-pet-hotel/draw.mjs';
 import { itemDef, clampItem, buy, takeOut, stored, putAway, recolor, priceOf, friendComments, friendLoves } from './core.mjs';
-import { SHOP, FREE_WALLS, FREE_FLOORS } from './data.mjs';
+import { SHOP, FREE_WALLS, FREE_FLOORS, CLASSMATES } from './data.mjs';
 import { G, V, button, hitArea, talk, talking, panel, hud, drawPunyu, drawCreature, text, emoji, rr, circ, ell, burst, floatText, showBanner, inRect, stickerIcon, clamp, lerp, drawSpeech } from './ui.mjs';
 import { drawHomeRoom, drawFramedPic } from './art.mjs';
 
@@ -34,19 +34,24 @@ function itemIcon(c, id, x, y, size) {
   c.restore();
 }
 
-HOME.home = () => {
+HOME.home = (arg) => {
+  const party = arg === 'party';
   G.sound.startBgm('home');
   G.day.clock = 16;
   const save = G.save, room = save.room;
   const s = {
     phase: 'arrive', tab: 'shop', page: 0, drag: null, sel: null, msg: null, msgT: 0,
-    punyu: { x: 640, y: 590 }, friend: { x: 1120, y: 580, show: false }, night: 0, sleepT: 0,
+    punyu: { x: 640, y: 590 }, night: 0, sleepT: 0,
+    // あそびに くる ともだち（きんようびは みんな）
+    guests: (party ? CLASSMATES : [G.day.friend]).map((sp, i, a) => ({ sp, x: 1120 + i * 90, y: 520 + (i % 2) * 70, tx: a.length > 1 ? 330 + i * 110 : 760, show: false })),
   };
+  const r0 = G.day.results, first = G.save.days === 0;
   talk([
     { who: 'punyu', text: 'ただいま〜！' },
-    { who: 'punyu', text: 'あっ！ きょう かいた え と、 つくった ものが かざってある！' },
-    { text: `がっこうで シールを もらったね。 シールで かぐを かって、 へやを かざろう！` },
-    { text: 'かぐは ゆびで うごかせるよ。 タッチすると いろが かわる ものも あるよ' },
+    r0.draw || r0.craft ? { who: 'punyu', text: `あっ！ きょう ${r0.draw ? 'かいた え' : ''}${r0.draw && r0.craft ? ' と ' : ''}${r0.craft ? 'つくった もの' : ''}が かざってある！` } : null,
+    party ? { who: 'punyu', text: 'みんなが くる まえに へやを かざろう！' } : null,
+    first ? { text: `がっこうで シールを もらったね。 シールで かぐを かって、 へやを かざろう！` } : { text: `シールは ${G.save.stickers}まい。 かぐを かって かざろう！` },
+    first ? { text: 'かぐは ゆびで うごかせるよ。 タッチすると いろが かわる ものも あるよ' } : null,
   ], () => { s.phase = 'decor'; });
   const rectOf = () => {
     if (s.phase === 'decor') { const w = Math.min(V.W, (V.H - DRAWER_H) * 1.6); return { x: (V.W - w) / 2, y: 0, w, h: w / 1.6 }; }
@@ -56,23 +61,31 @@ HOME.home = () => {
   const say = m => { s.msg = m; s.msgT = 2.2; };
   const startVisit = () => {
     s.phase = 'visit'; s.sel = null; G.persist();
-    const f = G.day.friend;
     G.sound.play('bell');
-    talk([{ text: 'ピンポーン♪' }, { who: f, text: 'ぷにゅ〜！ あそびに きたよ！' }], () => { s.friend.show = true; s.friend.walk = true; });
+    talk([{ text: 'ピンポーン♪' }, party ? { text: 'みんな「おじゃましまーす！」' } : { who: s.guests[0].sp, text: 'ぷにゅ〜！ あそびに きたよ！' }], () => { for (const g of s.guests) { g.show = true; g.walk = true; } });
   };
   const afterArrive = () => {
-    const f = G.day.friend;
-    const cm = friendComments(room, f);
-    const loves = friendLoves(room, f);
-    const lines = cm.slice(0, 3).map(x => ({ who: f, text: x.text }));
-    lines.push({ who: 'punyu', text: 'えへへ ありがとう！' });
-    lines.push({ who: f, text: loves ? 'また あそびに きても いい？ この へや だいすき！' : 'たのしかった！ また あそぼうね！' });
-    lines.push({ who: f, text: 'じゃあ また あした がっこうでね！ ばいばーい！' });
-    burst(...friendScreen(), 'heart', loves ? 14 : 6);
-    G.sound.play(loves ? 'fanfare' : 'yay');
-    talk(lines, () => { s.friend.leave = true; });
+    const lines = [];
+    let loves = false;
+    if (party) {
+      // みんな ひとことずつ
+      for (const g of s.guests) { const cm = friendComments(room, g.sp); loves ||= friendLoves(room, g.sp); lines.push({ who: g.sp, text: (cm.find(x => x.kind === 'like') || cm[0]).text }); }
+      lines.push({ who: 'kirara', text: 'はっぴょうかい、 だいせいこう！ かんぱーい！' }, { text: 'みんな「かんぱーい！」' });
+      lines.push({ who: 'chapu', text: 'ぷにゅ、 いっしょに れんしゅう してくれて ありがとう' }, { who: 'punyu', text: 'みんなと おなじ クラスで よかった！' });
+      lines.push({ text: 'みんなで おどったり わらったり… たのしい よるに なりました' }, { text: 'みんな「ばいばーい！ また らいしゅう！」' });
+    } else {
+      const f = s.guests[0].sp, cm = friendComments(room, f);
+      loves = friendLoves(room, f);
+      lines.push(...cm.slice(0, 3).map(x => ({ who: f, text: x.text })));
+      lines.push({ who: 'punyu', text: 'えへへ ありがとう！' });
+      lines.push({ who: f, text: loves ? 'また あそびに きても いい？ この へや だいすき！' : 'たのしかった！ また あそぼうね！' });
+      lines.push({ who: f, text: 'じゃあ また あした がっこうでね！ ばいばーい！' });
+    }
+    for (const g of s.guests) burst(...guestScreen(g), 'heart', loves ? 10 : 5);
+    G.sound.play(loves || party ? 'fanfare' : 'yay');
+    talk(lines, () => { for (const g of s.guests) g.leave = true; });
   };
-  const friendScreen = () => { const r = rectOf(), k = r.w / ROOM.w; return [r.x + s.friend.x * k, r.y + (s.friend.y - 100) * k]; };
+  const guestScreen = g => { const r = rectOf(), k = r.w / ROOM.w; return [r.x + g.x * k, r.y + (g.y - 100) * k]; };
   return {
     down(p) {
       if (s.phase !== 'decor' || talking()) return;
@@ -111,28 +124,31 @@ HOME.home = () => {
       const W = V.W, H = V.H, r = rectOf(), k = r.w / ROOM.w;
       c.fillStyle = '#fbe3ec'; c.fillRect(0, 0, W, H);
       // ともだち と ぷにゅ の うごき
-      if (s.friend.walk && !talking()) {
-        s.friend.x = lerp(s.friend.x, 760, 1 - Math.pow(0.02, dt));
-        if (Math.abs(s.friend.x - 760) < 6) { s.friend.walk = false; afterArrive(); }
+      if (s.guests[0].walk && !talking()) {
+        for (const g of s.guests) g.x = lerp(g.x, g.tx, 1 - Math.pow(0.02, dt));
+        if (s.guests.every(g => Math.abs(g.x - g.tx) < 6)) { for (const g of s.guests) g.walk = false; afterArrive(); }
       }
-      if (s.friend.leave && !talking()) {
-        s.friend.x += 420 * dt;
-        if (s.friend.x > 1150) {
-          s.friend.leave = false; s.friend.show = false; s.phase = 'evening';
-          talk([{ who: 'punyu', text: 'きょうは いっぱい あそんだな〜' }, { who: 'punyu', text: 'あしたも がっこう たのしみ！ そろそろ ねよう' }]);
+      if (s.guests[0].leave && !talking()) {
+        for (const g of s.guests) g.x += 520 * dt;
+        if (s.guests.every(g => g.x > 1150)) {
+          for (const g of s.guests) { g.leave = false; g.show = false; }
+          s.phase = 'evening';
+          talk(party ? [{ who: 'punyu', text: 'さいこうの 1しゅうかん だったな〜' }, { who: 'punyu', text: 'にっきを かいて ねよう' }]
+            : [{ who: 'punyu', text: 'きょうは いっぱい あそんだな〜' }, { who: 'punyu', text: 'あしたも がっこう たのしみ！ そろそろ ねよう' }]);
         }
       }
       if (s.phase === 'sleep') {
         s.sleepT += dt; s.night = Math.min(1, s.sleepT / 1.6);
         const bed = room.items.find(it => it.id === 'bed');
         if (bed) { s.punyu.x = lerp(s.punyu.x, bed.x, 1 - Math.pow(0.01, dt)); s.punyu.y = lerp(s.punyu.y, bed.y - 15, 1 - Math.pow(0.01, dt)); }
-        if (s.sleepT > 3.2 && !s.ended) { s.ended = true; G.go('end'); }
+        if (s.sleepT > 3.2 && !s.ended) { s.ended = true; G.next(); }
       }
       const hop = s.phase === 'visit' ? Math.abs(Math.sin(G.T * 5)) * 8 : 0;
+      const gHop = g => g.walk || g.leave ? Math.abs(Math.sin(G.T * 10 + g.x)) * 10 : party && s.phase === 'visit' ? Math.max(0, Math.sin(G.T * 6 + g.tx)) * 14 : 0;
       const extras = [
         { y: s.punyu.y, draw: cc => drawPunyu(cc, s.punyu.x, s.punyu.y - hop, 62 * depth(s.punyu.y), { mood: s.phase === 'sleep' && s.sleepT > 1.4 ? 'sleep' : 'happy', blanket: s.phase === 'sleep' && s.sleepT > 1.4 }) },
       ];
-      if (s.friend.show) extras.push({ y: s.friend.y, draw: cc => drawCreature(cc, G.day.friend, s.friend.x, s.friend.y - (s.friend.walk || s.friend.leave ? Math.abs(Math.sin(G.T * 10)) * 10 : 0), 58 * depth(s.friend.y), { t: G.T, mood: 'happy' }) });
+      for (const g of s.guests) if (g.show) extras.push({ y: g.y, draw: cc => drawCreature(cc, g.sp, g.x, g.y - gHop(g), (party ? 48 : 58) * depth(g.y), { t: G.T + g.tx, mood: 'happy' }) });
       drawHomeRoom(c, room, r, { extras, glow: s.phase === 'decor' ? s.sel : null, lift: s.drag?.it, night: s.night });
       if (s.phase === 'sleep' && s.sleepT > 1.6) {
         for (let i = 0; i < 3; i++) { const a = (G.T * 0.6 + i / 3) % 1; c.globalAlpha = 1 - a; text(c, 'z', r.x + (s.punyu.x + 60) * k + a * 50, r.y + (s.punyu.y - 120) * k - a * 80, 28 + i * 6, { color: '#fff3b0' }); c.globalAlpha = 1; }

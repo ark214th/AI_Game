@@ -3,33 +3,96 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newSave, normalize, buy, takeOut, stored, putAway, recolor, hangPicture, placeCraft, friendComments, friendLoves,
-  tryBag, bagDone, danceChart, judge, findNote, danceRate, danceStars, BEAT, COUNT_IN, SONG_BEATS, HIT,
+  tryBag, bagDone, bagChoices, dayNeeds, danceChart, judge, findNote, danceRate, danceStars, beatOf, songBeats, COUNT_IN, HIT,
+  finishDay, diaryLines, mathQuestions, kokugoQuestions, quizStars, raceTap, raceDecay, raceRank, normalizeCostume, WORDS,
   ropeClear, ropeStars, ropePeriod, JUMP_TIME, tagStars, newCraft, addPart, clampPart, normalizeCraft, craftReady, dayStickers, itemDef,
 } from './core.mjs';
-import { SHOP, CLASSMATES, BAG_ITEMS, CRAFT_MAX_PARTS, FEEDBACK, RECESS, SCHEDULE } from './data.mjs';
+import { SHOP, CLASSMATES, BAG_ITEMS, CRAFT_MAX_PARTS, SONGS, POSES } from './data.mjs';
+import { DAYS, SUBJECTS, LUNCHES, AUDIENCE } from './story.mjs';
 import { ITEMS, SPECIES } from '../fushigi-pet-hotel/data.mjs';
 
 const PIC = 'data:image/jpeg;base64,AAAA';
 
-test('クラスメートと おみせの かぐは ペットホテルに いる', () => {
-  for (const sp of CLASSMATES) assert.ok(SPECIES[sp], sp);
-  for (const r of RECESS) assert.ok(CLASSMATES.includes(r.sp));
+test('クラスメートと おみせの かぐと みにくる みんなは ペットホテルに いる', () => {
+  for (const sp of [...CLASSMATES, ...AUDIENCE]) assert.ok(SPECIES[sp], sp);
   for (const e of SHOP) assert.ok(ITEMS[e.id], e.id);
 });
 
-test('じかんわりの もちものは ランドセルに いれられる もの', () => {
-  for (const sc of SCHEDULE) assert.ok(BAG_ITEMS.find(b => b.id === sc.item && b.need), sc.item);
-  for (const b of BAG_ITEMS.filter(b => !b.need)) assert.ok(b.say, b.id + ' に ことばが ある');
+test('1しゅうかんの よてい：じゅぎょう・やすみじかん・きゅうしょく・はなす ひとが そろっている', () => {
+  const who = new Set([...CLASSMATES, 'punyu', 'pururun', 'dora']);
+  for (let d = 1; d <= 5; d++) {
+    const D = DAYS[d];
+    assert.equal(D.periods.length, 3);
+    for (const p of D.periods) if (p) assert.ok(SUBJECTS[p.id], p.id);
+    for (const p of D.periods) if (p?.arg?.song) assert.ok(SONGS[p.arg.song], p.arg.song);
+    assert.ok(D.recess.length >= 2);
+    for (const r of D.recess) assert.ok(CLASSMATES.includes(r.sp));
+    assert.ok(LUNCHES[D.lunch]);
+    for (const sp of Object.keys(LUNCHES[D.lunch].talk)) assert.ok(CLASSMATES.includes(sp));
+    for (const l of [...D.walk, ...D.hello, ...D.bye, ...(D.lunchEnd || []), ...D.morning]) if (l.who) assert.ok(who.has(l.who), l.who);
+    assert.ok(CLASSMATES.includes(D.walkWith));
+  }
+  assert.equal(DAYS[5].periods[2].id, 'recital', 'きんようびは はっぴょうかい');
 });
 
-test('ランドセル：いる もの だけ はいる', () => {
-  const packed = [];
-  assert.equal(tryBag(packed, 'donut'), 'no');
-  assert.equal(tryBag(packed, 'crayon'), 'ok');
-  assert.equal(tryBag(packed, 'crayon'), 'dup');
-  assert.equal(bagDone(packed), false);
-  tryBag(packed, 'gym'); tryBag(packed, 'scissors');
-  assert.equal(bagDone(packed), true);
+test('ランドセル：その ひの じかんわりで いる ものが かわる', () => {
+  for (let d = 1; d <= 5; d++) {
+    const needs = dayNeeds(d), ch = bagChoices(d, 0);
+    assert.equal(ch.length, 6);
+    assert.equal(new Set(ch.map(x => x.id)).size, 6);
+    for (const n of needs) assert.ok(ch.find(x => x.id === n && x.need), d + ':' + n);
+    for (const x of ch.filter(x => !x.need)) assert.ok(x.say);
+  }
+  assert.deepEqual(dayNeeds(5), ['gym', 'costumebag']);
+  const packed = [], needs = dayNeeds(1);
+  assert.equal(tryBag(packed, 'donut', needs), 'no');
+  assert.equal(tryBag(packed, 'crayon', needs), 'ok');
+  assert.equal(tryBag(packed, 'crayon', needs), 'dup');
+  assert.equal(bagDone(packed, needs), false);
+  tryBag(packed, 'gym', needs); tryBag(packed, 'scissors', needs);
+  assert.equal(bagDone(packed, needs), true);
+});
+
+test('1しゅうかん：にっきを かくと つぎの ひ。きんようびの つぎは また げつようび', () => {
+  const s = newSave();
+  for (let d = 1; d <= 5; d++) { assert.equal(s.week.day, d); finishDay(s, d, { lines: diaryLines(d, { draw: true, danceStars: 2 }, 'ふわり'), pic: null, stars: 2, friend: 'fuwari' }); }
+  assert.equal(s.week.day, 1); assert.equal(s.week.cleared, true); assert.equal(s.week.weeks, 1);
+  const t = normalize(JSON.parse(JSON.stringify(s)));
+  assert.equal(t.week.cleared, true); assert.equal(Object.keys(t.diary).length, 5);
+  assert.ok(t.diary[5].lines.some(l => l.includes('はっぴょうかい')));
+  assert.equal(normalize({ week: { day: 9 } }).week.day, 1);
+});
+
+test('さんすう と こくご の もんだい', () => {
+  for (let seed = 0; seed < 30; seed++) {
+    for (const q of mathQuestions(seed)) {
+      assert.ok(q.choices.includes(q.answer)); assert.equal(new Set(q.choices).size, 3);
+      assert.ok(q.answer >= 1 && q.answer <= 10, 'こたえは 10まで');
+      assert.ok(q.choices.every(n => n >= 1));
+    }
+    for (const q of kokugoQuestions(seed)) {
+      assert.ok(q.choices.includes(q.answer)); assert.equal(new Set(q.choices).size, 3);
+      assert.equal([...q.word][q.hole], q.answer);
+    }
+  }
+  for (const [w] of WORDS) assert.match(w, /^[ぁ-ん]+$/, 'ひらがな だけ');
+  assert.equal(quizStars(0), 3); assert.equal(quizStars(4), 1);
+});
+
+test('かけっこ：はやく タッチすれば 1いに なれる', () => {
+  let v = 0, me = 0; const op = [0, 0];
+  for (let t = 0; t < 30 && me < 100; t += 0.05) {
+    if (Math.round(t * 20) % 5 === 0) v = raceTap(v);      // 1びょうに 4かい
+    v = raceDecay(v, 0.05); me += v * 0.05 * 0.7;
+    op[0] += 10.5 * 0.05 * 0.7; op[1] += 11.3 * 0.05 * 0.7;
+  }
+  assert.equal(raceRank(me, op), 1);
+  assert.equal(raceRank(10, [20, 5]), 2);
+});
+
+test('いしょう：へんな データは なおす', () => {
+  assert.equal(normalizeCostume(null), null);
+  assert.deepEqual(normalizeCostume({ hat: 'x', cape: 'y', deco: 'z' }), { hat: 'crown', cape: '#ff6f91', deco: 'sparkle' });
 });
 
 test('ほぞん：こわれた データでも はじめられる', () => {
@@ -85,13 +148,6 @@ test('おみせ：シールで かえて、しまって また だせる', () =>
   assert.ok(recolor(sofa)); assert.equal(sofa.c, 1);
 });
 
-test('1にち あそぶと かぐが いくつか かえる シールが もらえる', () => {
-  const all = dayStickers({ draw: true, recess: true, lunch: true, craft: true, dance: true, danceStars: 3 });
-  const min = dayStickers({ draw: true, recess: true, lunch: true, craft: true, dance: true, danceStars: 0 });
-  const prices = SHOP.map(e => e.price).sort((a, b) => a - b);
-  assert.ok(min >= prices[0] + prices[1] + prices[2], 'いちばん すくなくても 3つ かえる');
-  assert.ok(all >= 13);
-});
 
 test('ともだちの ことば：すきな ものが あると よろこぶ', () => {
   for (const sp of CLASSMATES) {
@@ -105,17 +161,23 @@ test('ともだちの ことば：すきな ものが あると よろこぶ', (
   }
 });
 
-test('ダンス：おんぷは じゅんばんで、さいしょの 4はくは かぞえるだけ', () => {
-  const ch = danceChart();
-  assert.ok(ch.length >= 40);
-  for (let i = 1; i < ch.length; i++) assert.ok(ch[i].t >= ch[i - 1].t);
-  assert.ok(ch[0].t >= COUNT_IN * BEAT);
-  assert.ok(ch.at(-1).beat < SONG_BEATS);
-  for (const n of ch) assert.ok(n.lane >= 0 && n.lane <= 3);
-  // おなじ ボタンが ちかすぎない（8ぶ より みじかくない）
-  for (let i = 1; i < ch.length; i++) for (let j = i - 1; j >= 0 && ch[i].t - ch[j].t < BEAT; j--) {
-    if (ch[i].lane === ch[j].lane) assert.ok(ch[i].t - ch[j].t >= BEAT / 2 - 1e-9);
+test('ダンス：どの きょくも おんぷは じゅんばんで、ボタンの かずに おさまる', () => {
+  for (const id of Object.keys(SONGS)) for (const part of [0, 1]) {
+    const ch = danceChart(id, part), BEAT = beatOf(id);
+    assert.ok(ch.length >= 12, id);
+    for (let i = 1; i < ch.length; i++) assert.ok(ch[i].t >= ch[i - 1].t);
+    assert.ok(ch[0].t >= COUNT_IN * BEAT);
+    assert.ok(ch.at(-1).beat < songBeats(id, part));
+    for (const n of ch) assert.ok(n.lane >= 0 && n.lane < SONGS[id].lanes, id + ' lane');
+    for (const k of SONGS[id].bars) assert.ok(SONGS[id].pat[k], id + ' ' + k);
+    // おなじ ボタンが 8ぶ より ちかくない
+    for (let i = 1; i < ch.length; i++) for (let j = i - 1; j >= 0 && ch[i].t - ch[j].t < BEAT; j--) {
+      if (ch[i].lane === ch[j].lane) assert.ok(ch[i].t - ch[j].t >= BEAT / 2 - 1e-9, id);
+    }
+    if (part === 1) assert.ok(ch.length < danceChart(id).length);
+    assert.equal(SONGS[id].mel.length, 32);
   }
+  assert.ok(POSES.length >= 4);
 });
 
 test('ダンス：はんてい と ほし', () => {
@@ -126,7 +188,7 @@ test('ダンス：はんてい と ほし', () => {
   assert.equal(findNote(notes, 1, 1.05), notes[1]);
   assert.equal(findNote(notes, 0, 1.5), null);
   assert.equal(findNote(notes, 0, 1.9), notes[2]);
-  const n = danceChart().length;
+  const n = danceChart('kirakira').length;
   assert.equal(danceStars(danceRate(n, 0, n)), 3);
   assert.equal(danceStars(danceRate(0, 0, n)), 0);
   assert.equal(danceStars(danceRate(Math.ceil(n / 2), 0, n)), 1);
@@ -162,5 +224,4 @@ test('こうさく：ぶひんは だいの まわりに おさまり、かず�
 
 test('かぐの きまりが ぜんぶ ある', () => {
   for (const id of ['mypic', 'mycraft', ...SHOP.map(e => e.id), 'bed', 'window', 'rug']) assert.ok(itemDef(id), id);
-  assert.equal(FEEDBACK.length, 6);
 });

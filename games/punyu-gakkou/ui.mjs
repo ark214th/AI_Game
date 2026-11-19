@@ -83,6 +83,7 @@ export const isPressing = () => !!pressed;
 // ---------- おはなし（したの まど） ----------
 // talk([{ who, text, mood }], つぎに すること)
 let talkQ = null, talkDone = null, talkT = 0;
+export function resetTalk() { talkQ = null; talkDone = null; }
 export function talk(lines, done) { talkQ = lines.filter(Boolean).map(l => typeof l === 'string' ? { who: null, text: l } : l); talkDone = done || null; talkT = 0; if (!talkQ.length) { talkQ = null; done?.(); } }
 export const talking = () => !!talkQ;
 export const talkWho = () => talkQ?.[0]?.who || null;

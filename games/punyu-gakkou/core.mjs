@@ -1,8 +1,10 @@
 // ぷにゅの がっこう：がめんに よらない きまり（テストできる ところ）
 import { ITEMS, ROOM, SPECIES, WALLS, FLOORS } from '../fushigi-pet-hotel/data.mjs';
-import { BAG_ITEMS, SHOP, STICKERS, DANCE_BPM, CRAFT_PARTS, CRAFT_BASES, CRAFT_COLORS, CRAFT_MAX_PARTS, OUTFITS, FEEDBACK, FREE_WALLS, FREE_FLOORS, RECESS } from './data.mjs';
+import { BAG_ITEMS, DECOYS, SHOP, STICKERS, SONGS, CRAFT_PARTS, CRAFT_BASES, CRAFT_COLORS, CRAFT_MAX_PARTS, OUTFITS, FEEDBACK, FREE_WALLS, FREE_FLOORS } from './data.mjs';
+import { DAYS, SUBJECTS } from './story.mjs';
 
 export const SAVE_KEY = 'punyu-gakkou-v1';
+const clampN = (v, a, b) => Number.isFinite(v) ? Math.max(a, Math.min(b, Math.round(v))) : a;
 
 // ---------- ほぞん ----------
 // ぷにゅの へやの かぐ。mypic（かいた え）と mycraft（つくった もの）は ref で どれかを さす
@@ -32,8 +34,12 @@ export function newSave() {
     owned: {},            // おみせで かった かぐ（id → かず）
     pictures: [],         // かいた え（dataURL）
     crafts: [],           // つくった もの
-    best: { dance: 0, rope: 0 },
-    feedback: [],         // { day, pick }
+    best: { rope: 0 },    // ダンスは きょくの id ごとの ★
+    feedback: [],         // { day, pick }（おためしばんの なごり）
+    week: { day: 1, cleared: false, weeks: 0 },   // つぎに あそぶ ようび（1〜5）
+    diary: {},            // ようび → { lines, pic, stars, friend }
+    costume: null,        // はっぴょうかいの いしょう { hat, cape, deco }
+    poster: null,         // はっぴょうかいの ポスター（dataURL）
   };
 }
 
@@ -48,7 +54,19 @@ export function normalize(raw) {
   if (Array.isArray(raw.pictures)) s.pictures = raw.pictures.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(-MAX_PICS);
   if (Array.isArray(raw.crafts)) s.crafts = raw.crafts.map(normalizeCraft).filter(Boolean).slice(-MAX_PICS);
   if (raw.owned && typeof raw.owned === 'object') for (const [k, n] of Object.entries(raw.owned)) if (ITEMS[k] && Number.isInteger(n) && n > 0) s.owned[k] = Math.min(9, n);
-  if (raw.best && typeof raw.best === 'object') for (const k of Object.keys(s.best)) if (Number.isFinite(raw.best[k])) s.best[k] = raw.best[k];
+  if (raw.best && typeof raw.best === 'object') for (const k of ['rope', ...Object.keys(SONGS)]) if (Number.isFinite(raw.best[k])) s.best[k] = clampN(raw.best[k], 0, 99);
+  const w = raw.week;
+  if (w && typeof w === 'object') {
+    if (Number.isInteger(w.day) && w.day >= 1 && w.day <= 5) s.week.day = w.day;
+    s.week.cleared = !!w.cleared;
+    if (Number.isInteger(w.weeks) && w.weeks >= 0) s.week.weeks = w.weeks;
+  }
+  if (raw.diary && typeof raw.diary === 'object') for (let d = 1; d <= 5; d++) {
+    const e = raw.diary[d];
+    if (e && Array.isArray(e.lines)) s.diary[d] = { lines: e.lines.filter(l => typeof l === 'string').slice(0, 6), pic: typeof e.pic === 'string' && e.pic.startsWith('data:image/') ? e.pic : null, stars: clampN(e.stars, 0, 3), friend: typeof e.friend === 'string' ? e.friend : null };
+  }
+  s.costume = normalizeCostume(raw.costume);
+  if (typeof raw.poster === 'string' && raw.poster.startsWith('data:image/')) s.poster = raw.poster;
   if (Array.isArray(raw.feedback)) s.feedback = raw.feedback.filter(f => f && FEEDBACK.some(x => x.id === f.pick)).slice(-30);
   const r = raw.room;
   if (r && typeof r === 'object') {
@@ -160,38 +178,44 @@ export const friendLoves = (room, sp) => friendComments(room, sp).some(c => c.ki
 
 // ---------- ランドセル ----------
 // 'ok'：いれた ／ 'no'：いらない もの ／ 'dup'：もう はいってる
-export function tryBag(packed, id) {
-  const it = BAG_ITEMS.find(b => b.id === id);
-  if (!it) return 'no';
-  if (!it.need) return 'no';
+// その ひ ランドセルに いれる もの（おなじ ものは 1かいだけ）
+export function dayNeeds(day) {
+  const d = DAYS[day];
+  const out = [];
+  for (const p of d.periods) {
+    if (!p) continue;
+    const item = p.id === 'recital' ? 'costumebag' : SUBJECTS[p.id].item;
+    if (!out.includes(item)) out.push(item);
+  }
+  return out;
+}
+// ちらばる もの：いる もの ＋ いらない もの（ぜんぶで 6こ）。seed で いつも おなじ
+export function bagChoices(day, seed = 0) {
+  const needs = dayNeeds(day);
+  const decoys = [...DECOYS].sort((a, b) => rand(a.id.length * 31 + day * 7 + seed) - rand(b.id.length * 31 + day * 7 + seed));
+  const list = [...needs.map(id => BAG_ITEMS.find(b => b.id === id)), ...decoys.slice(0, 6 - needs.length)];
+  return list.sort((a, b) => rand(hs(a.id) + day * 3 + seed) - rand(hs(b.id) + day * 3 + seed)).map(x => ({ ...x, need: needs.includes(x.id) }));
+}
+export function tryBag(packed, id, needs) {
+  if (!needs.includes(id)) return 'no';
   if (packed.includes(id)) return 'dup';
   packed.push(id);
   return 'ok';
 }
-export const bagDone = packed => BAG_ITEMS.filter(b => b.need).every(b => packed.includes(b.id));
+export const bagDone = (packed, needs) => needs.every(id => packed.includes(id));
+const hs = str => [...str].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 7);
+const rand = i => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
 
 // ---------- ダンス ----------
-export const BEAT = 60 / DANCE_BPM;
 export const COUNT_IN = 4;          // さいしょの 4はくは かぞえるだけ
-// 1しょうせつの ならび [はく, ボタン]。0 ばんざい・1 ひだり・2 みぎ・3 くるり
-const BARS = {
-  A: [[0, 0], [2, 0]],
-  A2: [[0, 1], [2, 2]],
-  B: [[0, 1], [1, 2], [2, 1], [3, 2]],
-  C: [[0, 0], [1, 0], [2, 3]],
-  D: [[0, 2], [1, 2], [2, 1], [3, 1]],
-  E: [[0, 3], [2, 0], [3, 0]],
-  F: [[0, 1], [0.5, 2], [1, 1], [2, 0], [3, 3]],
-  G: [[0, 2], [0.5, 1], [1, 2], [2, 0], [3, 0]],
-  END: [[0, 0]],
-};
-const SONG = ['A', 'A2', 'A', 'A2', 'B', 'C', 'B', 'E', 'D', 'C', 'D', 'E', 'F', 'C', 'G', 'E', 'END'];
-export const SONG_BEATS = COUNT_IN + SONG.length * 4;
-
-export function danceChart() {
-  const notes = [];
-  SONG.forEach((k, bar) => {
-    for (const [b, lane] of BARS[k]) notes.push({ t: (COUNT_IN + bar * 4 + b) * BEAT, lane, beat: COUNT_IN + bar * 4 + b });
+export const beatOf = id => 60 / SONGS[id].bpm;
+// part 1 は まえ はんぶん（れんしゅう よう）
+export const songBars = (id, part = 0) => part === 1 ? [...SONGS[id].bars.slice(0, SONGS[id].half), 'END'] : SONGS[id].bars;
+export const songBeats = (id, part = 0) => COUNT_IN + songBars(id, part).length * 4;
+export function danceChart(id = 'kirakira', part = 0) {
+  const song = SONGS[id], beat = beatOf(id), notes = [];
+  songBars(id, part).forEach((k, bar) => {
+    for (const [b, lane] of song.pat[k]) notes.push({ t: (COUNT_IN + bar * 4 + b) * beat, lane, beat: COUNT_IN + bar * 4 + b });
   });
   return notes;
 }
@@ -262,4 +286,85 @@ export function dayStickers(r) {
   if (r.dance) n += STICKERS.danceBase + (r.danceStars || 0);
   return n;
 }
-export const recessOf = game => RECESS.find(r => r.game === game);
+
+// ---------- かけっこ ----------
+// タッチ 1かいで スピードが あがり、だんだん おちる。ともだちは だいたい おなじ はやさで はしる
+export const RACE_LEN = 100;
+export const raceTap = v => Math.min(34, v + 6);
+export const raceDecay = (v, dt) => Math.max(0, v - v * 1.6 * dt);
+export const raceRank = (me, others) => 1 + others.filter(o => o > me).length;
+export const raceStars = rank => rank === 1 ? 3 : rank === 2 ? 2 : 1;
+
+// ---------- さんすう（かぞえっこ） ----------
+// q：{ kind: 'count'|'add', a, b, icon, answer, choices }
+const MATH_ICONS = ['🍎', '⭐', '🌸', '🐟', '🍓', '🎈', '🍩', '🐞'];
+export function mathQuestions(seed = 0) {
+  const r = k => rand(seed * 13 + k);
+  const qs = [];
+  const plan = ['count', 'count', 'count', 'add', 'add'];
+  plan.forEach((kind, i) => {
+    let a, b = 0;
+    if (kind === 'count') a = 3 + Math.floor(r(i) * (4 + i * 2));          // 3〜 だんだん ふえる
+    else { a = 1 + Math.floor(r(i) * 5); b = 1 + Math.floor(r(i + 50) * (9 - a)); }
+    a = Math.min(a, 10); const answer = a + b;
+    const set = new Set([answer]);
+    for (let k = 1; set.size < 3; k++) { const d = answer + (r(i * 7 + k) < 0.5 ? -1 : 1) * (1 + Math.floor(r(i * 3 + k) * 2)); if (d >= 1 && d <= 12) set.add(d); }
+    const choices = [...set].sort((x, y) => r(x + i) - r(y + i));
+    qs.push({ kind, a, b, icon: MATH_ICONS[Math.floor(r(i + 9) * MATH_ICONS.length)], answer, choices });
+  });
+  return qs;
+}
+
+// ---------- こくご（ひらがな あて） ----------
+export const WORDS = [
+  ['りんご', '🍎'], ['いちご', '🍓'], ['すいか', '🍉'], ['ぶどう', '🍇'], ['さかな', '🐟'], ['うさぎ', '🐰'], ['ねこ', '🐱'], ['いぬ', '🐶'],
+  ['くま', '🐻'], ['かさ', '☂️'], ['くつ', '👟'], ['たまご', '🥚'], ['とけい', '⏰'], ['ほし', '⭐'], ['はな', '🌸'], ['つき', '🌙'],
+  ['くるま', '🚗'], ['ふね', '⛵'], ['かめ', '🐢'], ['きのこ', '🍄'],
+];
+const KANA = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわん';
+export function kokugoQuestions(seed = 0, n = 6) {
+  const r = k => rand(seed * 17 + k);
+  const words = [...WORDS].sort((a, b) => r(a[0].charCodeAt(0)) - r(b[0].charCodeAt(0))).slice(0, n);
+  return words.map(([word, icon], i) => {
+    const chars = [...word], hole = Math.floor(r(i + 3) * chars.length), answer = chars[hole];
+    const set = new Set([answer]);
+    for (let k = 1; set.size < 3; k++) set.add(KANA[Math.floor(r(i * 11 + k) * KANA.length)]);
+    return { word, icon, hole, answer, choices: [...set].sort((x, y) => r(x.charCodeAt(0) + i) - r(y.charCodeAt(0) + i)) };
+  });
+}
+export const quizStars = misses => misses === 0 ? 3 : misses <= 2 ? 2 : 1;
+
+// ---------- いしょう ----------
+export const COSTUME_HATS = ['crown', 'tiara', 'star', 'flower', 'bow', 'top'];
+export const COSTUME_CAPES = ['#ff6f91', '#7fc7ff', '#ffd84a', '#b58cff', '#8fd36a', '#ffffff'];
+export const COSTUME_DECOS = ['sparkle', 'heart', 'note', 'none'];
+export const defaultCostume = () => ({ hat: 'crown', cape: '#ff6f91', deco: 'sparkle' });
+export function normalizeCostume(c) {
+  if (!c || typeof c !== 'object') return null;
+  return { hat: COSTUME_HATS.includes(c.hat) ? c.hat : 'crown', cape: COSTUME_CAPES.includes(c.cape) ? c.cape : COSTUME_CAPES[0], deco: COSTUME_DECOS.includes(c.deco) ? c.deco : 'sparkle' };
+}
+
+// ---------- 1しゅうかん ----------
+// その ひが おわった：にっきを のこして つぎの ひへ（きんようびの つぎは また げつようびから）
+export function finishDay(s, day, entry) {
+  s.diary[day] = entry;
+  s.days++;
+  if (day >= 5) { s.week.cleared = true; s.week.weeks++; s.week.day = 1; }
+  else s.week.day = day + 1;
+}
+// にっきの ことば
+export function diaryLines(day, r, friendName) {
+  const L = [];
+  const did = { draw: 'おえかき', dance: 'ダンス', craft: 'こうさく', math: 'さんすう', kokugo: 'こくご', costume: 'いしょう づくり', music: 'けんばんハーモニカ', race: 'かけっこ', rehearsal: 'リハーサル', recital: 'はっぴょうかい' };
+  if (day === 1) L.push('はじめて がっこうに いったよ。');
+  if (day === 2) L.push('きららの おたんじょうびを おいわい したよ。');
+  if (day === 3) L.push('はっぴょうかいの いしょうを つくったよ。');
+  if (day === 4) L.push('ちゃぷと ダンスの れんしゅうを したよ。');
+  if (day === 5) L.push('ダンス はっぴょうかい！ みんなで おどったよ。');
+  const done = Object.keys(did).filter(k => r[k] && !(day === 3 && k === 'costume') && !(day === 5 && k === 'recital'));
+  if (done.length) L.push(done.slice(0, 3).map(k => did[k]).join('、 ') + ' を したよ。');
+  if (friendName) L.push(`${friendName}と なかよく あそんだよ。`);
+  if (r.danceStars) L.push(`ダンスは ${'★'.repeat(r.danceStars)}${'☆'.repeat(3 - r.danceStars)} だった！`);
+  L.push(day === 5 ? 'さいこうの 1しゅうかん だった！' : 'あしたも たのしみ！');
+  return L;
+}

@@ -1,5 +1,6 @@
 // こうかおん・チャイム・BGM・ダンスの きょく（Web Audio で つくる。おとの ファイルは つかわない）
-import { BEAT, COUNT_IN, SONG_BEATS } from './core.mjs';
+import { COUNT_IN, beatOf, songBars } from './core.mjs';
+import { SONGS } from './data.mjs';
 
 const mtof = n => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -91,11 +92,12 @@ export class Sound {
 
   // ---------- ダンスの きょく ----------
   // かえりちは きょくの 0はくめの とき（ctx の じかん）
-  startSong(delay = 0.6) {
-    if (!this.ctx) { this.song = { start: this.now() + delay, beat: 0 }; return this.song.start; }
+  startSong(id = 'kirakira', part = 0, delay = 0.6) {
+    const bars = songBars(id, part);
+    const song = { id, def: SONGS[id], bars, beatLen: beatOf(id), total: COUNT_IN + bars.length * 4, start: this.now() + delay, beat: 0 };
     this.bgm = null;
-    this.song = { start: this.ctx.currentTime + delay, beat: 0 };
-    return this.song.start;
+    this.song = song;
+    return song.start;
   }
   stopSong() { this.song = null; }
   songTime() { return this.song ? this.now() - this.song.start : -1; }
@@ -104,9 +106,10 @@ export class Sound {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const ahead = this.ctx.currentTime + 0.25;
     if (this.song) {
-      while (this.song.beat < SONG_BEATS * 2 && this.song.start + this.song.beat * BEAT / 2 < ahead) {
-        this.songStep(this.song.beat, this.song.start + this.song.beat * BEAT / 2);
-        this.song.beat++;
+      const sg = this.song;
+      while (sg.beat < sg.total * 2 && sg.start + sg.beat * sg.beatLen / 2 < ahead) {
+        this.songStep(sg, sg.beat, sg.start + sg.beat * sg.beatLen / 2);
+        sg.beat++;
       }
     }
     if (this.bgm && !this.song) {
@@ -127,43 +130,50 @@ export class Sound {
   }
 
   // 8ぶおんぷ ずつ（h：はんぱく の ばんごう）
-  songStep(h, t) {
-    const dest = this.music, beat = h / 2;
+  songStep(sg, h, t) {
+    const dest = this.music, beat = h / 2, def = sg.def, BEAT = sg.beatLen;
     if (beat < COUNT_IN) {
       if (h % 2 === 0) this.tone(beat === 0 ? 1568 : 1175, 0.08, { type: 'square', vol: 0.06, abs: t, dest: this.sfx });
       return;
     }
     const b = beat - COUNT_IN, bar = Math.floor(b / 4), inBar = b - bar * 4;
-    if (beat >= SONG_BEATS - 4) {
+    if (bar >= sg.bars.length - 1) {
       // さいごの じゃーん
-      if (h === (SONG_BEATS - 4) * 2) { [48, 60, 64, 67, 72].forEach(n => this.tone(mtof(n), 1.6, { type: 'triangle', vol: 0.12, abs: t, dest, attack: 0.01 })); this.hiss(t, 0.8, 0.12, 3000); }
+      if (h === (COUNT_IN + (sg.bars.length - 1) * 4) * 2) { [...def.chords[0], def.chords[0][0] - 12].forEach(n => this.tone(mtof(n), 1.6, { type: 'triangle', vol: 0.11, abs: t, dest, attack: 0.01 })); this.hiss(t, 0.8, 0.12, 3000); }
       return;
     }
-    const chord = SONG_CHORDS[bar % 4];
-    // キック・クラップ・ハイハット
-    if (h % 2 === 0) this.tone(150, 0.16, { vol: 0.5, slide: 0.3, abs: t, dest });
-    if (inBar === 1 || inBar === 3) this.hiss(t, 0.14, 0.25, 1500);
-    this.hiss(t, 0.04, h % 2 ? 0.06 : 0.03, 7000);
-    // ベース
-    this.tone(mtof(chord[0] - 12), BEAT * 0.45, { type: 'triangle', vol: 0.28, abs: t, dest });
-    // コード（うらはく）
-    if (h % 2 === 1) chord.slice(1).forEach(n => this.tone(mtof(n), BEAT * 0.3, { type: 'square', vol: 0.025, abs: t, dest }));
-    // メロディ（4しょうせつで ひとまわり。うしろの はんぶんは 1オクターブ うえ）
-    if (bar >= 4) {
-      const m = SONG_MEL[(bar % 4) * 8 + (h % 8)];
-      if (m) this.tone(mtof(m + (bar >= 12 ? 12 : 0)), BEAT * 0.4, { type: 'triangle', vol: 0.13, abs: t, dest });
+    const chord = def.chords[bar % def.chords.length], style = def.style || 'base';
+    // たいこ
+    if (style === 'soft') {
+      if (inBar === 0 && h % 2 === 0) this.tone(140, 0.2, { vol: 0.3, slide: 0.4, abs: t, dest });
+      if (h % 2 === 0) this.hiss(t, 0.03, 0.02, 8000);
+    } else {
+      if (h % 2 === 0) this.tone(150, 0.16, { vol: 0.5, slide: 0.3, abs: t, dest });
+      if (style === 'pop' && h % 4 === 3) this.tone(150, 0.12, { vol: 0.3, slide: 0.3, abs: t, dest });
+      if (inBar === 1 || inBar === 3) this.hiss(t, 0.14, 0.25, 1500);
+      this.hiss(t, 0.04, h % 2 ? 0.06 : 0.03, 7000);
     }
+    // ベース
+    if (style !== 'soft' || h % 2 === 0) this.tone(mtof(chord[0] - 12), BEAT * 0.45, { type: 'triangle', vol: 0.28, abs: t, dest });
+    if (style === 'pop' && h % 2 === 1) this.tone(mtof(chord[0]), BEAT * 0.25, { type: 'triangle', vol: 0.12, abs: t, dest });
+    // コード（うらはく）
+    if (h % 2 === 1) chord.slice(1).forEach(n => this.tone(mtof(n), BEAT * 0.3, { type: style === 'soft' ? 'sine' : 'square', vol: style === 'soft' ? 0.05 : 0.025, abs: t, dest }));
+    // メロディ（4しょうせつで ひとまわり）
+    if (bar >= def.melFrom) {
+      const m = def.mel[(bar % 4) * 8 + (h % 8)];
+      if (m) this.tone(mtof(m + (bar >= def.octaveFrom ? 12 : 0)), BEAT * 0.4, { type: 'triangle', vol: 0.13, abs: t, dest });
+    }
+  }
+  // けんばんハーモニカの おと（おんがくの じゅぎょう）
+  kenban(n) { if (this.ctx && this.on) { this.tone(mtof(n), 0.35, { type: 'square', vol: 0.06, attack: 0.02 }); this.tone(mtof(n), 0.35, { type: 'sine', vol: 0.12, attack: 0.02 }); } }
+  // はくしゅ
+  applause(sec = 2.5) {
+    if (!this.ctx || !this.on) return;
+    const now = this.ctx.currentTime;
+    for (let i = 0; i < sec * 28; i++) this.hiss(now + Math.random() * sec, 0.05, 0.05 + Math.random() * 0.08, 1200 + Math.random() * 2500, this.sfx);
   }
 }
 
-// C → G → Am → F
-const SONG_CHORDS = [[48, 64, 67, 72], [43, 62, 67, 71], [45, 64, 69, 72], [41, 65, 69, 72]];
-const SONG_MEL = [
-  72, 0, 76, 0, 79, 76, 0, 72,
-  74, 0, 71, 0, 74, 79, 0, 0,
-  76, 0, 72, 0, 76, 81, 0, 79,
-  77, 0, 76, 74, 72, 0, 0, 0,
-];
 const BGM = {
   home: {
     mel: [
