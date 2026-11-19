@@ -1,7 +1,7 @@
 // じゅぎょう と やすみじかん：おえかき・おにごっこ・なわとび・ダンス・こうさく
 import {
   hangPicture, placeCraft, danceChart, judge, findNote, danceRate, danceStars, HIT, BEAT, COUNT_IN,
-  ropePeriod, ropeClear, ropeStars, tagStars, JUMP_TIME, ROPE_GOAL, newCraft, addPart, clampPart, craftReady, normalizeCraft,
+  ropePeriod, ropeClear, ROPE_GRACE, ROPE_LEAD, ropeStars, tagStars, JUMP_TIME, ROPE_GOAL, newCraft, addPart, clampPart, craftReady, normalizeCraft,
 } from './core.mjs';
 import { TEACHER, PEN_COLORS, PEN_SIZES, POSES, RECESS, CRAFT_BASES, CRAFT_COLORS, CRAFT_PARTS, CLASSMATES } from './data.mjs';
 import {
@@ -270,15 +270,31 @@ LESSONS.tag = () => {
 LESSONS.rope = () => {
   G.sound.startBgm('school');
   const sp = 'popuri';
-  const s = { phase: 'intro', phase01: 0, run: false, jumpT: null, fJumpT: null, count: 0, misses: 0, stop: 0, mood: 'happy', ready: 0 };
+  const s = { phase: 'intro', phase01: 0, run: false, jumpT: null, fJumpT: null, count: 0, misses: 0, stop: 0, mood: 'happy', ready: 0, grace: 0, nice: 0 };
   talk([
     { who: sp, text: 'ごろた と ふわりが なわを まわして くれるよ！' },
-    { who: sp, text: 'なわが あしもとに きたら、 がめんを タッチして ぴょん！ 10かい とぼう！' },
+    { who: sp, text: 'きいろい わっかが ちぢんで あしもとに きたら、 がめんを タッチして ぴょん！' },
+    { who: sp, text: 'ひっかかっても すぐ やりなおせるよ。 10かい とぼう！' },
   ], () => { s.phase = 'play'; s.ready = 1.6; });
   const jump = () => {
     if (s.phase !== 'play' || talking() || s.stop > 0) return;
-    if (s.jumpT === null) { s.jumpT = 0; G.sound.play('jump'); }
+    if (s.jumpT !== null) return;
+    s.jumpT = 0; G.sound.play('jump');
+    if (s.grace > 0) { s.grace = 0; s.jumpT = 0.1; success(); }   // ちょっと おそくても セーフ
   };
+  const cxNow = () => V.W / 2, gyNow = () => V.H * 0.86;
+  function success() {
+    s.count++; s.nice = 0.5; G.sound.play('perfect'); floatText(cxNow() - 50, gyNow() - 190, `${s.count}`, '#ff5d86', 48);
+    if (s.count >= ROPE_GOAL) {
+      s.run = false; s.phase = 'done'; G.sound.play('fanfare'); showBanner('10かい とべた！'); burst(cxNow(), gyNow() - 120, 'star', 20);
+      G.save.best.rope = Math.max(G.save.best.rope, s.count);
+      recessDone(sp, ropeStars(s.misses), s.misses ? 'じょうず〜！ たのしかった！' : 'いっかいも ひっかからなかった！ すごい！');
+    }
+  }
+  function miss() {
+    s.misses++; s.run = false; s.stop = 0.9; s.mood = 'yuck'; G.sound.play('trip');
+    floatText(cxNow() - 50, gyNow() - 170, 'あっ！ もういっかい！', '#7f8fd9', 36);
+  }
   return {
     down: jump,
     draw(c, dt) {
@@ -286,7 +302,9 @@ LESSONS.rope = () => {
       drawSchoolyard(c, G.T);
       if (s.phase === 'play' && !talking()) {
         if (s.ready > 0) { s.ready -= dt; if (s.ready <= 0) { s.run = true; s.phase01 = 0; } }
-        if (s.stop > 0) { s.stop -= dt; if (s.stop <= 0) { s.ready = 1.3; s.mood = 'happy'; } }
+        if (s.stop > 0) { s.stop -= dt; if (s.stop <= 0) { s.ready = 1.0; s.mood = 'happy'; } }
+        if (s.grace > 0) { s.grace -= dt; if (s.grace <= 0) miss(); }
+        s.nice = Math.max(0, s.nice - dt);
         if (s.jumpT !== null) { s.jumpT += dt; if (s.jumpT > JUMP_TIME) s.jumpT = null; }
         if (s.fJumpT !== null) { s.fJumpT += dt; if (s.fJumpT > JUMP_TIME) s.fJumpT = null; }
         if (s.run) {
@@ -294,17 +312,10 @@ LESSONS.rope = () => {
           s.phase01 += dt / ropePeriod(s.count);
           if (prev < 0.38 && s.phase01 >= 0.38) { s.fJumpT = 0; if (G.auto) jump(); }
           if (prev < 0.5 && s.phase01 >= 0.5) {
-            if (ropeClear(s.jumpT)) {
-              s.count++; G.sound.play('perfect'); floatText(cx - 50, gy - 190, `${s.count}`, '#ff5d86', 48);
-              if (s.count >= ROPE_GOAL) {
-                s.run = false; s.phase = 'done'; G.sound.play('fanfare'); showBanner('10かい とべた！'); burst(cx, gy - 120, 'star', 20);
-                G.save.best.rope = Math.max(G.save.best.rope, s.count);
-                recessDone(sp, ropeStars(s.misses), s.misses ? 'じょうず〜！ たのしかった！' : 'いっかいも ひっかからなかった！ すごい！');
-              }
-            } else {
-              s.misses++; s.run = false; s.stop = 1.2; s.mood = 'yuck'; G.sound.play('trip');
-              floatText(cx - 50, gy - 170, 'あっ！', '#7f8fd9', 40);
-            }
+            G.sound.play('whoosh');
+            if (ropeClear(s.jumpT)) success();
+            else if (s.jumpT === null) s.grace = ROPE_GRACE;   // まだ とんでいない：すこしだけ まつ
+            else miss();
           }
           if (s.phase01 >= 1) s.phase01 -= 1;
         }
@@ -322,7 +333,20 @@ LESSONS.rope = () => {
       drawCreature(c, 'fuwari', cx + hx, gy, 46, { t: G.T, mood: 'happy' });
       const jh = t => t === null ? 0 : Math.sin(Math.PI * t / JUMP_TIME) * 80;
       // あしもとの あいず
-      if (s.run && s.phase01 > 0.28 && s.phase01 < 0.5) { c.fillStyle = `rgba(255,216,74,${(s.phase01 - 0.28) * 3})`; ell(c, cx - 50, gy + 4, 50, 12); c.fill(); }
+      // ちぢむ わっか：あしもとに ついた ときが とぶ タイミング
+      if (s.run) {
+        const per = ropePeriod(s.count), ideal = 0.5 - ROPE_LEAD / per;
+        let left = (ideal - s.phase01) * per;
+        if (left < -0.3) left += per;
+        if (left <= 0.7 && left >= -0.12) {
+          const k = Math.max(0, left / 0.7);
+          c.strokeStyle = left <= 0.06 ? '#ff5d86' : '#ffc93a'; c.lineWidth = 7;
+          ell(c, cx - 50, gy + 2, 46 + k * 110, 12 + k * 30); c.stroke();
+          if (left <= 0.06) text(c, 'いま！', cx - 50, gy - 120, 34, { color: '#ff5d86', stroke: '#fff', sw: 8 });
+        }
+        c.fillStyle = 'rgba(255,216,74,.45)'; ell(c, cx - 50, gy + 2, 46, 12); c.fill();
+      }
+      if (s.nice > 0) text(c, 'ナイス！', cx - 50, gy - 150 - (0.5 - s.nice) * 40, 30, { color: '#ff9f43', stroke: '#fff', sw: 7 });
       drawCreature(c, sp, cx + 55, gy - jh(s.fJumpT), 40, { t: G.T, mood: 'happy' });
       drawPunyu(c, cx - 50, gy - jh(s.jumpT), 46, { mood: s.mood, sq: s.jumpT !== null ? -0.06 : 0 });
       if (front) drawRope();
@@ -330,7 +354,8 @@ LESSONS.rope = () => {
       panel(c, W / 2 - 110, 74, 220, 66, { fill: 'rgba(255,255,255,.92)' });
       text(c, `${s.count} / ${ROPE_GOAL}`, W / 2, 108, 40, { color: '#ff5d86' });
       if (s.phase === 'play' && s.ready > 0 && !talking()) text(c, s.ready > 0.65 ? 'せーの…' : 'スタート！', W / 2, H * 0.36, 56, { color: '#ff5d86', stroke: '#fff', sw: 12 });
-      if (s.phase === 'play' && !talking()) button(c, { x: W - 200, y: H - 120, w: 170, h: 96 }, 'ぴょん！', jump, { color: '#ffb347', ink: '#fff', shadow: '#d98a20', size: 36 });
+      if (s.phase === 'play' && !talking()) button(c, { x: W - 200, y: H - 120, w: 170, h: 96 }, '', null, { color: '#ffb347', ink: '#fff', shadow: '#d98a20', size: 36 });
+      if (s.phase === 'play' && !talking()) { text(c, 'ぴょん！', W - 115, H - 72, 36, { color: '#fff' }); hitArea({ x: W - 200, y: H - 120, w: 170, h: 96 }, jump, { instant: true }); }
       hud(c, 'なわとび');
     },
   };

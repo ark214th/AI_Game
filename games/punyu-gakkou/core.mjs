@@ -218,10 +218,13 @@ export function danceStars(rate) { return rate >= 0.88 ? 3 : rate >= 0.7 ? 2 : r
 // ---------- なわとび ----------
 // なわは ROPE_PERIOD びょうで 1しゅう。phase 0.5 で あしもとを とおる
 export const ROPE_GOAL = 10;
-export const ropePeriod = jumps => Math.max(0.78, 1.25 - jumps * 0.04);
-export const JUMP_TIME = 0.46;                                       // とんでいる じかん
+// 3かい とぶ ごとに すこし はやく なる（まいかい かわると リズムが とりにくい）
+export const ropePeriod = jumps => Math.max(1.0, 1.4 - Math.floor(jumps / 3) * 0.1);
+export const JUMP_TIME = 0.5;                                        // とんでいる じかん
+export const ROPE_GRACE = 0.14;                                      // なわが とおってから すこしなら おくれて とんでも セーフ
+export const ROPE_LEAD = 0.22;                                       // なわが とおる この びょう まえに とぶと ちょうど いい
 // なわが あしもとを とおった とき、とんでから jumpT びょう たっていれば こえられる（とびはじめ と おりぎわ は だめ）
-export const ropeClear = jumpT => jumpT !== null && jumpT >= 0.04 && jumpT <= JUMP_TIME - 0.03;
+export const ropeClear = jumpT => jumpT !== null && jumpT >= 0.03 && jumpT <= JUMP_TIME - 0.02;
 export const ropeStars = misses => misses === 0 ? 3 : misses <= 2 ? 2 : 1;
 export const tagStars = sec => sec <= 25 ? 3 : sec <= 45 ? 2 : 1;
 
