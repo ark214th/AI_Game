@@ -8,8 +8,18 @@ const $ = id => document.getElementById(id);
 const SAVE_KEY = 'mamore-kingdom-v1';
 const STEP = 1 / 30;
 
-let meta = C.loadMeta((() => { try { return localStorage.getItem(SAVE_KEY); } catch { return null; } })());
-const save = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(meta)); } catch { /* ほぞん できなくても あそべる */ } };
+// ほぞんデータが いつも ほんもの。手もとの meta は その うつし。
+// 開いたままの 古い タブが、古い うつしで 新しい データを 上書きしないように、
+// 何かを 変える ときは かならず 読みなおしてから 変えて、すぐ 書く（commit）。
+const readStore = () => { try { return localStorage.getItem(SAVE_KEY); } catch { return null; } };
+let meta = C.loadMeta(readStore());
+function refresh() { const raw = readStore(); if (raw != null) meta = C.loadMeta(raw); return meta; }
+function commit(fn) {
+  refresh();
+  const r = fn(meta);
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(meta)); } catch { /* ほぞん できなくても あそべる */ }
+  return r;
+}
 const snd = new Sound(meta.sound);
 const R = new Renderer($('field'));
 
@@ -41,7 +51,7 @@ $('titleArt').append(iconCanvas('tower', 'archer', 84), iconCanvas('tower', 'mag
 $('playBtn').onclick = () => { snd.unlock(); snd.play('tap'); openTown(); };
 
 // ───────── まち（おみせ） ─────────
-function openTown() { show('town'); renderTown(); }
+function openTown() { refresh(); show('town'); renderTown(); }
 function renderTown() {
   $('gems').textContent = meta.gems;
   const lv = C.castleLevel(meta);
@@ -58,8 +68,8 @@ function renderTown() {
     const btn = el('button', 'buy' + (it.can ? '' : ' off'), it.cost == null ? 'さいこう！' : `${it.kind === 'unlock' ? '買う' : '強化'}<span>💎${it.cost}</span>`);
     btn.disabled = it.cost == null;
     btn.onclick = () => {
-      if (!it.can) { snd.play('no'); toast(`ほう石が あと ${it.cost - meta.gems}こ いるよ`); return; }
-      C.buy(meta, it.id); save(); snd.play('buy');
+      if (!it.can || !commit(m => C.buy(m, it.id))) { snd.play('no'); toast(`ほう石が あと ${Math.max(1, it.cost - meta.gems)}こ いるよ`); renderTown(); return; }
+      snd.play('buy');
       toast(it.kind === 'unlock' ? `${it.name} が なかまに なった！` : `${it.name} が 強く なった！`);
       renderTown();
     };
@@ -75,18 +85,19 @@ function settings() {
     <a class="row-btn" href="../../">← ゲームいちらんへ</a>
     <button class="row-btn danger" id="mReset">データを はじめから に する</button>
     <button class="row-btn main" id="mClose">とじる</button>`);
-  s.querySelector('#mSound').onclick = () => { meta.sound = !meta.sound; snd.setOn(meta.sound); save(); settings(); };
+  s.querySelector('#mSound').onclick = () => { commit(m => { m.sound = !m.sound; }); snd.setOn(meta.sound); settings(); };
   s.querySelector('#mClose').onclick = closeModal;
   s.querySelector('#mReset').onclick = () => {
     const q = modal(`<h3>ほんとうに けす？</h3><p>ほう石も 買ったものも ぜんぶ なくなるよ。</p>
       <button class="row-btn danger" id="mYes">ぜんぶ けす</button><button class="row-btn main" id="mNo">やめる</button>`);
     q.querySelector('#mNo').onclick = closeModal;
-    q.querySelector('#mYes').onclick = () => { const so = meta.sound; meta = C.newMeta(); meta.sound = so; save(); closeModal(); renderTown(); };
+    q.querySelector('#mYes').onclick = () => { commit(m => Object.assign(m, C.newMeta(), { sound: m.sound })); closeModal(); renderTown(); };
   };
 }
 
 // ───────── ステージえらび ─────────
 function renderStages() {
+  refresh();
   $('gems2').textContent = meta.gems;
   const list = $('stageList'); list.replaceChildren();
   STAGES.forEach((st, si) => {
@@ -112,7 +123,7 @@ function renderStages() {
     if (!meta.heroes[id]) continue;
     const b = el('button', 'hero-btn' + (meta.hero === id ? ' on' : ''));
     b.append(iconCanvas('hero', id, 46), el('span', '', `${HEROES[id].short}<small>Lv${meta.heroes[id]}</small>`));
-    b.onclick = () => { meta.hero = id; save(); snd.play('tap'); renderStages(); };
+    b.onclick = () => { commit(m => { m.hero = id; }); snd.play('tap'); renderStages(); };
     hp.append(b);
   }
 }
@@ -134,6 +145,7 @@ $('stagesBack').onclick = () => { snd.play('tap'); openTown(); };
 // ───────── バトル ─────────
 function startBattle(stageId, diffId, endless) {
   last = { stage: stageId, diff: diffId, endless };
+  refresh();
   g = C.createBattle(meta, stageId, diffId, endless);
   Object.assign(ui, { build: null, selTower: null, heroSel: false, aimMode: false, ghost: null, aim: null, pointer: null, castleLv: C.castleLevel(meta) });
   speed = 1; paused = false; acc = 0; resultShown = false; barKey = ''; hudKey = '';
@@ -231,7 +243,7 @@ function hint() {
   else if (hintStep === 2) msg = 'もっと おいても いいよ。じゅんびが できたら「▶ スタート」！';
   else if (hintStep === 3) msg = 'おいた タワーを タップすると、ゴールドで 強化 できるよ';
   else if (hintStep === 4) msg = 'ヒーローを タップ → 道を タップで いどう。⭐ボタンで わざが 出るよ';
-  if (hintStep >= 3 && hintStep < 9) { hintT += 1 / 60; if (hintT > 7) { hintStep++; hintT = 0; if (hintStep > 4) { hintStep = 9; meta.hint = 1; save(); } } }
+  if (hintStep >= 3 && hintStep < 9) { hintT += 1 / 60; if (hintT > 7) { hintStep++; hintT = 0; if (hintStep > 4) { hintStep = 9; commit(m => { m.hint = 1; }); } } }
   if (hEl.textContent !== msg) hEl.textContent = msg;
   hEl.hidden = !msg || !!g.over;
 }
@@ -253,7 +265,7 @@ function handleEvents() {
       case 'leak': snd.play('leak', 0.15); break;
       case 'wave': snd.play(e.boss ? 'bossIn' : 'wave'); if (e.boss) banner('⚠️ ボスが 来る！', '力を あわせて たおそう', 'warn'); else if (e.n > 1) banner(`波 ${e.n}`); if (hintStep < 3) hintStep = 3; break;
       case 'waveClear': {
-        const gem = C.bankGems(meta, g); save();
+        const gem = commit(m => C.bankGems(m, g));
         snd.play('clear'); if (!g.over) banner(`波 ${e.n} クリア！`, `💰+${e.bonus}${gem ? `　💎+${gem}` : ''}`, 'good'); break;
       }
       case 'aura': snd.play('boom'); if (e.any) banner(e.kind === 'fire' ? '🔥 タワーが もやされた！' : '🧊 タワーが こおった！', 'しばらく うごけない', 'warn'); break;
@@ -268,9 +280,7 @@ function handleEvents() {
 function finish() {
   if (resultShown) return;
   resultShown = true;
-  const win = g.over === 'win', res = C.applyResult(meta, g);
-  if (!meta.hint) meta.hint = 1;
-  save();
+  const win = g.over === 'win', res = commit(m => { m.hint = 1; return C.applyResult(m, g); });
   snd.setMusic(null); snd.play(win ? 'win' : g.over === 'lose' ? 'lose' : 'clear');
   const head = win ? '🎉 大しょうり！' : g.over === 'lose' ? 'おしろが やぶられた…' : 'ここまでに する';
   const sub = win ? 'おしろを 守りきった！' : g.cleared ? `でも ${g.cleared}この 波を のりきったよ！` : 'まちで 強く なって、もう一回！';
@@ -294,7 +304,7 @@ function pause() {
     <p class="have">ほう石は 波を クリアする たびに ちょきん されているよ（いま 💎${meta.gems}）</p>
     <button class="row-btn" id="pQuit">🏰 やめて まちへ</button>`);
   s.querySelector('#pGo').onclick = () => { paused = false; closeModal(); };
-  s.querySelector('#pSound').onclick = () => { meta.sound = !meta.sound; snd.setOn(meta.sound); save(); pause(); };
+  s.querySelector('#pSound').onclick = () => { commit(m => { m.sound = !m.sound; }); snd.setOn(meta.sound); pause(); };
   s.querySelector('#pQuit').onclick = () => { paused = false; g.over = 'quit'; finish(); };
 }
 $('pauseBtn').onclick = pause;
@@ -364,8 +374,11 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('resize', () => R.resize());
 window.addEventListener('orientationchange', () => setTimeout(() => R.resize(), 200));
-window.addEventListener('pagehide', save);
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); if (document.hidden && g && !g.over && !$('battle').hidden) pause(); });
+// ほかの タブで ほぞんされた／この タブに もどってきた → 読みなおして がめんを 新しく する
+function resync() { refresh(); snd.setOn(meta.sound); if (!$('town').hidden) renderTown(); if (!$('stages').hidden) renderStages(); }
+window.addEventListener('storage', e => { if (e.key === SAVE_KEY || e.key === null) resync(); });
+window.addEventListener('pageshow', resync);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) resync(); if (document.hidden && g && !g.over && !$('battle').hidden) pause(); });
 
 // ───────── まいフレーム ─────────
 function frame(ts) {
@@ -388,4 +401,4 @@ function frame(ts) {
 requestAnimationFrame(frame);
 
 // かくにん用（テストから のぞく）
-window.__mk = { get g() { return g; }, get meta() { return meta; }, set meta(m) { meta = C.loadMeta(m); save(); }, C, ui, startBattle, openTown, setSpeed: v => { speed = v; } };
+window.__mk = { get g() { return g; }, get meta() { return meta; }, set meta(m) { commit(x => Object.assign(x, C.loadMeta(m))); }, C, ui, startBattle, openTown, setSpeed: v => { speed = v; } };
